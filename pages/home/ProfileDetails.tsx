@@ -47,12 +47,16 @@ const ProfileDetails: React.FC<Props> = ({ route, navigation }) => {
   useEffect(() => {
     let interval = setInterval(() => {
       setProgress((p) => {
-        if (p >= 1) {
+        const newProgress = p + 0.01;
+        if (newProgress >= 1) {
           clearInterval(interval);
-          navigation.goBack();
+          // Use setTimeout to avoid setState during render
+          setTimeout(() => {
+            navigation.goBack();
+          }, 0);
           return 1;
         }
-        return p + 0.01;
+        return newProgress;
       });
     }, 50);
     return () => clearInterval(interval);

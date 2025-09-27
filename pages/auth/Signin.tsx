@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Polyline, Rect, Circle } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthRequest } from '@/types/api';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -18,12 +20,33 @@ type SignInScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signin
 
 const Signin: React.FC = () => {
   const navigation = useNavigation<SignInScreenNavigationProp>();
+  const { login, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSignIn = () => {
-    console.log('Sign in with:', { email, password });
-    navigation.navigate('Home');
+  const handleSignIn = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      const credentials: AuthRequest = {
+        identifier: email.trim(),
+        password: password.trim(),
+      };
+
+      const response = await login(credentials);
+      
+      if (response.success) {
+        navigation.navigate('Home');
+      } else {
+        Alert.alert('Login Failed', response.message || 'Invalid credentials');
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      Alert.alert('Login Failed', error.message || 'An error occurred during login');
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -112,8 +135,14 @@ const Signin: React.FC = () => {
                 <Text style={styles.forgotLink}>Forgot your password?</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.signinBtn} onPress={handleSignIn}>
-              <Text style={styles.signinBtnText}>Sign In</Text>
+            <TouchableOpacity 
+              style={[styles.signinBtn, isLoading && styles.signinBtnDisabled]} 
+              onPress={handleSignIn}
+              disabled={isLoading}
+            >
+              <Text style={styles.signinBtnText}>
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </Text>
             </TouchableOpacity>
           </View>
           <View style={styles.divider}>
@@ -308,6 +337,10 @@ const styles = StyleSheet.create({
     color: '#FF650E',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  signinBtnDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
 });
 

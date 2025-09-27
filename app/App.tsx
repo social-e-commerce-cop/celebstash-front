@@ -29,6 +29,8 @@ import TopUpScreen from '@/pages/wallet/TopupWallet';
 import TopupPinEntry from '@/pages/wallet/TopupConfirmation';
 import Messages from '@/pages/message/Messages';
 import Notifications from '@/pages/message/Notifications';
+import Profile from '@/pages/Profile';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 type AppStackParamList = {
   Splash: undefined;
@@ -42,7 +44,8 @@ type AppStackParamList = {
   ForgotPassword: undefined;
   CreatePassword: undefined;
   Home: undefined;
-   ProfileDetails: { story: { username: string; time: string; image: any } };
+  Profile: undefined;
+  ProfileDetails: { story: { username: string; time: string; image: any } };
   ProductDetails: undefined;
   ProductReviews: undefined;
   CartScreen: undefined;
@@ -79,40 +82,41 @@ const SplashScreenWrapper = () => {
 
 export default function App() {
   return (
-   <Stack.Navigator
-  initialRouteName="Splash"
-  screenOptions={{ headerShown: false } }
->
-  <Stack.Screen name="Splash" component={SplashScreenWrapper} />
-  <Stack.Screen name="OnBoarding" component={Onboarding} />
-  <Stack.Screen name="Signin" component={Signin} />
-  <Stack.Screen name="Signup" component={Signup} />
-   <Stack.Screen name="Verify" component={VerifyAccount} />
-   <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
-   <Stack.Screen name="Email" component={EmailAdressScreen} />
-   <Stack.Screen name="Verification" component={CodeVerification} />
-   <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-     <Stack.Screen name="CreatePassword" component={CreatePassword} />
-     <Stack.Screen name="Home" component={HomeScreen} />
-     <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
-     <Stack.Screen name="ProductDetails" component={ProductDetails} />
-     <Stack.Screen name="ProductReviews" component={ProductReviews} />
-     <Stack.Screen name="CartScreen" component={Cart} />
-     <Stack.Screen name="ActivePage" component={ActivePage} />
-     <Stack.Screen name="CompletePage" component={CompletePage} />
-     <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
-     <Stack.Screen name="PaymentMethods" component={PaymentMethods} />
-      <Stack.Screen name="PinEntry" component={PinEntry} />
-      <Stack.Screen name="TrackOrder" component={TrackOrder} />
-       <Stack.Screen name="Ewallet" component={EwalletScreen} />
+    <AuthProvider>
+      <Stack.Navigator
+        initialRouteName="Splash"
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="Splash" component={SplashScreenWrapper} />
+        <Stack.Screen name="OnBoarding" component={Onboarding} />
+        <Stack.Screen name="Signin" component={Signin} />
+        <Stack.Screen name="Signup" component={Signup} />
+        <Stack.Screen name="Verify" component={VerifyAccount} />
+        <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
+        <Stack.Screen name="Email" component={EmailAdressScreen} />
+        <Stack.Screen name="Verification" component={CodeVerification} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+        <Stack.Screen name="CreatePassword" component={CreatePassword} />
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Profile" component={Profile} />
+          <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
+        <Stack.Screen name="ProductDetails" component={ProductDetails} />
+        <Stack.Screen name="ProductReviews" component={ProductReviews} />
+        <Stack.Screen name="CartScreen" component={Cart} />
+        <Stack.Screen name="ActivePage" component={ActivePage} />
+        <Stack.Screen name="CompletePage" component={CompletePage} />
+        <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+        <Stack.Screen name="PaymentMethods" component={PaymentMethods} />
+        <Stack.Screen name="PinEntry" component={PinEntry} />
+        <Stack.Screen name="TrackOrder" component={TrackOrder} />
+        <Stack.Screen name="Ewallet" component={EwalletScreen} />
         <Stack.Screen name="TransactionSearch" component={TransactionsSearch} />
         <Stack.Screen name="TransactionDetails" component={TransactionsDetails} />
-         <Stack.Screen name="TopupWallet" component={TopUpScreen} />
-          <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
-           <Stack.Screen name="Messages" component={Messages} />
-          <Stack.Screen name="Notifications" component={Notifications} />
-</Stack.Navigator>
-
-
+        <Stack.Screen name="TopupWallet" component={TopUpScreen} />
+        <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
+        <Stack.Screen name="Messages" component={Messages} />
+        <Stack.Screen name="Notifications" component={Notifications} />
+      </Stack.Navigator>
+    </AuthProvider>
   );
 }

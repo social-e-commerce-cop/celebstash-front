@@ -18,6 +18,7 @@ type RootStackParamList = {
   CartScreen: undefined;
   Ewallet: undefined;
   Profile: undefined;
+  ProfileDetails: { story: { username: string; time: string; image: any } };
 };
 
 type TabBarNavigationProp = StackNavigationProp<RootStackParamList>;

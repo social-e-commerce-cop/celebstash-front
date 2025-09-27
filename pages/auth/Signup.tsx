@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Polyline, Rect, Circle } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
+import { SignupRequest } from '@/types/api';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -11,21 +13,101 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   Verify: undefined;
+  Verification: { identifier: string; fullName: string };
 };
 
 type SignUpScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signup'>;
 
 const Signup: React.FC = () => {
   const navigation = useNavigation<SignUpScreenNavigationProp>();
+  const { signup, isLoading } = useAuth();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSignUp = () => {
-    console.log('Sign up with:', { email, password, confirmPassword });
-    navigation.navigate('Verify');
-    // Navigate to a verification screen (not defined in AppStackParamList, so commented out)
-    // navigation.navigate('Verify');
+  const validateForm = (): boolean => {
+    if (!fullName.trim()) {
+      Alert.alert('Error', 'Please enter your full name');
+      return false;
+    }
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
+      return false;
+    }
+    if (!email.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return false;
+    }
+    if (!password.trim()) {
+      Alert.alert('Error', 'Please enter a password');
+      return false;
+    }
+    if (password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters long');
+      return false;
+    }
+    
+    // Backend password validation pattern
+    const passwordPattern = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\S+$).{8,}$/;
+    if (!passwordPattern.test(password)) {
+      Alert.alert(
+        'Password Requirements', 
+        'Password must contain:\n• At least 8 characters\n• At least one digit (0-9)\n• At least one lowercase letter (a-z)\n• At least one uppercase letter (A-Z)\n• At least one special character (@#$%^&+=!)\n• No whitespace'
+      );
+      return false;
+    }
+    
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSignUp = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      const signupData: SignupRequest = {
+        fullName: fullName.trim(),
+        identifier: email.trim(),
+        password: password.trim(),
+        confirmPassword: confirmPassword.trim(),
+      };
+
+      console.log('Sending signup data:', {
+        fullName: signupData.fullName,
+        identifier: signupData.identifier,
+        passwordLength: signupData.password.length,
+        confirmPasswordLength: signupData.confirmPassword.length
+      });
+
+      const response = await signup(signupData);
+      
+      if (response.success) {
+        Alert.alert(
+          'Signup Successful', 
+          'Please check your email for the verification code',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Verification', { 
+                identifier: email.trim(),
+                fullName: fullName.trim()
+              })
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Signup Failed', response.message || 'Failed to create account');
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      Alert.alert('Signup Failed', error.message || 'An error occurred during signup');
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -60,6 +142,27 @@ const Signup: React.FC = () => {
         </View>
         <View style={styles.formSection}>
           <View style={styles.signupForm}>
+            <View style={styles.inputGroup}>
+              <View style={styles.inputContainer}>
+                <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={styles.inputIcon}>
+                  <Path
+                    d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                  <Circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" fill="none" />
+                </Svg>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Full Name"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  autoCapitalize="words"
+                  placeholderTextColor="#999"
+                />
+              </View>
+            </View>
             <View style={styles.inputGroup}>
               <View style={styles.inputContainer}>
                 <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={styles.inputIcon}>
@@ -108,6 +211,11 @@ const Signup: React.FC = () => {
                   placeholderTextColor="#999"
                 />
               </View>
+              {password.length > 0 && (
+                <Text style={styles.passwordHint}>
+                  Password must contain: digit, lowercase, uppercase, special character, no spaces
+                </Text>
+              )}
             </View>
             <View style={styles.inputGroup}>
               <View style={styles.inputContainer}>
@@ -136,8 +244,14 @@ const Signup: React.FC = () => {
                 />
               </View>
             </View>
-            <TouchableOpacity style={styles.signupBtn} onPress={handleSignUp}>
-              <Text style={styles.signupBtnText}>Sign Up</Text>
+            <TouchableOpacity 
+              style={[styles.signupBtn, isLoading && styles.signupBtnDisabled]} 
+              onPress={handleSignUp}
+              disabled={isLoading}
+            >
+              <Text style={styles.signupBtnText}>
+                {isLoading ? 'Creating Account...' : 'Sign Up'}
+              </Text>
             </TouchableOpacity>
           </View>
           <View style={styles.divider}>
@@ -323,6 +437,16 @@ mb8: {
     color: '#FF650E',
     fontSize: 14,
     fontWeight: '600',
+  },
+  signupBtnDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginLeft: 4,
   },
 });
 

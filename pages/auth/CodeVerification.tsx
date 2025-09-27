@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
 import Svg, { Path, Stop, LinearGradient, Defs } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
+import { OtpVerificationRequest } from '@/types/api';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -14,6 +16,7 @@ type AppStackParamList = {
   PhoneNumber: undefined;
   Email: undefined;
   PhoneVerification: { phone: string };
+  Verification: { identifier: string; fullName: string };
 };
 
 type PhoneVerificationScreenNavigationProp = StackNavigationProp<AppStackParamList, 'PhoneVerification'>;
@@ -22,9 +25,9 @@ type PhoneVerificationScreenRouteProp = StackScreenProps<AppStackParamList, 'Pho
 const CodeVerification: React.FC = () => {
   const navigation = useNavigation<PhoneVerificationScreenNavigationProp>();
   const route = useRoute<PhoneVerificationScreenRouteProp>();
-  const { phone } = route.params || { phone: '' };
-  const [code, setCode] = useState(['', '', '', '']);
-  const [isLoading, setIsLoading] = useState(false);
+  const { verifyOtp, isLoading } = useAuth();
+  const { phone, identifier, fullName } = route.params || { phone: '', identifier: '', fullName: '' };
+  const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(28);
   const [canResend, setCanResend] = useState(false);
@@ -69,29 +72,40 @@ const CodeVerification: React.FC = () => {
 
   const handleConfirm = async () => {
     const verificationCode = code.join('');
-    if (verificationCode.length !== 4) {
+    if (verificationCode.length !== 6) {
       setError('Please enter the complete verification code');
       return;
     }
 
-    setIsLoading(true);
     setError('');
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const otpData: OtpVerificationRequest = {
+        identifier: identifier || phone,
+        otp: verificationCode,
+      };
 
-      if (verificationCode === '7423') {
-        console.log('Verification successful for phone:', phone);
-        // Replace with navigation to next screen, e.g., navigation.navigate('Home');
+      const response = await verifyOtp(otpData);
+      
+      if (response.success) {
+        Alert.alert(
+          'Verification Successful!',
+          'Your account has been created successfully.',
+          [
+            {
+              text: 'Continue',
+              onPress: () => navigation.navigate('Home')
+            }
+          ]
+        );
       } else {
-        setError('Invalid verification code. Please try again.');
+        setError(response.message || 'Invalid verification code. Please try again.');
         setCode(['', '', '', '']);
         inputRefs.current[0]?.current?.focus();
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
-    } finally {
-      setIsLoading(false);
+    } catch (error: any) {
+      console.error('OTP verification error:', error);
+      setError(error.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -301,12 +315,12 @@ const styles = StyleSheet.create({
   },
   codeInputs: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 68,
+    gap: 7,
+    marginBottom: 32,
   },
   codeInput: {
     width: 56,
-    height: 56,
+    height: 64,
     textAlign: 'center',
     fontSize: 20,
     fontWeight: '600',
