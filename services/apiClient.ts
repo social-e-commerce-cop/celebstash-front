@@ -1,6 +1,13 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { ENV } from '../config/environment';
 import { ApiError, ValidationErrorResponse } from '../types/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const AUTH_STORAGE_KEYS = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
+  USER_DATA: 'user_data',
+} as const;
 
 class ApiClient {
   private client: AxiosInstance;
@@ -21,9 +28,9 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
-      (config) => {
-        // Get token from storage (we'll implement this later)
-        const token = this.getStoredToken();
+      async (config) => {
+        // Get token from AsyncStorage
+        const token = await this.getStoredToken();
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -45,11 +52,15 @@ class ApiClient {
     );
   }
 
-  private getStoredToken(): string | null {
-    // TODO: Implement secure token storage
-    // For now, return null - we'll implement this in the auth service
-    return null;
+  private async getStoredToken(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN);
+    } catch (error) {
+      console.error('Failed to get stored access token:', error);
+      return null;
+    }
   }
+
 
   private handleError(error: AxiosError): Promise<never> {
     let apiError: ApiError;
