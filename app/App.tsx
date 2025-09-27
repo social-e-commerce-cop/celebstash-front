@@ -10,6 +10,7 @@ import PhoneNumber from '@/pages/auth/PhoneNumber';
 import EmailAdressScreen from '@/pages/auth/EmailScreen';
 import CodeVerification from '@/pages/auth/CodeVerification';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
+import PasswordResetOTP from '@/pages/auth/PasswordResetOTP';
 import CreatePassword from '@/pages/auth/CreatePassword';
 import HomeScreen from '@/pages/HomeScreen';
 import ProfileDetails from '@/pages/home/ProfileDetails';
@@ -42,7 +43,8 @@ type AppStackParamList = {
   Email: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
   ForgotPassword: undefined;
-  CreatePassword: { identifier: string };
+  PasswordResetOTP: { identifier: string };
+  CreatePassword: { identifier: string; verifiedOtp?: string };
   Home: undefined;
   Profile: undefined;
   ProfileDetails: { story: { username: string; time: string; image: any } };
@@ -96,6 +98,7 @@ export default function App() {
         <Stack.Screen name="Email" component={EmailAdressScreen} />
         <Stack.Screen name="Verification" component={CodeVerification} />
         <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+        <Stack.Screen name="PasswordResetOTP" component={PasswordResetOTP} />
         <Stack.Screen name="CreatePassword" component={CreatePassword} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Profile" component={Profile} />

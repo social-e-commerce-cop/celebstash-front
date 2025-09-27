@@ -19,7 +19,8 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined;
-  CreatePassword: { identifier: string };
+  PasswordResetOTP: { identifier: string };
+  CreatePassword: { identifier: string; verifiedOtp?: string };
 };
 
 type CreatePasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'CreatePassword'>;
@@ -29,8 +30,7 @@ const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
   const route = useRoute<CreatePasswordScreenRouteProp>();
   const { completePasswordReset } = useAuth();
-  const { identifier } = route.params;
-  const [otp, setOtp] = useState('');
+  const { identifier, verifiedOtp } = route.params;
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,11 +38,6 @@ const CreatePassword: React.FC = () => {
 
   const handleCreatePassword = async () => {
     setError('');
-
-    if (!otp.trim()) {
-      setError('Please enter the verification code');
-      return;
-    }
 
     if (!password.trim()) {
       setError('Please enter a new password');
@@ -68,9 +63,10 @@ const CreatePassword: React.FC = () => {
 
     setIsLoading(true);
     try {
+      // Use the verified OTP from the previous screen
       const resetData: PasswordResetRequest = {
         identifier: identifier,
-        otp: otp.trim(),
+        otp: verifiedOtp || '000000', // Use verified OTP or fallback
         newPassword: password.trim(),
         confirmPassword: confirmPassword.trim(),
       };
@@ -145,36 +141,14 @@ const CreatePassword: React.FC = () => {
 
         {/* Title and subtitle */}
         <View style={styles.textContent}>
-          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.title}>Create New Password</Text>
           <Text style={styles.subtitle}>
-            Enter the verification code sent to {identifier} and create a new password.
+            Create a new password for {identifier}
           </Text>
         </View>
 
         {/* Password input form */}
         <View style={styles.createPasswordForm}>
-          {/* OTP Input */}
-          <View style={styles.inputContainer}>
-            <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="none"
-              />
-              <Polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2" fill="none" />
-            </Svg>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter verification code"
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="numeric"
-              maxLength={6}
-              placeholderTextColor="#999"
-            />
-          </View>
-          
           <View style={styles.inputContainer}>
             <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
               <Rect

@@ -17,6 +17,7 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined; 
+  PasswordResetOTP: { identifier: string };
   CreatePassword: { identifier: string };
 };
 
@@ -50,7 +51,7 @@ const ForgotPassword: React.FC = () => {
           [
             {
               text: 'OK',
-              onPress: () => navigation.navigate('CreatePassword', { identifier: email.trim() })
+              onPress: () => navigation.navigate('PasswordResetOTP', { identifier: email.trim() })
             }
           ]
         );

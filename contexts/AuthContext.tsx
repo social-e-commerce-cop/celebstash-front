@@ -14,6 +14,7 @@ interface AuthContextType {
   verifyOtp: (otpData: OtpVerificationRequest) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   initiatePasswordReset: (identifier: string) => Promise<ApiResponse>;
+  verifyPasswordResetOtp: (otpData: OtpVerificationRequest) => Promise<ApiResponse>;
   completePasswordReset: (resetData: PasswordResetRequest) => Promise<ApiResponse>;
   refreshToken: () => Promise<AuthResponse>;
 }
@@ -129,6 +130,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const verifyPasswordResetOtp = async (otpData: OtpVerificationRequest): Promise<ApiResponse> => {
+    try {
+      setIsLoading(true);
+      return await authService.verifyPasswordResetOtp(otpData);
+    } catch (error) {
+      console.error('Password reset OTP verification error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const completePasswordReset = async (resetData: PasswordResetRequest): Promise<ApiResponse> => {
     try {
@@ -168,6 +181,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     verifyOtp,
     logout,
     initiatePasswordReset,
+    verifyPasswordResetOtp,
     completePasswordReset,
     refreshToken,
   };

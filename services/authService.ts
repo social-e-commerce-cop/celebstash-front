@@ -135,6 +135,15 @@ class AuthService {
     }
   }
 
+  async verifyPasswordResetOtp(otpData: OtpVerificationRequest): Promise<ApiResponse> {
+    try {
+      const response = await apiClient.post<ApiResponse>('/api/v1/auth/password-reset/verify-otp', otpData);
+      return response;
+    } catch (error) {
+      console.error('Password reset OTP verification error:', error);
+      throw error;
+    }
+  }
 
   async completePasswordReset(resetData: PasswordResetRequest): Promise<ApiResponse> {
     try {
