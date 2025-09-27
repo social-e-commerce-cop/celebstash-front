@@ -114,13 +114,23 @@ class AuthService {
     try {
       const refreshToken = await this.getStoredRefreshToken();
       if (refreshToken) {
-        await apiClient.post('/api/v1/auth/logout', {
-          refreshToken,
-        } as RefreshTokenRequest);
+        try {
+          await apiClient.post('/api/v1/auth/logout', {
+            refreshToken,
+          } as RefreshTokenRequest);
+        } catch (logoutError: any) {
+          // If logout fails due to invalid token, that's okay - we still want to clear local auth
+          if (logoutError.status === 400 && logoutError.message?.includes('Invalid token')) {
+            console.log('Refresh token was invalid, proceeding with local logout');
+          } else {
+            console.error('Logout error:', logoutError);
+          }
+        }
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Always clear local auth data regardless of server response
       await this.clearAuth();
     }
   }

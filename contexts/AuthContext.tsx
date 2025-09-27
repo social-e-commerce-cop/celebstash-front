@@ -112,7 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
-      throw error;
+      // Don't throw error - logout should always succeed locally
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
