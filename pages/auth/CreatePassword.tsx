@@ -19,7 +19,7 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined;
-  CreatePassword: { email: string };
+  CreatePassword: { identifier: string };
 };
 
 type CreatePasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'CreatePassword'>;
@@ -29,7 +29,7 @@ const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
   const route = useRoute<CreatePasswordScreenRouteProp>();
   const { completePasswordReset } = useAuth();
-  const { email } = route.params;
+  const { identifier } = route.params;
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -69,7 +69,7 @@ const CreatePassword: React.FC = () => {
     setIsLoading(true);
     try {
       const resetData: PasswordResetRequest = {
-        identifier: email,
+        identifier: identifier,
         otp: otp.trim(),
         newPassword: password.trim(),
         confirmPassword: confirmPassword.trim(),
@@ -145,9 +145,9 @@ const CreatePassword: React.FC = () => {
 
         {/* Title and subtitle */}
         <View style={styles.textContent}>
-          <Text style={styles.title}>Create New Password</Text>
+          <Text style={styles.title}>Reset Password</Text>
           <Text style={styles.subtitle}>
-            Your new password must be different from previous used passwords.
+            Enter the verification code sent to {identifier} and create a new password.
           </Text>
         </View>
 

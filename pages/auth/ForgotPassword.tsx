@@ -17,7 +17,7 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined; 
-  CreatePassword: { email: string};
+  CreatePassword: { identifier: string };
 };
 
 type ForgotPasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'ForgotPassword'>;
@@ -50,7 +50,7 @@ const ForgotPassword: React.FC = () => {
           [
             {
               text: 'OK',
-              onPress: () => navigation.navigate('CreatePassword', { email: email.trim() })
+              onPress: () => navigation.navigate('CreatePassword', { identifier: email.trim() })
             }
           ]
         );

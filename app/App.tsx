@@ -42,7 +42,7 @@ type AppStackParamList = {
   Email: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
   ForgotPassword: undefined;
-  CreatePassword: undefined;
+  CreatePassword: { identifier: string };
   Home: undefined;
   Profile: undefined;
   ProfileDetails: { story: { username: string; time: string; image: any } };

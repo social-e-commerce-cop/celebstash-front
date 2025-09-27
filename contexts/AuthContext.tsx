@@ -129,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+
   const completePasswordReset = async (resetData: PasswordResetRequest): Promise<ApiResponse> => {
     try {
       setIsLoading(true);

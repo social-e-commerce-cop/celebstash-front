@@ -135,6 +135,7 @@ class AuthService {
     }
   }
 
+
   async completePasswordReset(resetData: PasswordResetRequest): Promise<ApiResponse> {
     try {
       const response = await apiClient.post<ApiResponse>('/api/v1/auth/password-reset/complete', resetData);
