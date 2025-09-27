@@ -11,9 +11,9 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: { fullName: string; email: string; password: string };
-  PhoneNumber: undefined;
-  Email: undefined;
+  Verify: { fullName: string; password: string };
+  PhoneNumber: { fullName: string; password: string };
+  Email: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
 };
 
@@ -24,40 +24,20 @@ const VerifyIdentity: React.FC = () => {
   const navigation = useNavigation<VerifyIdentityScreenNavigationProp>();
   const route = useRoute<VerifyIdentityScreenRouteProp>();
   const { signup } = useAuth();
-  const { fullName, email, password } = route.params;
+  const { fullName, password } = route.params;
   const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('email');
 
-  const handleContinue = async () => {
-    try {
-      // Initiate signup with the backend
-      const signupData = {
+  const handleContinue = () => {
+    // Navigate based on selected method
+    if (selectedMethod === 'phone') {
+      navigation.navigate('PhoneNumber', {
         fullName,
-        identifier: email,
-        password,
-        confirmPassword: password,
-      };
-
-      const response = await signup(signupData);
-      
-      if (response.success) {
-        // Navigate to verification screen with the email
-        navigation.navigate('Verification', {
-          identifier: email,
-          fullName: fullName
-        });
-      } else {
-        // Handle error - for now just navigate to verification
-        navigation.navigate('Verification', {
-          identifier: email,
-          fullName: fullName
-        });
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
-      // Navigate to verification screen anyway
-      navigation.navigate('Verification', {
-        identifier: email,
-        fullName: fullName
+        password
+      });
+    } else {
+      navigation.navigate('Email', {
+        fullName,
+        password
       });
     }
   };

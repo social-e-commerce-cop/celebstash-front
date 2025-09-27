@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
 import Svg, { Path } from 'react-native-svg';
 import { Picker } from '@react-native-picker/picker';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -11,26 +12,49 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: { fullName: string; email: string; password: string };
-  PhoneNumber: undefined;
-  Email: undefined;
+  Verify: { fullName: string; password: string };
+  PhoneNumber: { fullName: string; password: string };
+  Email: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
 };
 
 type PhoneNumberScreenNavigationProp = StackNavigationProp<AppStackParamList, 'PhoneNumber'>;
+type PhoneNumberScreenRouteProp = StackScreenProps<AppStackParamList, 'PhoneNumber'>['route'];
 
 const PhoneNumber: React.FC = () => {
   const navigation = useNavigation<PhoneNumberScreenNavigationProp>();
+  const route = useRoute<PhoneNumberScreenRouteProp>();
+  const { signup } = useAuth();
+  const { fullName, password } = route.params;
   const [phoneNumber, setPhoneNumber] = useState('787 289 178');
   const [countryCode, setCountryCode] = useState('+250');
 
-  const handleContinue = () => {
-    if (phoneNumber.trim()) {
-      console.log('Continue with:', `${countryCode} ${phoneNumber}`);
-      navigation.navigate("Verification", {
+  const handleContinue = async () => {
+    if (!phoneNumber.trim()) return;
+
+    try {
+      // Initiate signup with the backend
+      const signupData = {
+        fullName,
         identifier: `${countryCode} ${phoneNumber}`,
-        fullName: 'User' // This should come from the previous screen
-      });
+        password,
+        confirmPassword: password,
+      };
+
+      const response = await signup(signupData);
+      
+      if (response.success) {
+        // Navigate to verification screen
+        navigation.navigate("Verification", {
+          identifier: `${countryCode} ${phoneNumber}`,
+          fullName: fullName
+        });
+      } else {
+        Alert.alert('Signup Failed', response.message || 'Failed to create account');
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      Alert.alert('Signup Failed', error.message || 'An error occurred during signup');
     }
   };
 

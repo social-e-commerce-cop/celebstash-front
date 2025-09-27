@@ -37,9 +37,9 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: { fullName: string; email: string; password: string };
-  PhoneNumber: undefined;
-  Email: undefined;
+  Verify: { fullName: string; password: string };
+  PhoneNumber: { fullName: string; password: string };
+  Email: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
   ForgotPassword: undefined;
   CreatePassword: undefined;

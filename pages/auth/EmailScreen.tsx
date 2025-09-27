@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
 import Svg, { Path, Polyline } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -10,17 +11,21 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: { fullName: string; email: string; password: string };
-  PhoneNumber: undefined;
-  Email: undefined;
+  Verify: { fullName: string; password: string };
+  PhoneNumber: { fullName: string; password: string };
+  Email: { fullName: string; password: string };
   PhoneVerification: { phone: string };
   Verification: { identifier: string; fullName: string };
 };
 
 type EmailAddressScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Email'>;
+type EmailAddressScreenRouteProp = StackScreenProps<AppStackParamList, 'Email'>['route'];
 
 const EmailAddressScreen: React.FC = () => {
   const navigation = useNavigation<EmailAddressScreenNavigationProp>();
+  const route = useRoute<EmailAddressScreenRouteProp>();
+  const { signup } = useAuth();
+  const { fullName, password } = route.params;
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,13 +38,28 @@ const EmailAddressScreen: React.FC = () => {
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      navigation.navigate('Verification', { 
+      // Initiate signup with the backend
+      const signupData = {
+        fullName,
         identifier: email,
-        fullName: 'User' // This should come from the previous screen
-      });
-    } catch {
-      // Handle error if needed
+        password,
+        confirmPassword: password,
+      };
+
+      const response = await signup(signupData);
+      
+      if (response.success) {
+        // Navigate to verification screen
+        navigation.navigate('Verification', { 
+          identifier: email,
+          fullName: fullName
+        });
+      } else {
+        Alert.alert('Signup Failed', response.message || 'Failed to create account');
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      Alert.alert('Signup Failed', error.message || 'An error occurred during signup');
     } finally {
       setIsLoading(false);
     }

@@ -96,7 +96,7 @@ const CodeVerification: React.FC = () => {
           [
             {
               text: 'Continue',
-              onPress: () => navigation.navigate('Home' as any)
+              onPress: () => navigation.navigate('Signin' as any)
             }
           ]
         );

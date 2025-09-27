@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
+import Svg, { Path, Rect, Circle, Polyline } from 'react-native-svg';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { useAuth } from '@/contexts/AuthContext';
+import { PasswordResetRequest } from '@/types/api';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -17,13 +19,18 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined;
-  CreatePassword: undefined; // Added to support navigation
+  CreatePassword: { email: string };
 };
 
 type CreatePasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'CreatePassword'>;
+type CreatePasswordScreenRouteProp = StackScreenProps<AppStackParamList, 'CreatePassword'>['route'];
 
 const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
+  const route = useRoute<CreatePasswordScreenRouteProp>();
+  const { completePasswordReset } = useAuth();
+  const { email } = route.params;
+  const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -32,8 +39,25 @@ const CreatePassword: React.FC = () => {
   const handleCreatePassword = async () => {
     setError('');
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (!otp.trim()) {
+      setError('Please enter the verification code');
+      return;
+    }
+
+    if (!password.trim()) {
+      setError('Please enter a new password');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    // Backend password validation pattern
+    const passwordPattern = /^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\S+$).{8,}$/;
+    if (!passwordPattern.test(password)) {
+      setError('Password must contain: digit, lowercase, uppercase, special character, no spaces');
       return;
     }
 
@@ -44,11 +68,32 @@ const CreatePassword: React.FC = () => {
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Create new password:', password);
-      // Optionally navigate to another screen, e.g., navigation.navigate('Signin');
-    } catch {
-      setError('Something went wrong. Please try again.');
+      const resetData: PasswordResetRequest = {
+        identifier: email,
+        otp: otp.trim(),
+        newPassword: password.trim(),
+        confirmPassword: confirmPassword.trim(),
+      };
+
+      const response = await completePasswordReset(resetData);
+      
+      if (response.success) {
+        Alert.alert(
+          'Password Reset Successful',
+          'Your password has been reset successfully. Please log in with your new password.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Signin')
+            }
+          ]
+        );
+      } else {
+        setError(response.message || 'Failed to reset password');
+      }
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      setError(error.message || 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -108,6 +153,28 @@ const CreatePassword: React.FC = () => {
 
         {/* Password input form */}
         <View style={styles.createPasswordForm}>
+          {/* OTP Input */}
+          <View style={styles.inputContainer}>
+            <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+              />
+              <Polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2" fill="none" />
+            </Svg>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter verification code"
+              value={otp}
+              onChangeText={setOtp}
+              keyboardType="numeric"
+              maxLength={6}
+              placeholderTextColor="#999"
+            />
+          </View>
+          
           <View style={styles.inputContainer}>
             <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
               <Rect

@@ -12,7 +12,7 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: { fullName: string; email: string; password: string };
+  Verify: { fullName: string; password: string };
   Verification: { identifier: string; fullName: string };
 };
 
@@ -22,21 +22,12 @@ const Signup: React.FC = () => {
   const navigation = useNavigation<SignUpScreenNavigationProp>();
   const { signup, isLoading } = useAuth();
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const validateForm = (): boolean => {
     if (!fullName.trim()) {
       Alert.alert('Error', 'Please enter your full name');
-      return false;
-    }
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
-      return false;
-    }
-    if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
       return false;
     }
     if (!password.trim()) {
@@ -71,36 +62,14 @@ const Signup: React.FC = () => {
     }
 
     try {
-      const signupData: SignupRequest = {
+      // Navigate to verification method choice screen
+      navigation.navigate('Verify', {
         fullName: fullName.trim(),
-        identifier: email.trim(),
-        password: password.trim(),
-        confirmPassword: confirmPassword.trim(),
-      };
-
-      console.log('Sending signup data:', {
-        fullName: signupData.fullName,
-        identifier: signupData.identifier,
-        passwordLength: signupData.password.length,
-        confirmPasswordLength: signupData.confirmPassword.length
+        password: password.trim()
       });
-
-      const response = await signup(signupData);
-      
-      if (response.success) {
-        // Store signup data for later use
-        // Navigate to email/phone choice screen
-        navigation.navigate('Verify', {
-          fullName: fullName.trim(),
-          email: email.trim(),
-          password: password.trim()
-        });
-      } else {
-        Alert.alert('Signup Failed', response.message || 'Failed to create account');
-      }
     } catch (error: any) {
-      console.error('Signup error:', error);
-      Alert.alert('Signup Failed', error.message || 'An error occurred during signup');
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'An error occurred. Please try again.');
     }
   };
 
@@ -153,28 +122,6 @@ const Signup: React.FC = () => {
                   value={fullName}
                   onChangeText={setFullName}
                   autoCapitalize="words"
-                  placeholderTextColor="#999"
-                />
-              </View>
-            </View>
-            <View style={styles.inputGroup}>
-              <View style={styles.inputContainer}>
-                <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={styles.inputIcon}>
-                  <Path
-                    d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                  />
-                  <Polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2" fill="none" />
-                </Svg>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
                   placeholderTextColor="#999"
                 />
               </View>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -23,19 +24,42 @@ type ForgotPasswordScreenNavigationProp = StackNavigationProp<AppStackParamList,
 
 const ForgotPassword: React.FC = () => {
   const navigation = useNavigation<ForgotPasswordScreenNavigationProp>();
+  const { initiatePasswordReset } = useAuth();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSendEmail = async () => {
-    if (!email) return;
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Send reset email to:', email);
-      navigation.navigate('CreatePassword', { email });
-    } catch {
-      // Handle error if needed
+      const response = await initiatePasswordReset(email.trim());
+      
+      if (response.success) {
+        Alert.alert(
+          'Reset Code Sent',
+          'Please check your email for the password reset code',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('CreatePassword', { email: email.trim() })
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', response.message || 'Failed to send reset code');
+      }
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      Alert.alert('Error', error.message || 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
