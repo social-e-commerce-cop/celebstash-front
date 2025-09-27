@@ -12,7 +12,7 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
+  Verify: { fullName: string; email: string; password: string };
   Verification: { identifier: string; fullName: string };
 };
 
@@ -88,19 +88,13 @@ const Signup: React.FC = () => {
       const response = await signup(signupData);
       
       if (response.success) {
-        Alert.alert(
-          'Signup Successful', 
-          'Please check your email for the verification code',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('Verification', { 
-                identifier: email.trim(),
-                fullName: fullName.trim()
-              })
-            }
-          ]
-        );
+        // Store signup data for later use
+        // Navigate to email/phone choice screen
+        navigation.navigate('Verify', {
+          fullName: fullName.trim(),
+          email: email.trim(),
+          password: password.trim()
+        });
       } else {
         Alert.alert('Signup Failed', response.message || 'Failed to create account');
       }

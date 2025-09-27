@@ -19,19 +19,21 @@ type AppStackParamList = {
   Verification: { identifier: string; fullName: string };
 };
 
-type PhoneVerificationScreenNavigationProp = StackNavigationProp<AppStackParamList, 'PhoneVerification'>;
-type PhoneVerificationScreenRouteProp = StackScreenProps<AppStackParamList, 'PhoneVerification'>['route'];
+type PhoneVerificationScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Verification'>;
+type PhoneVerificationScreenRouteProp = StackScreenProps<AppStackParamList, 'Verification'>['route'];
 
 const CodeVerification: React.FC = () => {
   const navigation = useNavigation<PhoneVerificationScreenNavigationProp>();
   const route = useRoute<PhoneVerificationScreenRouteProp>();
   const { verifyOtp, isLoading } = useAuth();
-  const { phone, identifier, fullName } = route.params || { phone: '', identifier: '', fullName: '' };
+  const { identifier, fullName } = route.params || { identifier: '', fullName: '' };
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(28);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<(React.RefObject<TextInput | null>)[]>([
+    React.createRef<TextInput | null>(),
+    React.createRef<TextInput | null>(),
     React.createRef<TextInput | null>(),
     React.createRef<TextInput | null>(),
     React.createRef<TextInput | null>(),
@@ -59,7 +61,7 @@ const CodeVerification: React.FC = () => {
     setCode(newCode);
     setError('');
 
-    if (value && index < 3) {
+    if (value && index < 5) {
       inputRefs.current[index + 1]?.current?.focus();
     }
   };
@@ -81,7 +83,7 @@ const CodeVerification: React.FC = () => {
 
     try {
       const otpData: OtpVerificationRequest = {
-        identifier: identifier || phone,
+        identifier: identifier,
         otp: verificationCode,
       };
 
@@ -94,13 +96,13 @@ const CodeVerification: React.FC = () => {
           [
             {
               text: 'Continue',
-              onPress: () => navigation.navigate('Home')
+              onPress: () => navigation.navigate('Home' as any)
             }
           ]
         );
       } else {
         setError(response.message || 'Invalid verification code. Please try again.');
-        setCode(['', '', '', '']);
+        setCode(['', '', '', '', '', '']);
         inputRefs.current[0]?.current?.focus();
       }
     } catch (error: any) {
@@ -112,17 +114,14 @@ const CodeVerification: React.FC = () => {
   const handleResendCode = async () => {
     if (!canResend) return;
 
-    setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setCountdown(28);
       setCanResend(false);
-      setCode(['', '', '', '']);
+      setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.current?.focus();
     } catch {
       setError('Failed to resend code. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
 

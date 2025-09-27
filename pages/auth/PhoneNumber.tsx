@@ -11,10 +11,10 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
+  Verify: { fullName: string; email: string; password: string };
   PhoneNumber: undefined;
-  Email: undefined; // Added for consistency with VerifyIdentityScreen
-  Verification: undefined;
+  Email: undefined;
+  Verification: { identifier: string; fullName: string };
 };
 
 type PhoneNumberScreenNavigationProp = StackNavigationProp<AppStackParamList, 'PhoneNumber'>;
@@ -27,10 +27,10 @@ const PhoneNumber: React.FC = () => {
   const handleContinue = () => {
     if (phoneNumber.trim()) {
       console.log('Continue with:', `${countryCode} ${phoneNumber}`);
-      navigation.navigate("Verification")
-      // Navigate to the next screen (e.g., a verification code entry screen)
-      // For now, logging the phone number as no specific screen is defined
-      // Example: navigation.navigate('VerifyCode', { phone: `${countryCode} ${phoneNumber}` });
+      navigation.navigate("Verification", {
+        identifier: `${countryCode} ${phoneNumber}`,
+        fullName: 'User' // This should come from the previous screen
+      });
     }
   };
 

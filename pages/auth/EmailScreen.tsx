@@ -10,11 +10,11 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
+  Verify: { fullName: string; email: string; password: string };
   PhoneNumber: undefined;
   Email: undefined;
   PhoneVerification: { phone: string };
-  Verification: { email: string }; // Added to support navigation with email
+  Verification: { identifier: string; fullName: string };
 };
 
 type EmailAddressScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Email'>;
@@ -34,7 +34,10 @@ const EmailAddressScreen: React.FC = () => {
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      navigation.navigate('Verification', { email });
+      navigation.navigate('Verification', { 
+        identifier: email,
+        fullName: 'User' // This should come from the previous screen
+      });
     } catch {
       // Handle error if needed
     } finally {

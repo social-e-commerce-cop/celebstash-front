@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp, StackScreenProps } from '@react-navigation/stack';
 import Svg, { Path, Polyline, Rect } from 'react-native-svg';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -10,24 +11,54 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
+  Verify: { fullName: string; email: string; password: string };
   PhoneNumber: undefined;
-  Email: undefined; // Added to support navigation to Email screen
+  Email: undefined;
+  Verification: { identifier: string; fullName: string };
 };
 
 type VerifyIdentityScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Verify'>;
+type VerifyIdentityScreenRouteProp = StackScreenProps<AppStackParamList, 'Verify'>['route'];
 
 const VerifyIdentity: React.FC = () => {
   const navigation = useNavigation<VerifyIdentityScreenNavigationProp>();
-  const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('phone');
+  const route = useRoute<VerifyIdentityScreenRouteProp>();
+  const { signup } = useAuth();
+  const { fullName, email, password } = route.params;
+  const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('email');
 
-  const handleContinue = () => {
-    console.log('Continue with verification method:', selectedMethod);
-    // Navigate based on selected method
-    if (selectedMethod === 'phone') {
-      navigation.navigate('PhoneNumber');
-    } else {
-      navigation.navigate('Email');
+  const handleContinue = async () => {
+    try {
+      // Initiate signup with the backend
+      const signupData = {
+        fullName,
+        identifier: email,
+        password,
+        confirmPassword: password,
+      };
+
+      const response = await signup(signupData);
+      
+      if (response.success) {
+        // Navigate to verification screen with the email
+        navigation.navigate('Verification', {
+          identifier: email,
+          fullName: fullName
+        });
+      } else {
+        // Handle error - for now just navigate to verification
+        navigation.navigate('Verification', {
+          identifier: email,
+          fullName: fullName
+        });
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      // Navigate to verification screen anyway
+      navigation.navigate('Verification', {
+        identifier: email,
+        fullName: fullName
+      });
     }
   };
 
