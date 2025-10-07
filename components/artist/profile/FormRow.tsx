@@ -21,6 +21,7 @@ interface FormRowProps {
   type?: 'default' | 'numeric';
   options?: Option[];
   multiline?: boolean;
+  showBottomBorder?: boolean; // new prop
 }
 
 const FormRow: React.FC<FormRowProps> = ({
@@ -31,6 +32,7 @@ const FormRow: React.FC<FormRowProps> = ({
   type = 'default',
   options,
   multiline = false,
+  showBottomBorder = true, // default is true
 }) => {
   const [fieldValue, setFieldValue] = useState<string | number>(value || '');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -49,7 +51,10 @@ const FormRow: React.FC<FormRowProps> = ({
         {options ? (
           <>
             <TouchableOpacity
-              style={styles.input}
+              style={[
+                styles.input,
+                !showBottomBorder && { borderBottomWidth: 0 }, // conditional
+              ]}
               onPress={() => setDropdownOpen(!dropdownOpen)}
             >
               <Text style={{ color: fieldValue ? '#000' : '#303030', fontSize: 16 }}>
@@ -77,7 +82,11 @@ const FormRow: React.FC<FormRowProps> = ({
           </>
         ) : (
           <TextInput
-            style={[styles.input, multiline && styles.multilineInput]}
+            style={[
+              styles.input,
+              multiline && styles.multilineInput,
+              !showBottomBorder && { borderBottomWidth: 0 }, // conditional
+            ]}
             value={fieldValue.toString()}
             onChangeText={handleChange as (text: string) => void}
             placeholder={placeholder}
@@ -100,7 +109,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   label: {
-    flex: 1, // takes 1 part of the row
+    flex: 1,
     fontSize: 16,
     color: '#000',
     marginTop: 7,
@@ -108,7 +117,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   inputWrapper: {
-    flex: 3, // takes 2 parts of the row
+    flex: 3,
   },
   input: {
     borderBottomWidth: 1,

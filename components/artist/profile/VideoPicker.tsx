@@ -3,62 +3,69 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
+  ScrollView,
   Modal,
   StyleSheet,
   Dimensions,
-  ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { Video } from "expo-av";
 
-interface ImagePickerRowProps {
-  images: string[];
-  onChange: (newImages: string[]) => void;
+interface VideoPickerRowProps {
+  videos: string[];
+  onChange: (newVideos: string[]) => void;
 }
 
 const { width, height } = Dimensions.get("window");
 
-const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => {
+const VideoPickerRow: React.FC<VideoPickerRowProps> = ({ videos, onChange }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
-  const pickImage = async () => {
+  const pickVideo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       quality: 1,
       allowsMultipleSelection: false,
     });
 
     if (!result.canceled) {
       const uri = result.assets[0].uri;
-      onChange([...images, uri]);
+      onChange([...videos, uri]);
     }
   };
 
-  const removeImage = (uri: string) =>
-    onChange(images.filter((img) => img !== uri));
+  const removeVideo = (uri: string) =>
+    onChange(videos.filter((v) => v !== uri));
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        {/* Left Section: Photos label */}
+        {/* Left Section: Videos label */}
         <View style={styles.leftSection}>
-          <Text style={styles.label}>Photoes</Text>
+          <Text style={styles.label}>Video</Text>
         </View>
 
         {/* Right Section: Button + thumbnails */}
         <View style={styles.rightSection}>
-          <TouchableOpacity onPress={pickImage} style={styles.selectImageButton}>
-            <Text style={styles.selectImageText}>Select Image</Text>
+          <TouchableOpacity onPress={pickVideo} style={styles.selectButton}>
+            <Text style={styles.selectButtonText}>Select Video</Text>
           </TouchableOpacity>
 
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.imageRow}
+            contentContainerStyle={styles.videoRow}
           >
-            {images.map((uri, idx) => (
+            {videos.map((uri, idx) => (
               <TouchableOpacity key={idx} onPress={() => setPreviewUri(uri)}>
-                <Image source={{ uri }} style={styles.thumbnail} />
+                <View style={styles.thumbnail}>
+                  <Video
+                    source={{ uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    isMuted
+                    shouldPlay={false}
+                  />
+                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -68,16 +75,25 @@ const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => 
       {/* Modal Preview */}
       <Modal visible={!!previewUri} transparent animationType="fade">
         <View style={styles.modal}>
-          <Image source={{ uri: previewUri ?? "" }} style={styles.modalImage} />
+          {previewUri && (
+        <Video
+  source={{ uri: previewUri }}
+  style={styles.modalVideo}
+  useNativeControls
+  isLooping
+/>
+          )}
+
           <TouchableOpacity
             onPress={() => setPreviewUri(null)}
             style={styles.modalButton}
           >
             <Text style={styles.modalButtonText}>Close</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => {
-              if (previewUri) removeImage(previewUri);
+              if (previewUri) removeVideo(previewUri);
               setPreviewUri(null);
             }}
             style={[styles.modalButton, { backgroundColor: "red" }]}
@@ -93,32 +109,33 @@ const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: width * 0.06,
-    paddingTop: height * 0.06,
+    paddingTop: height * 0.03,
+    marginBottom: height * 0.04,
   },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
   },
   leftSection: {
-    width: width * 0.25, // 25% for the label
+    width: width * 0.25,
     justifyContent: "flex-start",
   },
   rightSection: {
-    width: width * 0.65, // 70% for button + thumbnails
+    width: width * 0.65,
   },
   label: {
     fontSize: width * 0.045,
     fontWeight: "600",
   },
-  selectImageButton: {
+  selectButton: {
     alignSelf: "flex-start",
   },
-  selectImageText: {
+  selectButtonText: {
     fontSize: width * 0.045,
     color: "#FF6600",
     fontWeight: "600",
   },
-  imageRow: {
+  videoRow: {
     alignItems: "center",
   },
   thumbnail: {
@@ -128,6 +145,7 @@ const styles = StyleSheet.create({
     marginRight: width * 0.03,
     backgroundColor: "#f0f0f0",
     marginTop: height * 0.025,
+    overflow: "hidden",
   },
   modal: {
     flex: 1,
@@ -135,17 +153,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalImage: {
+  modalVideo: {
     width: width * 0.8,
     height: height * 0.5,
-    resizeMode: "contain",
+    borderRadius: 12,
+    backgroundColor: "#000",
   },
   modalButton: {
     marginTop: height * 0.02,
-    paddingHorizontal: width * 0.06,
+    paddingHorizontal: width * 0.07,
     paddingVertical: height * 0.015,
     borderRadius: width * 0.02,
-    backgroundColor: "#FF6600",
+    backgroundColor: "#e5dfdaff",
   },
   modalButtonText: {
     color: "white",
@@ -154,4 +173,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ImagePickerRow;
+export default VideoPickerRow;

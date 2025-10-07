@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold'
   },
   balanceAmount: {
-    color: '#fff',
+    color: '#FF650E',
     fontSize: 24,
     fontWeight: 'bold',
   },

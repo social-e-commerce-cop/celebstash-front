@@ -18,7 +18,7 @@ interface ImagePickerRowProps {
 
 const { width, height } = Dimensions.get("window");
 
-const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => {
+const CoverImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
   const pickImage = async () => {
@@ -30,7 +30,8 @@ const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => 
 
     if (!result.canceled) {
       const uri = result.assets[0].uri;
-      onChange([...images, uri]);
+      // Replace the array with the new image instead of appending
+      onChange([uri]);
     }
   };
 
@@ -42,7 +43,7 @@ const ImagePickerRow: React.FC<ImagePickerRowProps> = ({ images, onChange }) => 
       <View style={styles.row}>
         {/* Left Section: Photos label */}
         <View style={styles.leftSection}>
-          <Text style={styles.label}>Photoes</Text>
+          <Text style={styles.label}>Cover Image</Text>
         </View>
 
         {/* Right Section: Button + thumbnails */}
@@ -94,6 +95,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: width * 0.06,
     paddingTop: height * 0.06,
+    marginBottom: height * 0.03,
   },
   row: {
     flexDirection: "row",
@@ -154,4 +156,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ImagePickerRow;
+export default CoverImagePickerRow;

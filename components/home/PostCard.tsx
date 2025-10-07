@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   timeAgo: { fontSize: width * 0.035, color: '#666' },
   mateButton: { backgroundColor: '#FF650E26', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   mateText: { color: '#FF650E', fontSize: width * 0.035, fontWeight: '500' },
-  postText: { fontSize: width * 0.04, lineHeight: width * 0.056, color: '#000', marginBottom: 15 },
+  postText: { fontSize: width * 0.04, lineHeight: width * 0.056, color: '#000', marginBottom: 15, fontWeight: 'bold' },
   readMoreText: { color: '#555', fontWeight: 'bold', marginTop: -10, marginBottom: 15 },
   mainImageContainer: { position: 'relative', marginBottom: 12 },
   mainImage: { width: '100%', height: width * 0.35, borderRadius: 20 },

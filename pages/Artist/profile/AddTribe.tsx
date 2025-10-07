@@ -1,26 +1,15 @@
 import FormRow from "@/components/artist/profile/FormRow";
 import Header from "@/components/artist/profile/Header";
-import ImagePickerRow from "@/components/artist/profile/ImagePickerRow";
-import VideoPickerRow from "@/components/artist/profile/VideoPicker";
+import CoverImagePickerRow from "@/components/artist/profile/TribeCoverImage";
 import React, { useState } from "react";
-import { ScrollView, KeyboardAvoidingView, Platform, Alert, StyleSheet, View, StatusBar } from "react-native";
+import { ScrollView, KeyboardAvoidingView, Platform, Alert, StyleSheet, View, StatusBar, TouchableOpacity, Dimensions, Text } from "react-native";
 
-interface FormData {
-  name: string;
-  price: string;
-  gender: string;
-  description: string;
-  links: string;
-}
+const { width, height } = Dimensions.get("window");
 
-const CreatePostScreen = ({ navigation }: any) => {
+const CreateTribeScreen = ({ navigation }: any) => {
   const [images, setImages] = useState<string[]>([]);
   const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [gender, setGender] = useState("Female");
   const [description, setDescription] = useState("");
-  const [links, setLinks] = useState("");
-    const [videos, setVideos] = useState<string[]>([]);
 
 const [formData, setFormData] = useState({
     name: '',
@@ -36,12 +25,12 @@ const [formData, setFormData] = useState({
 
 
   const validateAndSubmit = () => {
-    if (!name || !price) {
+    if (!name ) {
       Alert.alert("Error", "Name and Price are required!");
       return;
     }
-    console.log({ name, price, gender, description, links, images });
-    Alert.alert("Success", "Post created successfully!");
+    console.log({ name, description,  images });
+    Alert.alert("Success", "Tribe created successfully!");
   };
 
 
@@ -53,17 +42,13 @@ const [formData, setFormData] = useState({
     >
       <StatusBar barStyle="dark-content" backgroundColor="#000" />
       <Header
-      title="Create Post"
+      title="Create Tribe"
         onBack={() => navigation.goBack()}
         onDone={validateAndSubmit}
-        doneDisabled={!name || !price}
+        doneDisabled={!name }
       />
       <ScrollView>
-        <ImagePickerRow images={images} onChange={setImages} />
-        <VideoPickerRow 
-        videos={videos} 
-        onChange={(newVideos) => setVideos(newVideos)} 
-      />
+        <CoverImagePickerRow images={images} onChange={setImages} />
           <View style={styles.separator}></View>
         <FormRow
         label="Name"
@@ -72,42 +57,34 @@ const [formData, setFormData] = useState({
         placeholder="Enter name of your product"
       />
       <FormRow
-        label="Price"
-        value={formData.price}
-        onChange={(value) => handleChange('price', value)}
-        placeholder="Enter price of your product"
-        type="numeric"
-      />
-      <FormRow
-        label="Gender"
-        value={formData.gender}
-        onChange={(value) => handleChange('gender', value)}
-        options={[
-          { label: 'Female', value: 'female' },
-          { label: 'Male', value: 'male' },
-        ]}
-      />
-      <FormRow
         label="Description"
         value={formData.description}
         onChange={(value) => handleChange('description', value)}
         placeholder="Enter the story behind this product of yours."
         multiline
-      />
-      <FormRow
-        label="Links"
-        value={formData.links}
-        onChange={(value) => handleChange('links', value)}
-        placeholder="Any external links for your product"
         showBottomBorder={false}
       />
+    <View style={styles.separator}></View>
+     <TouchableOpacity  style={styles.selectImageButton}>
+                <Text style={styles.selectImageText}>Invite people</Text>
+              </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
-export default CreatePostScreen;
+export default CreateTribeScreen;
 
 const styles = StyleSheet.create({
     separator: { height: 2, backgroundColor: "#8F959E57" },
+      selectImageButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: width * 0.06,
+    paddingVertical: height * 0.03,
+  },
+  selectImageText: {
+    fontSize: width * 0.045,
+    color: "#FF6600",
+    fontWeight: "600",
+  },
 });

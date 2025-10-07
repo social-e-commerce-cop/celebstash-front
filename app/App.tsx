@@ -39,6 +39,14 @@ import NotificationScreen from '@/pages/profile/Notifications';
 import Security from '@/pages/profile/Security';
 import Wallet from '@/pages/profile/Wallet';
 import CreatePostScreen from '@/pages/Artist/profile/AddPost';
+import ArtistHomeScreen from '@/pages/Artist/Home/HomeArtist';
+import ArtProfile from '@/pages/Artist/profile/ArtProfile';
+import Post from '@/pages/Artist/profile/Post';
+import Available from '@/pages/Artist/profile/Available';
+import SoldOut from '@/pages/Artist/profile/SoldOut';
+import CreateTribeScreen from '@/pages/Artist/profile/AddTribe';
+import ArtSettingsScreen from '@/pages/Artist/ArtSettings';
+import Dashboard from '@/pages/Artist/Dashboard/Dashboard';
 
 type AppStackParamList = {
   Splash: undefined;
@@ -71,6 +79,7 @@ type AppStackParamList = {
   Notifications: undefined;
   MyProfile: undefined;
   Settings: undefined;
+  ArtSettings: undefined;
   EditProfile: undefined;
   FieldEdit: undefined;
   AddressSetting:  undefined;
@@ -79,6 +88,13 @@ type AppStackParamList = {
   Security: undefined;
   Wallet: undefined;
   CreatePost: undefined;
+  CreateTribe: undefined;
+  ArtHome: undefined;
+  ArtProfile: undefined;
+  Post: undefined;
+  Soldout: undefined;
+  Available: undefined;
+  Dashboard: undefined;
 };
 
 const Stack = createStackNavigator<AppStackParamList>();
@@ -133,6 +149,7 @@ export default function App() {
           <Stack.Screen name="Notifications" component={Notifications} />
           <Stack.Screen name="MyProfile" component={MyProfile} />
            <Stack.Screen name="Settings" component={SettingsScreen} />
+           <Stack.Screen name="ArtSettings" component={ArtSettingsScreen} />
            <Stack.Screen name="EditProfile" component={EditProfile} />
            <Stack.Screen name="FieldEdit" component={FieldEdit} />
            <Stack.Screen name="AddressSetting" component={Address} />
@@ -141,6 +158,13 @@ export default function App() {
             <Stack.Screen name="Security" component={Security} />
              <Stack.Screen name="Wallet" component={Wallet} />
              <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+              <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
+              <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />
+              <Stack.Screen name="ArtProfile" component={ArtProfile} />
+               <Stack.Screen name="Post" component={Post} />
+                <Stack.Screen name="Available" component={Available} />
+                 <Stack.Screen name="Soldout" component={SoldOut} />
+                 <Stack.Screen name="Dashboard" component={Dashboard} />
 </Stack.Navigator>
 
 
