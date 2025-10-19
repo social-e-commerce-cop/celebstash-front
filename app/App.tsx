@@ -47,6 +47,7 @@ import SoldOut from '@/pages/Artist/profile/SoldOut';
 import CreateTribeScreen from '@/pages/Artist/profile/AddTribe';
 import ArtSettingsScreen from '@/pages/Artist/ArtSettings';
 import Dashboard from '@/pages/Artist/Dashboard/Dashboard';
+import MessagesScreen from '@/pages/messages/MessageScreen';
 
 type AppStackParamList = {
   Splash: undefined;
@@ -95,6 +96,7 @@ type AppStackParamList = {
   Soldout: undefined;
   Available: undefined;
   Dashboard: undefined;
+  MessagesScreen: undefined;
 };
 
 const Stack = createStackNavigator<AppStackParamList>();
@@ -165,6 +167,7 @@ export default function App() {
                 <Stack.Screen name="Available" component={Available} />
                  <Stack.Screen name="Soldout" component={SoldOut} />
                  <Stack.Screen name="Dashboard" component={Dashboard} />
+                  <Stack.Screen name="MessagesScreen" component={MessagesScreen} />
 </Stack.Navigator>
 
 

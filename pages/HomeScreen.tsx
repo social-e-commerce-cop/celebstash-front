@@ -2,7 +2,7 @@ import LatestDrops from '@/components/home/LatestDrops';
 import Post from '@/components/home/Post';
 import ProfileSection from '@/components/home/ProfileSection';
 import React from 'react';
-import { ScrollView, StyleSheet, Dimensions, View, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, Dimensions, View, Text, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
 import TabBar from '@/components/Tabbar';
@@ -14,7 +14,7 @@ const HomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
 
   const handleChatPress = () => {
-    navigation.navigate('CreatePost')
+    navigation.navigate('MessagesScreen')
     console.log('Navigating to chat');
   };
 
@@ -25,6 +25,7 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
       <Text style={styles.title}>Home</Text>

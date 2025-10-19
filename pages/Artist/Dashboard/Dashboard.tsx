@@ -6,7 +6,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import MetricCard from "@/components/artist/Dashboard/MetricCard";
 import { Conversations, Flopping, Orders, Trending, Views, Visitor } from "@/assets/icons/Settings";
 import ProgressCircle from "@/components/artist/Dashboard/ProgressCircle";
-import BalanceCard from "@/components/ewallet/BalanceCard";
+import BalanceCard from "@/components/artist/Dashboard/BalanceCard";
 
 const { width, height } = Dimensions.get('window');
 
