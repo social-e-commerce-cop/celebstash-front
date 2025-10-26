@@ -1,4 +1,9 @@
 // Enums matching backend
+export enum Role {
+  USER = 'USER',
+  ADMIN = 'ADMIN'
+}
+
 export enum AccountStatus {
   PENDING = 'PENDING',
   VERIFIED = 'VERIFIED',
@@ -16,6 +21,11 @@ export enum ProductStatus {
 }
 
 export enum ProductType {
+  REGULAR = 'REGULAR',
+  BIDDING = 'BIDDING'
+}
+
+export enum ProductCategory {
   CLOTHING = 'CLOTHING',
   ACCESSORIES = 'ACCESSORIES',
   SHOES = 'SHOES',
@@ -49,6 +59,7 @@ export interface AuthResponse {
   fullName: string;
   email?: string;
   phoneNumber?: string;
+  role: Role;
   status: AccountStatus;
   emailVerified: boolean;
   phoneVerified: boolean;
@@ -114,6 +125,34 @@ export interface ProductRequest {
   imageUrl: string;
   stockQuantity: number;
   productType: ProductType;
+  initialBidPrice?: number;
+}
+
+// Post Types
+export interface PostResponse {
+  id: number;
+  userId: number;
+  userName: string;
+  userImageUrl?: string;
+  product?: ProductResponse;
+  videoUrl: string;
+  photoUrls: string[];
+  description?: string;
+  createdAt: string;
+  updatedAt?: string;
+  likesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  isLiked: boolean;
+  isShared: boolean;
+  comments?: Comment[];
+}
+
+export interface PostRequest {
+  productId: number;
+  videoUrl: string;
+  photoUrls: string[];
+  description?: string;
 }
 
 // Cart Types

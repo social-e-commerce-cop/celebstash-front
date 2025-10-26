@@ -33,6 +33,28 @@ import Notifications from '@/pages/message/Notifications';
 import Profile from '@/pages/Profile';
 import { AuthProvider } from '@/contexts/AuthContext';
 
+// Artist Module
+import ArtistHomeScreen from '@/pages/Artist/Home/HomeArtist';
+import Dashboard from '@/pages/Artist/Dashboard/Dashboard';
+import ArtSettings from '@/pages/Artist/ArtSettings';
+import ArtProfile from '@/pages/Artist/profile/ArtProfile';
+import CreatePostScreen from '@/pages/Artist/profile/AddPost';
+import CreateTribeScreen from '@/pages/Artist/profile/AddTribe';
+import Available from '@/pages/Artist/profile/Available';
+import SoldOut from '@/pages/Artist/profile/SoldOut';
+import Posts from '@/pages/Artist/profile/Post';
+
+// Profile Module
+import MyProfile from '@/pages/profile/MyProfile';
+import EditProfile from '@/pages/profile/EditProfile';
+import FieldEdit from '@/pages/profile/FieldEdit';
+import SettingsScreen from '@/pages/profile/Settings';
+import Address from '@/pages/profile/Address';
+import AddAddressForm from '@/pages/profile/AddAddressScreen';
+import NotificationsScreen from '@/pages/profile/Notifications';
+import SecurityScreen from '@/pages/profile/Security';
+import Wallet from '@/pages/profile/Wallet';
+
 type AppStackParamList = {
   Splash: undefined;
   OnBoarding: undefined;
@@ -64,6 +86,26 @@ type AppStackParamList = {
   TopupConfirmation: undefined;
   Messages: undefined;
   Notifications: undefined;
+  // Artist Module Routes
+  ArtHome: undefined;
+  Dashboard: undefined;
+  ArtSettings: undefined;
+  ArtProfile: undefined;
+  CreatePost: undefined;
+  CreateTribe: undefined;
+  Available: undefined;
+  SoldOut: undefined;
+  Posts: undefined;
+  // Profile Module Routes
+  MyProfile: undefined;
+  EditProfile: undefined;
+  FieldEdit: { fieldKey: string; value: string; onSave: (newValue: string) => void };
+  Settings: undefined;
+  AddressSetting: undefined;
+  AddAddress: undefined;
+  NotificationSettings: undefined;
+  Security: undefined;
+  Wallet: undefined;
 };
 
 const Stack = createStackNavigator<AppStackParamList>();
@@ -119,6 +161,28 @@ export default function App() {
         <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
         <Stack.Screen name="Messages" component={Messages} />
         <Stack.Screen name="Notifications" component={Notifications} />
+        
+        {/* Artist Module Routes */}
+        <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />
+        <Stack.Screen name="Dashboard" component={Dashboard} />
+        <Stack.Screen name="ArtSettings" component={ArtSettings} />
+        <Stack.Screen name="ArtProfile" component={ArtProfile} />
+        <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+        <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
+        <Stack.Screen name="Available" component={Available} />
+        <Stack.Screen name="SoldOut" component={SoldOut} />
+        <Stack.Screen name="Posts" component={Posts} />
+        
+        {/* Profile Module Routes */}
+        <Stack.Screen name="MyProfile" component={MyProfile} />
+        <Stack.Screen name="EditProfile" component={EditProfile} />
+        <Stack.Screen name="FieldEdit" component={FieldEdit} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="AddressSetting" component={Address} />
+        <Stack.Screen name="AddAddress" component={AddAddressForm} />
+        <Stack.Screen name="NotificationSettings" component={NotificationsScreen} />
+        <Stack.Screen name="Security" component={SecurityScreen} />
+        <Stack.Screen name="Wallet" component={Wallet} />
       </Stack.Navigator>
     </AuthProvider>
   );

@@ -20,6 +20,7 @@ const horizontalPadding = 24;
 const imageSpacing = 12;
 
 interface PostCardProps {
+  postId?: number;
   userName: string;
   userImage: any;
   timeAgo: string;
@@ -32,6 +33,9 @@ interface PostCardProps {
   comments: string;
   shares: string;
   trending: string;
+  isLiked?: boolean;
+  onLike?: () => void;
+  videoUrl?: string;
 }
 
 const CollapsiblePostText: React.FC<{ text: string; numberOfLines?: number }> = ({ text, numberOfLines = 3 }) => {
@@ -59,6 +63,7 @@ const CollapsiblePostText: React.FC<{ text: string; numberOfLines?: number }> = 
 };
 
 const PostCard: React.FC<PostCardProps> = ({
+  postId,
   userName,
   userImage,
   timeAgo,
@@ -71,14 +76,20 @@ const PostCard: React.FC<PostCardProps> = ({
   comments,
   shares,
   trending,
+  isLiked: isLikedProp,
+  onLike,
+  videoUrl,
 }) => {
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(isLikedProp || false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const extraPhotosCount = images.length - 2;
   const displayImages = images.slice(0, 2);
 
   const handleViewAll = () => setIsModalVisible(true);
-  const handleLike = () => setIsLiked(!isLiked);
+  const handleLike = () => {
+    setIsLiked(!isLiked);
+    if (onLike) onLike();
+  };
   const closeModal = () => setIsModalVisible(false);
 
  const navigation = useNavigation<StackNavigationProp<any>>();

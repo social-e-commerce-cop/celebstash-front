@@ -1,20 +1,20 @@
 import LatestDrops from '@/components/home/LatestDrops';
 import Post from '@/components/home/Post';
-import ProfileSection from '@/components/home/ProfileSection';
 import React from 'react';
-import { ScrollView, StyleSheet, Dimensions, View, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, Dimensions, View, Text, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
-import TabBar from '@/components/Tabbar';
 import { MessageIcon, NotificationIcon } from '@/assets/icons/Payment';
+import ArtTabBar from '@/components/ArtTabBar';
+import ProfileSection from '@/components/artist/Home/ProfileSection';
 
 const { width, height } = Dimensions.get('window');
 
-const HomeScreen = () => {
+const ArtistHomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
 
   const handleChatPress = () => {
-    navigation.navigate('Messages')
+    navigation.navigate('CreatePost')
     console.log('Navigating to chat');
   };
 
@@ -25,9 +25,10 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.screen}>
+        <StatusBar barStyle="dark-content" backgroundColor="#000" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-      <Text style={styles.title}>Home</Text>
+      <Text style={styles.title}>Home artist</Text>
       <View style={styles.iconContainer}>
         <TouchableOpacity style={styles.iconButton} onPress={handleChatPress}>
         <MessageIcon />
@@ -38,27 +39,18 @@ const HomeScreen = () => {
       </View>
     </View>
         <ProfileSection />
-        
-        {/* Temporary: Switch to Artist Mode */}
-        <TouchableOpacity 
-          style={styles.artistButton}
-          onPress={() => navigation.navigate('ArtHome')}
-        >
-          <Text style={styles.artistButtonText}>Switch to Artist Mode</Text>
-        </TouchableOpacity>
-
         <LatestDrops />
         <Post />
       </ScrollView>
 
       <View style={styles.tabBarContainer}>
-        <TabBar />
+      <ArtTabBar />
       </View>
     </View>
   )
 }
 
-export default HomeScreen;
+export default ArtistHomeScreen;
 
 const styles = StyleSheet.create({
   screen: {
@@ -107,23 +99,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     
-  },
-  artistButton: {
-    backgroundColor: '#FF650E',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  artistButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

@@ -44,6 +44,23 @@ const Profile: React.FC = () => {
           </View>
         )}
 
+        {/* New Enhanced Profile Screens */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => (navigation as any).navigate('MyProfile')}
+          >
+            <Text style={styles.navButtonText}>Enhanced Profile</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => (navigation as any).navigate('Settings')}
+          >
+            <Text style={styles.navButtonText}>Settings</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
@@ -93,6 +110,23 @@ const styles = StyleSheet.create({
   userStatus: {
     fontSize: 14,
     color: '#888',
+  },
+  buttonContainer: {
+    marginBottom: 20,
+  },
+  navButton: {
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  navButtonText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#FF650E',
