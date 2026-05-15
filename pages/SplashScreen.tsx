@@ -92,7 +92,7 @@ export default function SplashScreen() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
+      <StatusBar barStyle="light-content" backgroundColor="#7126D0" />
       <View style={styles.splashScreen}>
         <Animated.View
           style={[styles.circle, styles.circle1, { transform: [{ translateY: float1Anim }] }]}
@@ -109,7 +109,7 @@ export default function SplashScreen() {
             <Animated.View style={[styles.logoIcon, { transform: [{ scale: pulseAnim }] }]}>
               <LogoIcon />
             </Animated.View>
-            <Text style={styles.logoText}>CelebStash</Text>
+            <Text style={styles.logoText}>Zikiii</Text>
           </View>
         </View>
       </View>
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   splashScreen: {
     width,
     height,
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -142,6 +142,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
   circle: {
     position: 'absolute',

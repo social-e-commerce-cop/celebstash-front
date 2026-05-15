@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 // Define the navigation stack param list
@@ -11,158 +11,128 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
-  PhoneNumber: undefined;
-  Email: undefined;
-  PhoneVerification: { phone: string };
-  EmailVerification: { email: string };
   ForgotPassword: undefined;
-  CreatePassword: undefined; // Added to support navigation
+  CreatePassword: { email: string };
+  Home: undefined;
 };
 
 type CreatePasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'CreatePassword'>;
+type CreatePasswordScreenRouteProp = RouteProp<AppStackParamList, 'CreatePassword'>;
 
 const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
+  const route = useRoute<CreatePasswordScreenRouteProp>();
+  const { email } = route.params || { email: 'you@example.com' };
+  
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleCreatePassword = async () => {
-    setError('');
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords don't match!");
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
       return;
     }
 
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Create new password:', password);
-      // Optionally navigate to another screen, e.g., navigation.navigate('Signin');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      navigation.navigate('Signin');
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Failed to reset password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePasswordChange = (text: string) => {
-    setPassword(text);
-    if (error) setError('');
-  };
-
-  const handleConfirmPasswordChange = (text: string) => {
-    setConfirmPassword(text);
-    if (error) setError('');
-  };
-
   return (
     <View style={styles.createPasswordScreen}>
-      {/* Mobile status bar simulation */}
-     
-
       <View style={styles.createPasswordContent}>
-        {/* Header with back button */}
         <View style={styles.header}>
           <TouchableOpacity
             style={[styles.backBtn, isLoading ? styles.backBtnDisabled : null]}
             onPress={() => navigation.goBack()}
             disabled={isLoading}
           >
-            <Svg width={wp('6%')} height={wp('6%')} viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M19 12H5M12 19L5 12L12 5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
+            <ArrowLeft size={24} color="#333" />
           </TouchableOpacity>
         </View>
 
-        {/* Orange icon */}
         <View style={styles.iconContainer}>
-          <View style={styles.orangeIcon}>
-            <Svg width={wp('6%')} height={wp('6%')} viewBox="0 0 24 24" fill="white">
-              <Path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-            </Svg>
+          <View style={styles.iconCircle}>
+            <Lock size={32} color="#7126D0" />
           </View>
         </View>
 
-        {/* Title and subtitle */}
         <View style={styles.textContent}>
-          <Text style={styles.title}>Create New Password</Text>
+          <Text style={styles.title}>New Password</Text>
           <Text style={styles.subtitle}>
-            Your new password must be different from previous used passwords.
+            Create a new, strong password for your account associated with {email}.
           </Text>
         </View>
 
-        {/* Password input form */}
         <View style={styles.createPasswordForm}>
           <View style={styles.inputContainer}>
-            <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
-              <Rect
-                x="3"
-                y="11"
-                width="18"
-                height="11"
-                rx="2"
-                ry="2"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="none"
-              />
-              <Circle cx="12" cy="16" r="1" fill="currentColor" />
-              <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="2" fill="none" />
-            </Svg>
+            <Lock size={20} color="#999" style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder="Password..."
+              style={styles.input}
+              placeholder="New Password"
               value={password}
-              onChangeText={handlePasswordChange}
-              secureTextEntry
+              onChangeText={(text) => {
+                setPassword(text);
+                setError('');
+              }}
+              secureTextEntry={!showPassword}
               editable={!isLoading}
               placeholderTextColor="#999"
             />
+            <TouchableOpacity 
+              style={styles.eyeIcon} 
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (
+                <EyeOff size={20} color="#999" />
+              ) : (
+                <Eye size={20} color="#999" />
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.inputContainer}>
-            <Svg style={styles.inputIcon} width={wp('5%')} height={wp('5%')} viewBox="0 0 24 24" fill="none">
-              <Rect
-                x="3"
-                y="11"
-                width="18"
-                height="11"
-                rx="2"
-                ry="2"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="none"
-              />
-              <Circle cx="12" cy="16" r="1" fill="currentColor" />
-              <Path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="2" fill="none" />
-            </Svg>
+            <Lock size={20} color="#999" style={styles.inputIcon} />
             <TextInput
-              style={[styles.input, error ? styles.inputError : null]}
-              placeholder="Confirm new password"
+              style={styles.input}
+              placeholder="Confirm Password"
               value={confirmPassword}
-              onChangeText={handleConfirmPasswordChange}
-              secureTextEntry
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setError('');
+              }}
+              secureTextEntry={!showConfirmPassword}
               editable={!isLoading}
               placeholderTextColor="#999"
             />
+            <TouchableOpacity 
+              style={styles.eyeIcon} 
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? (
+                <EyeOff size={20} color="#999" />
+              ) : (
+                <Eye size={20} color="#999" />
+              )}
+            </TouchableOpacity>
           </View>
 
-          {error && <Text style={styles.errorMessage}>{error}</Text>}
+          {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
 
           <TouchableOpacity
             style={[styles.createPasswordBtn, isLoading || !password || !confirmPassword ? styles.createPasswordBtnDisabled : null]}
@@ -170,18 +140,13 @@ const CreatePassword: React.FC = () => {
             disabled={isLoading || !password || !confirmPassword}
           >
             {isLoading ? (
-              <>
-                <ActivityIndicator size="small" color="white" style={styles.spinner} />
-                <Text style={styles.createPasswordBtnText}>Creating...</Text>
-              </>
+              <ActivityIndicator size="small" color="white" />
             ) : (
-              <Text style={styles.createPasswordBtnText}>Create new Password</Text>
+              <Text style={styles.createPasswordBtnText}>Reset Password</Text>
             )}
           </TouchableOpacity>
         </View>
       </View>
-
-
     </View>
   );
 };
@@ -192,140 +157,128 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'white',
     flexDirection: 'column',
-    position: 'relative',
-    paddingHorizontal: 10,
-    paddingVertical: 35,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  statusBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: wp('5%'),
-    paddingVertical: hp('1%'),
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  
-
   createPasswordContent: {
     flex: 1,
     flexDirection: 'column',
-    paddingHorizontal: wp('6%'),
-    paddingVertical: hp('3%'),
-    maxWidth: wp('100%'),
+    maxWidth: 400,
     marginHorizontal: 'auto',
     width: '100%',
+    paddingTop: 40,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: hp('6%'),
+    marginBottom: 40,
   },
   backBtn: {
-    padding: wp('2%'),
+    padding: 8,
     borderRadius: 8,
+    backgroundColor: '#F3F4F6',
   },
   backBtnDisabled: {
     opacity: 0.5,
   },
   iconContainer: {
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: hp('6%'),
+    marginBottom: 32,
   },
-  orangeIcon: {
-    width: wp('15%'),
-    height: wp('15%'),
-    backgroundColor: '#FF6B35',
-    borderRadius: wp('7.5%'),
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3E8FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   textContent: {
     alignItems: 'center',
-    marginBottom: hp('3.5%'),
+    marginBottom: 40,
+    paddingHorizontal: 20,
   },
   title: {
-    fontSize: wp('6%'),
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: hp('2%'),
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+    fontFamily: 'Poppins-Bold',
   },
   subtitle: {
-    fontSize: wp('4%'),
-    color: '#666',
-    lineHeight: wp('5%'),
+    fontSize: 15,
+    color: '#6B7280',
+    lineHeight: 22,
     textAlign: 'center',
-    paddingHorizontal: wp('3%'),
+    fontFamily: 'Poppins-Regular',
   },
   createPasswordForm: {
     flexDirection: 'column',
-    minHeight: hp('25%'),
-    gap: 16, // Aligned with SignInScreen/SignUpScreen
+    gap: 20,
   },
   inputContainer: {
     position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: hp('2.5%'),
   },
   inputIcon: {
     position: 'absolute',
-    left: wp('4%'),
+    left: 16,
     zIndex: 1,
   },
   input: {
     width: '100%',
-    paddingVertical: hp('2%'),
-    paddingHorizontal: wp('4%'),
-    paddingLeft: wp('12%'),
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    paddingVertical: 16,
+    paddingLeft: 48,
+    paddingRight: 48,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    fontSize: wp('4%'),
-    color: '#333',
-    backgroundColor: 'white',
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+    fontFamily: 'Poppins-Regular',
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 1,
   },
   inputError: {
-    borderColor: '#ff4444',
+    borderColor: '#EF4444',
   },
   errorMessage: {
-    backgroundColor: '#fff5f5',
-    borderWidth: 1,
-    borderColor: '#ff4444',
-    borderRadius: 8,
-    paddingVertical: hp('1.5%'),
-    paddingHorizontal: wp('4%'),
-    marginBottom: hp('2.5%'),
-    color: '#cc0000',
-    fontSize: wp('3.5%'),
+    color: '#EF4444',
+    fontSize: 14,
     textAlign: 'center',
+    marginTop: -4,
+    fontFamily: 'Poppins-Regular',
   },
   createPasswordBtn: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 12,
-    padding: hp('2%'),
-    flexDirection: 'row',
+    backgroundColor: '#7126D0',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: wp('2%'),
     width: '100%',
-    marginBottom: hp('5%'),
-    marginTop: hp('6%'),
+    marginTop: 20,
+    shadowColor: '#7126D0',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   createPasswordBtnDisabled: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#E5E7EB',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   createPasswordBtnText: {
     color: 'white',
-    fontSize: wp('4%'),
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
   },
-  spinner: {
-    marginRight: wp('2%'),
-  },
-
 });
 
 export default CreatePassword;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path, Polyline } from 'react-native-svg';
+import { ArrowLeft, Mail } from 'lucide-react-native';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -14,7 +14,7 @@ type AppStackParamList = {
   PhoneNumber: undefined;
   Email: undefined;
   PhoneVerification: { phone: string };
-  Verification: { email: string }; // Added to support navigation with email
+  Verification: { identifier: string; type: 'email' | 'phone' };
 };
 
 type EmailAddressScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Email'>;
@@ -34,7 +34,7 @@ const EmailAddressScreen: React.FC = () => {
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      navigation.navigate('Verification', { email });
+      navigation.navigate('Verification', { identifier: email, type: 'email' });
     } catch {
       // Handle error if needed
     } finally {
@@ -51,71 +51,47 @@ const EmailAddressScreen: React.FC = () => {
             onPress={() => navigation.goBack()}
             disabled={isLoading}
           >
-            <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M19 12H5M12 19L5 12L12 5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
+            <ArrowLeft size={24} color="#333" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.formSection}>
-          <View style={styles.mb8}>
-            <Text style={styles.signinTitle}>Email Address</Text>
-            <Text style={styles.signinSubtitle}>
-              Your identity helps you discover new people and opportunities
-            </Text>
+        <View style={styles.iconContainer}>
+          <View style={styles.iconCircle}>
+            <Mail size={32} color="#7126D0" />
+          </View>
+        </View>
+
+        <View style={styles.mb8}>
+          <Text style={styles.formHeaderTitle}>Email Address</Text>
+          <Text style={styles.formHeaderText}>Enter your email address to receive a verification code.</Text>
+        </View>
+
+        <View style={styles.emailForm}>
+          <View style={styles.inputContainer}>
+            <Mail size={20} color="#999" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!isLoading}
+              placeholderTextColor="#999"
+            />
           </View>
 
-          <View style={styles.inputGroup}>
-            <View style={styles.inputWrapper}>
-              <Svg style={styles.inputIcon} width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z"
-                  stroke="#666"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <Polyline
-                  points="22,6 12,13 2,6"
-                  stroke="#666"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <TextInput
-                style={styles.signinInput}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email address"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
-            </View>
-          </View>
-<View style={styles.formSection}>
           <TouchableOpacity
-            style={[styles.signinBtn, (!email || !isValidEmail(email) || isLoading) ? styles.signinBtnDisabled : null]}
+            style={[styles.sendCodeBtn, (!email || !isValidEmail(email) || isLoading) ? { opacity: 0.5 } : null]}
             onPress={handleContinue}
             disabled={!email || !isValidEmail(email) || isLoading}
           >
             {isLoading ? (
-              <>
-                <ActivityIndicator size="small" color="white" style={styles.spinner} />
-                <Text style={styles.signinBtnText}>Sending...</Text>
-              </>
+              <ActivityIndicator size="small" color="white" />
             ) : (
-              <Text style={styles.signinBtnText}>Verify your Email address</Text>
+              <Text style={styles.sendCodeBtnText}>Send Code</Text>
             )}
           </TouchableOpacity>
-            </View>
         </View>
       </View>
     </View>
@@ -128,8 +104,8 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'white',
     flexDirection: 'column',
-    paddingVertical: 8,
-    paddingHorizontal: 35,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   signinContent: {
     flex: 1,
@@ -140,87 +116,96 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   header: {
-    paddingVertical: 20,
+    paddingVertical: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 40,
   },
   backBtn: {
+    padding: 8,
     borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: '#F3F4F6',
   },
   backBtnDisabled: {
     opacity: 0.5,
   },
-  formSection: {
-    flex: 1,
-    flexDirection: 'column',
-    gap: 16, // Reduced to match SignInScreen/SignUpScreen
-  },
-  mb8: {
-    marginBottom: 48,
-    alignItems: 'flex-start',
-  },
-  signinTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  signinSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 24,
-  },
-  inputGroup: {
-    flexDirection: 'column',
-    gap: 16,
+  iconContainer: {
+    alignItems: 'center',
     marginBottom: 32,
   },
-  inputWrapper: {
-    position: 'relative',
-    flexDirection: 'row',
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3E8FF',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mb8: {
+    marginBottom: 40,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  formHeaderTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
+  },
+  formHeaderText: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: 'Poppins-Regular',
+  },
+  emailForm: {
+    width: '100%',
+    flexDirection: 'column',
+    gap: 20,
+  },
+  inputContainer: {
+    position: 'relative',
+    width: '100%',
+    justifyContent: 'center',
   },
   inputIcon: {
     position: 'absolute',
     left: 16,
     zIndex: 1,
   },
-  signinInput: {
+  input: {
     width: '100%',
     paddingVertical: 16,
     paddingLeft: 48,
     paddingRight: 16,
     borderWidth: 2,
-    borderColor: '#e5e5e5',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     fontSize: 16,
-    backgroundColor: 'white',
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+    fontFamily: 'Poppins-Regular',
   },
-  signinBtn: {
-    width: '100%',
-    maxWidth: 400,
-    padding: 18,
-    backgroundColor: '#FF650E',
+  sendCodeBtn: {
+    backgroundColor: '#7126D0',
     borderRadius: 16,
-    flexDirection: 'row',
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 140,
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  signinBtnDisabled: {
-    backgroundColor: '#FF650E',
+  sendCodeBtnDisabled: {
+    opacity: 0.6,
   },
-  signinBtnText: {
+  sendCodeBtnText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  spinner: {
-    marginRight: 8,
+    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
   },
 });
 
