@@ -12,7 +12,9 @@ import CodeVerification from '@/pages/auth/CodeVerification';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
 import CreatePassword from '@/pages/auth/CreatePassword';
 import HomeScreen from '@/pages/HomeScreen';
+import BrowseScreen from '@/pages/home/BrowseScreen';
 import ProfileDetails from '@/pages/home/ProfileDetails';
+import Drops from '@/pages/home/Drops';
 import ProductDetails from '@/pages/product/ProductDetails';
 import ProductReviews from '@/pages/product/ProductReviews';
 import Cart from '@/pages/cart/CartScreen';
@@ -58,17 +60,34 @@ type AppStackParamList = {
   Verify: undefined;
   PhoneNumber: undefined;
   Email: undefined;
-  Verification: undefined;
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
   ForgotPassword: undefined;
-  CreatePassword: undefined;
+  CreatePassword: { email: string };
   Home: undefined;
-   ProfileDetails: { story: { username: string; time: string; image: any } };
-  ProductDetails: undefined;
+  Browse: { initialQuery?: string };
+  Drops: undefined;
+  ProfileDetails: { story: { username: string; time: string; image: any } };
+  ProductDetails: {
+    name?: string;
+    price?: string | number;
+    image?: any;
+    description?: string;
+    artistName?: string;
+    verified?: boolean;
+  };
   ProductReviews: undefined;
   CartScreen: undefined;
   ActivePage: undefined;
   CompletePage: undefined;
-  CheckoutScreen: undefined;
+  CheckoutScreen: {
+    name?: string;
+    price?: string | number;
+    image?: any;
+    artistName?: string;
+    selectedSize?: string;
+    selectedColor?: string;
+    selectedColorValue?: string;
+  };
   PaymentMethods: undefined;
   PinEntry: undefined;
   TrackOrder: undefined;
@@ -134,6 +153,8 @@ export default function App() {
    <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
      <Stack.Screen name="CreatePassword" component={CreatePassword} />
      <Stack.Screen name="Home" component={HomeScreen} />
+     <Stack.Screen name="Browse" component={BrowseScreen} />
+     <Stack.Screen name="Drops" component={Drops} />
      <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
      <Stack.Screen name="ProductDetails" component={ProductDetails} />
      <Stack.Screen name="ProductReviews" component={ProductReviews} />

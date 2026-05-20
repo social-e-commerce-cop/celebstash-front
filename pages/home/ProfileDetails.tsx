@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -6,185 +6,510 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-  StatusBar
+  StatusBar,
+  ScrollView,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Svg, { Path } from "react-native-svg";
 
 const { width, height } = Dimensions.get("window");
 
-// Define stack params
 type AppStackParamList = {
-  ProfileDetails: { story: { username: string; time: string; image: any } };
+  ProfileDetails: { story: { id: number; username: string; image: any } };
 };
 
-type ProfileDetailsScreenNavigationProp = StackNavigationProp<
-  AppStackParamList,
-  "ProfileDetails"
->;
 type ProfileDetailsScreenRouteProp = RouteProp<AppStackParamList, "ProfileDetails">;
 
-type Props = {
-  navigation: ProfileDetailsScreenNavigationProp;
-  route: ProfileDetailsScreenRouteProp;
+// Stories list for each artist to display multiple stories at the top
+const artistStoriesMap: Record<string, { image: any; likes: string; bookmarks: string }[]> = {
+  "blue_boy": [
+    { image: require("../../assets/images/storyItem.jpg"), likes: "12.2k", bookmarks: "346.8k" },
+    { image: require("../../assets/images/products/product1.jpg"), likes: "8.4k", bookmarks: "120.5k" },
+    { image: require("../../assets/images/drop1.jpg"), likes: "15.1k", bookmarks: "412.3k" },
+  ],
+  "steve.loves": [
+    { image: require("../../assets/images/story2.png"), likes: "10.2k", bookmarks: "220.1k" },
+    { image: require("../../assets/images/products/product3.jpg"), likes: "6.7k", bookmarks: "98.4k" },
+    { image: require("../../assets/images/products/product2.jpg"), likes: "11.5k", bookmarks: "310.2k" },
+  ],
+  "waggles": [
+    { image: require("../../assets/images/story3.png"), likes: "14.5k", bookmarks: "512.0k" },
+    { image: require("../../assets/images/products/product4.jpg"), likes: "9.2k", bookmarks: "143.6k" },
+    { image: require("../../assets/images/products/product5.jpg"), likes: "18.3k", bookmarks: "621.9k" },
+  ],
+  "sabanok...": [
+    { image: require("../../assets/images/story1.png"), likes: "15.4k", bookmarks: "480.2k" },
+    { image: require("../../assets/images/products/product6.jpg"), likes: "11.2k", bookmarks: "180.5k" },
+    { image: require("../../assets/images/products/product7.jpg"), likes: "22.1k", bookmarks: "540.9k" },
+  ],
 };
 
-// Map story image names to actual require statements
-const storyImagesMap: Record<string, any> = {
-  story1: require("../../assets/images/story1.png"),
-  story2: require("../../assets/images/story2.png"),
-  story3: require("../../assets/images/story3.png"),
-  story4: require("../../assets/images/story4.png"),
+const getStoriesForArtist = (username: string) => {
+  return artistStoriesMap[username] || [
+    { image: require("../../assets/images/story1.png"), likes: "5.2k", bookmarks: "88.1k" },
+    { image: require("../../assets/images/products/product6.jpg"), likes: "7.1k", bookmarks: "115.4k" },
+    { image: require("../../assets/images/products/product7.jpg"), likes: "12.3k", bookmarks: "245.8k" },
+  ];
 };
 
+const artists = [
+  { id: 1, username: "sabanok...", image: require("../../assets/images/story1.png") },
+  { id: 2, username: "blue_boy", image: require("../../assets/images/storyItem.jpg") },
+  { id: 3, username: "waggles", image: require("../../assets/images/story3.png") },
+  { id: 4, username: "steve.loves", image: require("../../assets/images/story4.png") },
+];
 
-const ProfileDetails: React.FC<Props> = ({ route, navigation }) => {
-  const { story } = route.params;
-
+const ProfileDetails: React.FC = () => {
+  const navigation = useNavigation<StackNavigationProp<any>>();
+  const route = useRoute<ProfileDetailsScreenRouteProp>();
+  const [currentArtist, setCurrentArtist] = useState(route.params?.story || artists[0]);
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
+  const pressStartTime = useRef(0);
+  const hasNavigatedAway = useRef(false);
+  const stories = getStoriesForArtist(currentArtist.username);
+  const currentStory = stories[currentStoryIndex];
+
+  // Story ticking timer effect
   useEffect(() => {
-    let interval = setInterval(() => {
+    if (isPaused) return;
+
+    const interval = setInterval(() => {
       setProgress((p) => {
         if (p >= 1) {
-          clearInterval(interval);
-          navigation.goBack();
           return 1;
         }
         return p + 0.01;
       });
     }, 50);
-    return () => clearInterval(interval);
-  }, [navigation]);
 
-  // List of story keys
-  const storyKeys = ["story1", "story2", "story3", "story4"];
+    return () => clearInterval(interval);
+  }, [currentStoryIndex, isPaused, currentArtist]);
+
+  // Handle auto-advance when progress reaches 1
+  useEffect(() => {
+    if (progress >= 1) {
+      if (currentStoryIndex < stories.length - 1) {
+        setCurrentStoryIndex((prev) => prev + 1);
+        setProgress(0);
+      } else {
+        // Find next artist
+        const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
+        if (currentIndex !== -1 && currentIndex < artists.length - 1) {
+          setCurrentArtist(artists[currentIndex + 1]);
+          setCurrentStoryIndex(0);
+          setProgress(0);
+        } else {
+          if (!hasNavigatedAway.current) {
+            hasNavigatedAway.current = true;
+            navigation.goBack();
+          }
+        }
+      }
+    }
+  }, [progress]);
+
+  // Reset states when switching story item or artist
+  useEffect(() => {
+    setProgress(0);
+  }, [currentStoryIndex, currentArtist]);
+
+  const handleTapLeft = () => {
+    if (currentStoryIndex > 0) {
+      setCurrentStoryIndex((prev) => prev - 1);
+      setProgress(0);
+    } else {
+      // Find previous artist
+      const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
+      if (currentIndex > 0) {
+        const prevArtist = artists[currentIndex - 1];
+        const prevStories = getStoriesForArtist(prevArtist.username);
+        setCurrentArtist(prevArtist);
+        setCurrentStoryIndex(prevStories.length - 1);
+        setProgress(0);
+      } else {
+        setProgress(0);
+      }
+    }
+  };
+
+  const handleTapRight = () => {
+    if (currentStoryIndex < stories.length - 1) {
+      setCurrentStoryIndex((prev) => prev + 1);
+      setProgress(0);
+    } else {
+      // Find next artist
+      const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
+      if (currentIndex !== -1 && currentIndex < artists.length - 1) {
+        setCurrentArtist(artists[currentIndex + 1]);
+        setCurrentStoryIndex(0);
+        setProgress(0);
+      } else {
+        if (!hasNavigatedAway.current) {
+          hasNavigatedAway.current = true;
+          navigation.goBack();
+        }
+      }
+    }
+  };
+
+  const handlePressIn = () => {
+    setIsPaused(true);
+    pressStartTime.current = Date.now();
+  };
+
+  const handlePressOutLeft = () => {
+    setIsPaused(false);
+    const duration = Date.now() - pressStartTime.current;
+    if (duration < 300) {
+      handleTapLeft();
+    }
+  };
+
+  const handlePressOutRight = () => {
+    setIsPaused(false);
+    const duration = Date.now() - pressStartTime.current;
+    if (duration < 300) {
+      handleTapRight();
+    }
+  };
+
+  const selectArtist = (artist: typeof artists[0]) => {
+    setCurrentArtist(artist);
+    setCurrentStoryIndex(0);
+    setProgress(0);
+    setIsLiked(false);
+    setIsBookmarked(false);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Story Background */}
-       <StatusBar backgroundColor="#000000" barStyle="dark-content" />
-      <Image source={story.image} style={styles.storyImage} />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Top bar */}
-      <View style={styles.topBar}>
-       <Image
-    source={story.image} // <-- Use the story's actual image
-    style={styles.profilePic}
-  />
-        <View style={{ flex: 1 }}>
+      {/* Story Background Image */}
+      <Image source={currentStory.image} style={styles.storyImage} />
 
-          <View style={styles.warapper}>
-            <Text style={styles.username}>{story.username}</Text>
-            <Svg width="18" height="18" viewBox="0 0 18 18" fill="none" >
-              <Path d="M8.21256 10.0724L6.86556 8.72995C6.79556 8.65995 6.71031 8.62245 6.60981 8.61745C6.50881 8.61245 6.41706 8.65145 6.33456 8.73445C6.25456 8.81445 6.21456 8.90295 6.21456 8.99995C6.21456 9.09695 6.25456 9.18545 6.33456 9.26545L7.78806 10.7189C7.90956 10.8399 8.05106 10.9004 8.21256 10.9004C8.37406 10.9004 8.51556 10.8399 8.63706 10.7189L11.6656 7.69045C11.7386 7.61745 11.7768 7.53145 11.7803 7.43245C11.7838 7.33295 11.7456 7.24195 11.6656 7.15945C11.5831 7.07695 11.4938 7.03495 11.3978 7.03345C11.3018 7.03195 11.2128 7.07245 11.1308 7.15495L8.21256 10.0724ZM6.50256 15.462L5.51556 13.8119L3.65481 13.419C3.50581 13.3914 3.38706 13.3115 3.29856 13.179C3.21006 13.047 3.17356 12.9065 3.18906 12.7575L3.36681 10.8405L2.10456 9.40045C1.99856 9.29195 1.94556 9.15845 1.94556 8.99995C1.94556 8.84145 1.99856 8.70795 2.10456 8.59945L3.36681 7.15945L3.18906 5.2432C3.17406 5.0937 3.21056 4.95295 3.29856 4.82095C3.38706 4.68895 3.50581 4.60895 3.65481 4.58095L5.51481 4.1887L6.50181 2.5387C6.58281 2.4047 6.69156 2.3122 6.82806 2.2612C6.96456 2.2097 7.10581 2.21645 7.25181 2.28145L9.00006 3.0202L10.7476 2.28145C10.8941 2.21645 11.0356 2.2097 11.1721 2.2612C11.3086 2.3122 11.4173 2.4047 11.4983 2.5387L12.4846 4.1887L14.3453 4.58095C14.4943 4.60895 14.6131 4.68895 14.7016 4.82095C14.7901 4.95295 14.8266 5.0937 14.8111 5.2432L14.6341 7.15945L15.8956 8.59945C16.0016 8.70795 16.0546 8.84145 16.0546 8.99995C16.0546 9.15845 16.0016 9.2922 15.8956 9.4012L14.6341 10.8405L14.8111 12.7567C14.8261 12.9062 14.7896 13.047 14.7016 13.179C14.6131 13.3115 14.4943 13.3914 14.3453 13.419L12.4853 13.8119L11.4983 15.462C11.4173 15.5954 11.3086 15.688 11.1721 15.7395C11.0356 15.791 10.8943 15.784 10.7483 15.7185L9.00006 14.9797L7.25256 15.7185C7.10606 15.7835 6.96456 15.7902 6.82806 15.7387C6.69156 15.6877 6.58281 15.5952 6.50181 15.4612" fill="#FF650E" />
-            </Svg>
+      {/* Progress Bars Indicator at the top */}
+      <View style={styles.progressContainer}>
+        {stories.map((_, index) => {
+          let fillWidth = "0%";
+          if (index < currentStoryIndex) {
+            fillWidth = "100%";
+          } else if (index === currentStoryIndex) {
+            fillWidth = `${progress * 100}%`;
+          }
+          return (
+            <View key={index} style={styles.progressBarBackground}>
+              <View style={[styles.progressBarFilled, { width: fillWidth as any }]} />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Top Header details */}
+      <View style={styles.topHeader}>
+        <Image source={currentArtist.image} style={styles.profilePic} />
+        <View style={styles.headerInfo}>
+          <View style={styles.usernameRow}>
+            <Text style={styles.username}>{currentArtist.username}</Text>
+            {/* Orange/Red verification badge */}
+            <View style={styles.verifiedBadge}>
+              <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" stroke="#7126D0" strokeWidth="1">
+                <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+              </Svg>
+            </View>
           </View>
-          {/* <Text style={styles.time}>{story.time}</Text> */}
-          <Text style={styles.time}>1h</Text>
+          <Text style={styles.timeText}>{currentStoryIndex + 1}h</Text>
         </View>
-        <TouchableOpacity style={styles.mateButton}>
+
+        {/* Translucent Mate button */}
+        <TouchableOpacity style={styles.mateButton} activeOpacity={0.8}>
           <Text style={styles.mateText}>Mate</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Reactions */}
-      <View style={styles.reactions}>
-        <Text style={styles.emoji}>❤️</Text>
-        <Text style={styles.emoji}>😂</Text>
-        <TouchableOpacity style={styles.addReaction}>
-          <Svg width={15} height={14} viewBox="0 0 15 14" fill="none">
-            <Path
-              d="M14.5 7.99805H8.5V13.998H6.5V7.99805H0.5V5.99805H6.5V-0.00195312H8.5V5.99805H14.5V7.99805Z"
-              fill="white"
-            />
+      {/* Invisible Tap Areas for Instagram Navigation */}
+      <View style={styles.tapContainer}>
+        <TouchableOpacity
+          style={styles.tapLeft}
+          activeOpacity={1}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOutLeft}
+        />
+        <TouchableOpacity
+          style={styles.tapRight}
+          activeOpacity={1}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOutRight}
+        />
+      </View>
+
+      {/* Floating Vertical Actions on the Right */}
+      <View style={styles.rightActionsPanel}>
+        <TouchableOpacity
+          style={styles.actionCircle}
+          onPress={() => setIsLiked(!isLiked)}
+          activeOpacity={0.8}
+        >
+          <Svg width="26" height="26" viewBox="0 0 24 24" fill={isLiked ? "#7126D0" : "none"} stroke={isLiked ? "#7126D0" : "#fff"} strokeWidth="2.5">
+            <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </Svg>
+        </TouchableOpacity>
+        <Text style={styles.actionText}>{currentStory.likes}</Text>
+
+        <TouchableOpacity
+          style={styles.actionCircle}
+          onPress={() => setIsBookmarked(!isBookmarked)}
+          activeOpacity={0.8}
+        >
+          <Svg width="24" height="24" viewBox="0 0 24 24" fill={isBookmarked ? "#fff" : "none"} stroke="#fff" strokeWidth="2.5">
+            <Path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+          </Svg>
+        </TouchableOpacity>
+        <Text style={styles.actionText}>{currentStory.bookmarks}</Text>
+
+        <TouchableOpacity style={styles.actionCircle} activeOpacity={0.8}>
+          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+            <Path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
         </TouchableOpacity>
       </View>
 
-      {/* Bottom bar */}
-      <View style={styles.bottomBar}>
-        {storyKeys.map((key, i) => (
-          <View key={i} style={styles.storyThumbWrapper}>
-            <Image source={storyImagesMap[key]} style={styles.storyThumb} />
-            <Text style={styles.storyLabel}>user{i + 1}</Text>
-          </View>
-        ))}
+      {/* Bottom Row containing horizontal list of stories & close X */}
+      <View style={styles.bottomSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bottomScrollView}
+        >
+          {artists.map((artist) => {
+            const isActive = artist.username === currentArtist.username;
+            return (
+              <TouchableOpacity
+                key={artist.id}
+                style={styles.bottomStoryBubble}
+                onPress={() => selectArtist(artist)}
+                activeOpacity={0.9}
+              >
+                <View
+                  style={[
+                    styles.bottomImageRing,
+                    isActive && styles.bottomImageRingActive,
+                  ]}
+                >
+                  <Image source={artist.image} style={styles.bottomStoryImage} />
+                </View>
+                <Text style={styles.bottomStoryLabel} numberOfLines={1}>
+                  {artist.username}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Close Button X below story bubble */}
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => {
+            if (!hasNavigatedAway.current) {
+              hasNavigatedAway.current = true;
+              navigation.goBack();
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+            <Path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
+export default ProfileDetails;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
   storyImage: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
+    resizeMode: "contain",
     position: "absolute",
   },
-  topBar: {
+  progressContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    position: "absolute",
+    top: height * 0.055,
+    left: 0,
+    right: 0,
+    zIndex: 11,
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    marginHorizontal: 2.5,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBarFilled: {
+    height: "100%",
+    backgroundColor: "#fff",
+  },
+  topHeader: {
+    position: "absolute",
+    top: height * 0.075,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: width * 0.04,
-    marginTop: height * 0.09,
+    zIndex: 10,
   },
   profilePic: {
-    width: width * 0.1,
-    height: width * 0.1,
-    borderRadius: (width * 0.1) / 2,
-    marginRight: width * 0.03,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 10,
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
-  warapper: { flexDirection: "row", alignItems: "center", flex: 1, gap: 4 },
-  username: { color: "#fff", fontWeight: "bold", fontSize: width * 0.045 },
-  time: { color: "#ccc", fontSize: width * 0.035 },
-  mateButton: {
-    backgroundColor: "#FF650E26",
-    paddingVertical: height * 0.008,
-    paddingHorizontal: width * 0.05,
-    borderRadius: 20,
-    marginRight: width * 0.02,
-  },
-  mateText: { color: "#FF650E", fontWeight: "bold", fontSize: width * 0.04 },
-  reactions: {
-    position: "absolute",
-    right: width * 0.01,
-    top: height * 0.53,
-    alignItems: "center",
-  },
-  emoji: { fontSize: width * 0.08, marginVertical: height * 0.01 },
-  addReaction: {
-    width: width * 0.12,
-    height: width * 0.12,
-    borderRadius: (width * 0.12) / 2,
-    borderWidth: 0,
+  headerInfo: {
+    flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    marginTop: height * 0.015,
   },
-  bottomBar: {
-    position: "absolute",
-    bottom: height * 0.09,
+  usernameRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    width: "100%",
+    alignItems: "center",
+    gap: 4,
   },
-  storyThumbWrapper: { alignItems: "center", marginHorizontal: width * 0.025 },
-  storyThumb: {
-    width: width * 0.14,
-    height: width * 0.14,
-    borderRadius: (width * 0.14) / 2,
-    borderWidth: 2,
-    borderColor: "#FF650E",
-  },
-  storyLabel: {
+  username: {
     color: "#fff",
-    fontSize: width * 0.03,
-    marginTop: height * 0.005,
-    width: width * 0.15,
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+  },
+  verifiedBadge: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  timeText: {
+    color: "rgba(255, 255, 255, 0.6)",
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    marginTop: -2,
+  },
+  mateButton: {
+    backgroundColor: "#F5F0FD",
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#7126D0",
+  },
+  mateText: {
+    color: "#7126D0",
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+  },
+  tapContainer: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+    zIndex: 1,
+  },
+  tapLeft: {
+    flex: 3,
+    height: "100%",
+  },
+  tapRight: {
+    flex: 7,
+    height: "100%",
+  },
+  rightActionsPanel: {
+    position: "absolute",
+    right: 16,
+    top: height * 0.35,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    borderRadius: 30,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  actionCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 4,
+  },
+  actionText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: "Poppins-Bold",
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  bottomSection: {
+    position: "absolute",
+    bottom: height * 0.04,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  bottomScrollView: {
+    paddingHorizontal: width * 0.04,
+    paddingBottom: 8,
+  },
+  bottomStoryBubble: {
+    alignItems: "center",
+    marginHorizontal: 10,
+    width: 70,
+  },
+  bottomImageRing: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2.5,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    padding: 2,
+  },
+  bottomImageRingActive: {
+    borderColor: "#7126D0",
+  },
+  bottomStoryImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 27,
+  },
+  bottomStoryLabel: {
+    color: "#fff",
+    fontSize: 11,
+    fontFamily: "Poppins-Medium",
+    marginTop: 4,
     textAlign: "center",
   },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 10,
+  },
 });
-
-export default ProfileDetails;

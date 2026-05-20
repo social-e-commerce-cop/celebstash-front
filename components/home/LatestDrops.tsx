@@ -1,59 +1,126 @@
 import React from 'react';
-import { View, Text, Image, Dimensions, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Dimensions } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// Array of image imports
-const drops = [
-  require('../../assets/images/drop1.jpg'),
-  require('../../assets/images/drop2.gif'),
-  require('../../assets/images/feed3.png'),
-  require('../../assets/images/feed7.png'), 
-  require('../../assets/images/drop1.jpg'),
-];
+const LatestDrops = () => {
+  const navigation = useNavigation<any>();
 
-const LatestDrops = () => (
-  <View style={styles.latestDrops}>
-    <Text style={styles.sectionTitle}>Latest drops</Text>
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={styles.bannerWrapper}
+        onPress={() => navigation.navigate('Drops')}
+      >
+        <ImageBackground
+          source={require('../../assets/images/drop1.jpg')}
+          style={styles.bannerBackground}
+          imageStyle={styles.imageStyle}
+        >
+          {/* Black gradient/tint overlay for readability */}
+          <View style={styles.overlay} />
 
-    {/* Horizontal scrollable container */}
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.dropsContainer}
-    >
-      {drops.map((image, index) => (
-        <Image
-          key={index}
-          source={image}
-          style={styles.dropImage}
-          resizeMode="cover"
-        />
-      ))}
-    </ScrollView>
-  </View>
-);
+          {/* Badge: New Drop */}
+          <View style={styles.badgeContainer}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>New Drop</Text>
+            </View>
+          </View>
+
+          {/* Banner Title */}
+          <Text style={styles.title}>Indorerwamo{"\n"}Collection</Text>
+
+          {/* Button: Shop Now */}
+          <TouchableOpacity
+            style={styles.btnContainer}
+            activeOpacity={0.8}
+            onPress={(e) => {
+              e.stopPropagation(); // prevent parent TouchableOpacity from firing
+              navigation.navigate('ProductDetails', {
+                name: 'Indorerwamo Collection',
+                price: 30,
+                image: require('../../assets/images/products/product1.jpg'),
+                description: 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals',
+                artistName: 'Kenny K Shot',
+                verified: true,
+              });
+            }}
+          >
+            <View style={styles.shopButton}>
+              <Text style={styles.shopButtonText}>Shop Now</Text>
+            </View>
+          </TouchableOpacity>
+        </ImageBackground>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default LatestDrops;
 
 const styles = StyleSheet.create({
-  latestDrops: {
-    marginVertical: height * 0.02,
+  container: {
+    marginVertical: 12,
   },
-  dropsContainer: {
-    paddingHorizontal: width * 0.00,
-    gap: width * 0.03,
-    paddingVertical: height * 0.02,
+  bannerWrapper: {
+    width: '100%',
+    height: 180,
+    borderRadius: 5,
+    overflow: 'hidden',
   },
-  dropImage: {
-    width: width * 0.28,
-    height: height * 0.2,
-    borderRadius: width * 0.05,
+  bannerBackground: {
+    flex: 1,
+    padding: 18,
+    justifyContent: 'space-between',
   },
-  sectionTitle: {
-    fontSize: width * 0.05,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: height * 0.01,
+  imageStyle: {
+    borderRadius: 5,
+    resizeMode: 'cover',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)', // Smooth subtle dark overlay
+    borderRadius: 5,
+  },
+  badgeContainer: {
+    alignSelf: 'flex-start',
+    zIndex: 1,
+  },
+  badge: {
+    backgroundColor: '#8A3FFC',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 5,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  title: {
+    color: 'white',
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    lineHeight: 28,
+    zIndex: 1,
+    marginTop: 8,
+  },
+  btnContainer: {
+    alignSelf: 'flex-start',
+    zIndex: 1,
+    marginTop: 8,
+  },
+  shopButton: {
+    backgroundColor: '#8A3FFC',
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 5,
+  },
+  shopButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
   },
 });

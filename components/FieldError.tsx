@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
 
@@ -14,14 +14,33 @@ const FieldError: React.FC<FieldErrorProps> = ({ message }) => {
     <Animated.View 
       entering={FadeInUp.duration(300)} 
       exiting={FadeOutDown.duration(200)}
-      className="flex-row items-center mt-1.5 px-3 py-1.5 bg-red-50/50 rounded-lg self-start border border-red-100/50"
+      style={styles.container}
     >
       <Ionicons name="alert-circle" size={14} color="#F43F5E" />
-      <Text className="text-rose-500 font-poppins-medium text-[11px] ml-1.5 tracking-tight">
+      <Text style={styles.text}>
         {message}
       </Text>
     </Animated.View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 5,
+    alignSelf: 'flex-start',
+  },
+  text: {
+    color: '#F43F5E',
+    fontFamily: 'poppins-medium',
+    fontSize: 16,
+    marginLeft: 6,
+    letterSpacing: -0.5,
+  },
+});
 
 export default FieldError;

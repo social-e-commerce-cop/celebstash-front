@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, Phone, Mail } from 'lucide-react-native';
 import ZikiiiInput from '@/components/ZikiiiInput';
@@ -12,18 +12,18 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   Verify: undefined;
-  PhoneNumber: undefined;
+  PhoneNumber: { initialValue?: string } | undefined;
   Email: undefined;
-  Verification: { identifier: string; type: 'email' | 'phone' };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
 };
 
 type PhoneNumberScreenNavigationProp = StackNavigationProp<AppStackParamList, 'PhoneNumber'>;
 
 const PhoneNumber: React.FC = () => {
   const navigation = useNavigation<PhoneNumberScreenNavigationProp>();
-  const [phone, setPhone] = useState('');
+  const route = useRoute<RouteProp<AppStackParamList, 'PhoneNumber'>>();
+  const [phone, setPhone] = useState(route.params?.initialValue || '');
   const [isLoading, setIsLoading] = useState(false);
-  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   const handleSendCode = async () => {
@@ -68,12 +68,12 @@ const PhoneNumber: React.FC = () => {
         <View style={styles.phoneForm}>
           <View style={styles.inputContainer}>
             <ZikiiiInput
-                icon={Mail}
+                icon={Phone}
                 placeholder="Phone Number"
-                value={emailOrPhone}
-                onChangeText={(text) => { setEmailOrPhone(text); setErrors({ ...errors, emailOrPhone: null }); }}
+                value={phone}
+                onChangeText={(text) => { setPhone(text); setErrors({ ...errors, phone: null }); }}
                 autoCapitalize="none"
-                error={errors.emailOrPhone}
+                error={errors.phone}
               />
           </View>
 

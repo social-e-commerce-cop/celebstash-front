@@ -44,7 +44,9 @@
             "./assets/fonts/Poppins-Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-audio",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

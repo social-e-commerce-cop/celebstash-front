@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, ShieldCheck, Mail, Phone, CheckCircle2 } from 'lucide-react-native';
 
@@ -10,23 +10,29 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
-  PhoneNumber: undefined;
-  Email: undefined;
+  Verify: { methodType?: 'email' | 'phone'; contactValue?: string } | undefined;
+  PhoneNumber: { initialValue?: string } | undefined;
+  Email: { initialValue?: string } | undefined;
 };
 
 type VerifyIdentityScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Verify'>;
 
 const VerifyIdentity: React.FC = () => {
   const navigation = useNavigation<VerifyIdentityScreenNavigationProp>();
-  const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('phone');
+  const route = useRoute<RouteProp<AppStackParamList, 'Verify'>>();
+  
+  const initialMethod = route.params?.methodType || 'phone';
+  const contactValue = route.params?.contactValue || '';
+
+  const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>(initialMethod);
 
   const handleContinue = () => {
     console.log('Continue with verification method:', selectedMethod);
+    const valueToPass = selectedMethod === initialMethod ? contactValue : '';
     if (selectedMethod === 'phone') {
-      navigation.navigate('PhoneNumber');
+      navigation.navigate('PhoneNumber', { initialValue: valueToPass });
     } else {
-      navigation.navigate('Email');
+      navigation.navigate('Email', { initialValue: valueToPass });
     }
   };
 

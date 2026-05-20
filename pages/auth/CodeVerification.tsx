@@ -11,7 +11,8 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   Verify: undefined;
-  Verification: { identifier: string; type: 'email' | 'phone' };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
+  CreatePassword: { email: string };
   Home: undefined;
 };
 
@@ -21,7 +22,7 @@ type VerificationScreenRouteProp = RouteProp<AppStackParamList, 'Verification'>;
 const CodeVerification: React.FC = () => {
   const navigation = useNavigation<VerificationScreenNavigationProp>();
   const route = useRoute<VerificationScreenRouteProp>();
-  const { identifier, type } = route.params || { identifier: 'you@example.com', type: 'email' };
+  const { identifier, type, flow } = route.params || { identifier: 'you@example.com', type: 'email', flow: 'signup' };
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +60,11 @@ const CodeVerification: React.FC = () => {
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      navigation.navigate('Signin');
+      if (flow === 'forgot_password') {
+        navigation.navigate('CreatePassword', { email: identifier });
+      } else {
+        navigation.navigate('Signin');
+      }
     } catch (error) {
       console.error('Verification failed:', error);
     } finally {
@@ -89,7 +94,7 @@ const CodeVerification: React.FC = () => {
 
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
-            <ShieldCheck size={32} color="#7126D0" />
+            <ShieldCheck size={28} color="#7126D0" />
           </View>
         </View>
 
@@ -165,7 +170,6 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
     width: 40,
   },
   backBtnDisabled: {
@@ -176,8 +180,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 40,
     backgroundColor: '#F3E8FF',
     alignItems: 'center',
@@ -189,17 +193,16 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
     color: '#111827',
     marginBottom: 12,
     fontFamily: 'Poppins-Bold',
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
   },
   formSection: {
     width: '100%',
@@ -212,16 +215,16 @@ const styles = StyleSheet.create({
   },
   otpInput: {
     width: 50,
-    height: 60,
-    borderWidth: 2,
+    height: 50,
+    borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 12,
+    borderRadius: 5,
     fontSize: 24,
-    fontWeight: 'bold',
     color: '#111827',
     textAlign: 'center',
     backgroundColor: '#F9FAFB',
-    fontFamily: 'Poppins-Bold',
+    fontFamily: 'Poppins-Medium',
+    padding: 0,
   },
   resendSection: {
     flexDirection: 'row',
@@ -229,13 +232,12 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   resendText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6B7280',
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
   },
   resendLink: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
     color: '#7126D0',
     fontFamily: 'Poppins-Bold',
   },
@@ -243,12 +245,10 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   verifyBtn: {
-    backgroundColor: '#7126D0',
-    borderRadius: 16,
-    paddingVertical: 18,
+     backgroundColor: '#7126D0',
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 0,
   },
   verifyBtnDisabled: {
     opacity: 0.6,
@@ -256,7 +256,6 @@ const styles = StyleSheet.create({
   verifyBtnText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
     fontFamily: 'Poppins-Bold',
   },
 });

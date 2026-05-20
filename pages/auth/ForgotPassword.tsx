@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator 
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, Mail } from 'lucide-react-native';
+import ZikiiiInput from '@/components/ZikiiiInput';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -17,23 +18,26 @@ type AppStackParamList = {
   EmailVerification: { email: string };
   ForgotPassword: undefined; 
   CreatePassword: { email: string};
-  Verification: { identifier: string; type: 'email' | 'phone' };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
 };
 
 type ForgotPasswordScreenNavigationProp = StackNavigationProp<AppStackParamList, 'ForgotPassword'>;
 
 const ForgotPassword: React.FC = () => {
   const navigation = useNavigation<ForgotPasswordScreenNavigationProp>();
-  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+  
 
   const handleSendEmail = async () => {
-    if (!email) return;
+    if (!emailOrPhone) return;
 
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      navigation.navigate('Verification', { identifier: email, type: 'email' });
+      const type = emailOrPhone.includes('@') ? 'email' : 'phone';
+      navigation.navigate('Verification', { identifier: emailOrPhone, type, flow: 'forgot_password' });
     } catch (error) {
       console.error('Error sending reset email:', error);
     } finally {
@@ -56,7 +60,7 @@ const ForgotPassword: React.FC = () => {
 
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
-            <Mail size={32} color="#7126D0" />
+            <Mail size={28} color="#7126D0" />
           </View>
         </View>
 
@@ -69,23 +73,20 @@ const ForgotPassword: React.FC = () => {
 
         <View style={styles.forgotForm}>
           <View style={styles.inputContainer}>
-            <Mail size={20} color="#999" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isLoading}
-              placeholderTextColor="#999"
-            />
+            <ZikiiiInput
+                            icon={Mail}
+                            placeholder="Email or Phone Number"
+                            value={emailOrPhone}
+                            onChangeText={(text) => { setEmailOrPhone(text); setErrors({ ...errors, emailOrPhone: null }); }}
+                            autoCapitalize="none"
+                            error={errors.emailOrPhone}
+                          />
           </View>
 
           <TouchableOpacity
-            style={[styles.sendEmailBtn, (!email || isLoading) ? styles.sendEmailBtnDisabled : null]}
+            style={[styles.sendEmailBtn, (!emailOrPhone || isLoading) ? styles.sendEmailBtnDisabled : null]}
             onPress={handleSendEmail}
-            disabled={!email || isLoading}
+            disabled={!emailOrPhone || isLoading}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="white" />
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
   },
   backBtnDisabled: {
     opacity: 0.5,
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 40,
     backgroundColor: '#F3E8FF',
     alignItems: 'center',
@@ -148,7 +148,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
     color: '#111827',
     marginBottom: 12,
     fontFamily: 'Poppins-Bold',
@@ -158,11 +157,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: 22,
     textAlign: 'center',
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
   },
   forgotForm: {
     flexDirection: 'column',
-    gap: 24,
+    gap: 14,
   },
   inputContainer: {
     position: 'relative',
@@ -189,27 +188,16 @@ const styles = StyleSheet.create({
   },
   sendEmailBtn: {
     backgroundColor: '#7126D0',
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    marginTop: 20,
-    shadowColor: '#7126D0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   sendEmailBtnDisabled: {
-    backgroundColor: '#E5E7EB',
-    shadowOpacity: 0,
-    elevation: 0,
+    opacity: 0.6,
   },
   sendEmailBtnText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
     fontFamily: 'Poppins-Bold',
   },
 });

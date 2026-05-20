@@ -15,39 +15,41 @@ type AppStackParamList = {
   ProfileDetails: { story: { id: number; username: string; image: any } };
 };
 
-const { width } = Dimensions.get("window"); // get screen width
+const { width } = Dimensions.get("window");
 
-// adjust story size relative to screen width
-const STORY_SIZE = width * 0.18; // 18% of screen width
+const STORY_SIZE = width * 0.16; // Perfectly sized avatar bubble
 const BORDER_SIZE = STORY_SIZE + 6;
 
-const stories = [
-  { id: 1, username: "Kenny k shot", image: require("../../assets/images/storyItem.jpg") },
-  { id: 2, username: "blue_bouy", image: require("../../assets/images/story2.png") },
+const artists = [
+  { id: 1, username: "sabanok...", image: require("../../assets/images/story1.png") },
+  { id: 2, username: "blue_boy", image: require("../../assets/images/storyItem.jpg") },
   { id: 3, username: "waggles", image: require("../../assets/images/story3.png") },
   { id: 4, username: "steve.loves", image: require("../../assets/images/story4.png") },
-  { id: 5, username: "steve.loves", image: require("../../assets/images/story1.png") },
 ];
 
 export default function ProfileSection() {
-  const navigation =
-    useNavigation<StackNavigationProp<AppStackParamList>>();
+  const navigation = useNavigation<StackNavigationProp<AppStackParamList>>();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>My social feed</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {stories.map((story) => (
+      {/* Header with See All */}
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Featured Artists</Text>
+      </View>
+
+      {/* Horizontal List */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+        {artists.map((artist) => (
           <TouchableOpacity
-            key={story.id}
+            key={artist.id}
             style={styles.storyContainer}
-            onPress={() => navigation.navigate("ProfileDetails", { story })}
+            onPress={() => navigation.navigate("ProfileDetails", { story: artist })}
           >
             <View style={styles.imageWrapper}>
-              <Image source={story.image} style={styles.storyImage} />
+              <Image source={artist.image} style={styles.storyImage} />
             </View>
             <Text style={styles.storyText} numberOfLines={1}>
-              {story.username}
+              {artist.username}
             </Text>
           </TouchableOpacity>
         ))}
@@ -58,23 +60,35 @@ export default function ProfileSection() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 6,
-    paddingLeft: 0,
+    paddingVertical: 10,
     backgroundColor: "#fff",
-    flex: 1,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   title: {
-    fontSize: width * 0.05, // responsive font size
-    fontWeight: "bold",
-    marginBottom: 24,
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: "black",
+  },
+  seeAllText: {
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: "#8A3FFC", // Vibrant Purple
+  },
+  scrollContainer: {
+    paddingRight: 10,
   },
   storyContainer: {
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   imageWrapper: {
-    borderWidth: 2,
-    borderColor: "#FF650E",
+    borderWidth: 3,
+    borderColor: "#8A3FFC", // Vibrant Purple border
     borderRadius: BORDER_SIZE / 2,
     padding: 2,
   },
@@ -84,9 +98,11 @@ const styles = StyleSheet.create({
     borderRadius: STORY_SIZE / 2,
   },
   storyText: {
-    marginTop: 5,
-    fontSize: width * 0.03, // responsive text size
-    maxWidth: STORY_SIZE + 10,
+    marginTop: 6,
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    color: "black",
     textAlign: "center",
+    maxWidth: STORY_SIZE + 10,
   },
 });

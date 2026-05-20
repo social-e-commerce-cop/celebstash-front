@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ErrorBannerProps {
@@ -11,22 +11,66 @@ const ErrorBanner: React.FC<ErrorBannerProps> = ({ message, onClose }) => {
   if (!message) return null;
 
   return (
-    <View className="bg-red-50 border border-red-100 p-4 rounded-2xl mb-6 flex-row items-center shadow-sm">
-      <View className="bg-red-100 p-2 rounded-full mr-3">
+    <View style={styles.container}>
+      <View style={styles.iconContainer}>
         <Ionicons name="alert-circle" size={20} color="#EF4444" />
       </View>
-      <View className="flex-1">
-        <Text className="text-red-800 font-poppins-bold text-xs uppercase tracking-wider mb-0.5">Error</Text>
-        <Text className="text-red-600 font-poppins-medium text-sm leading-5">{message}</Text>
+      <View style={styles.contentContainer}>
+        <Text style={styles.title}>Error</Text>
+        <Text style={styles.message}>{message}</Text>
       </View>
       <TouchableOpacity 
         onPress={onClose}
-        className="ml-2 p-1"
+        style={styles.closeButton}
       >
-        <Ionicons name="close" size={22} color="#EF4444" opacity={0.6} />
+        <Ionicons name="close" size={22} color="#EF4444" style={{ opacity: 0.6 }} />
       </TouchableOpacity>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    display: "flex",
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  iconContainer: {
+    padding: 8,
+    borderRadius: 9999,
+    marginRight: 12,
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  title: {
+    color: '#991B1B',
+    fontFamily: 'poppins-bold',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  message: {
+    color: '#DC2626',
+    fontFamily: 'poppins-medium',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  closeButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+});
 
 export default ErrorBanner;

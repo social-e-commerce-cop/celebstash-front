@@ -6,6 +6,7 @@ import { User, Mail, Lock, AtSign } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GoogleLogo from '@/components/GoogleLogo';
 import ZikiiiInput from '@/components/ZikiiiInput';
+import { setSessionUser } from '@/lib/session';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -13,7 +14,8 @@ type AppStackParamList = {
   OnBoarding: undefined;
   Signin: undefined;
   Signup: undefined;
-  Verify: undefined;
+  Verify: { methodType?: 'email' | 'phone'; contactValue?: string } | undefined;
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
 };
 
 type SignUpScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signup'>;
@@ -54,7 +56,14 @@ const Signup: React.FC = () => {
     }
     
     console.log('Sign up with:', { fullName, emailOrPhone, password, username });
-    navigation.navigate('Verify');
+    
+    // Save to global session store
+    setSessionUser({ fullName, username, email: emailOrPhone });
+    
+    const isEmail = isEmailValid(emailOrPhone);
+    const methodType = isEmail ? 'email' : 'phone';
+    
+    navigation.navigate('Verification', { identifier: emailOrPhone, type: methodType });
   };
 
   const handleSocialLogin = (provider: string) => {

@@ -15,6 +15,7 @@ type AppStackParamList = {
   Signup: undefined;
   ForgotPassword: undefined;
   Home: undefined;
+  ArtHome: undefined;
 };
 
 type SignInScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signin'>;
@@ -38,7 +39,11 @@ const Signin: React.FC = () => {
 
     if (Object.keys(newErrors).length === 0) {
       console.log('Sign in with:', { email, password });
-      navigation.navigate('Home');
+      if (email.toLowerCase() === 'artist@zikiii.com') {
+        navigation.navigate('ArtHome');
+      } else {
+        navigation.navigate('Home');
+      }
     }
   };
 
@@ -96,6 +101,25 @@ const Signin: React.FC = () => {
           >
             <Text style={styles.mainBtnText}>Sign In</Text>
           </TouchableOpacity>
+
+          {/* Quick Demo Logins Section */}
+          <View style={styles.demoContainer}>
+            <Text style={styles.demoLabel}>Quick Demo Logins</Text>
+            <View style={styles.demoButtonsRow}>
+              <TouchableOpacity 
+                style={styles.demoBtn} 
+                onPress={() => { setEmail('user@zikiii.com'); setPassword('password123'); }}
+              >
+                <Text style={styles.demoBtnText}>User</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.demoBtn, styles.demoBtnArtist]} 
+                onPress={() => { setEmail('artist@zikiii.com'); setPassword('password123'); }}
+              >
+                <Text style={[styles.demoBtnText, styles.demoBtnTextArtist]}>Artist</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <View style={styles.dividerRow}>
@@ -177,34 +201,35 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Poppins-Bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  subtitle: {
+ subtitle: {
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
     fontFamily: 'Poppins-Medium',
+    lineHeight: 24,
   },
   formArea: {
     flexDirection: 'column',
   },
   forgotBtn: {
     alignSelf: 'flex-end',
-    marginBottom: 24,
+    marginBottom: 12,
   },
   forgotBtnText: {
     color: '#7126D0',
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
   },
   mainBtn: {
     backgroundColor: '#7126D0',
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   disabledBtn: {
@@ -212,7 +237,7 @@ const styles = StyleSheet.create({
   },
   mainBtnText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
   },
   dividerRow: {
@@ -229,7 +254,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     color: '#9CA3AF',
     fontFamily: 'Poppins-Medium',
-    fontSize: 14,
+    fontSize: 16,
   },
   socialRow: {
     flexDirection: 'row',
@@ -253,11 +278,51 @@ const styles = StyleSheet.create({
   },
   footerText: {
     color: '#6B7280',
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
+    fontSize: 16,
   },
   footerLinkText: {
     color: '#7126D0',
     fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+  },
+  demoContainer: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  demoLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  demoButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  demoBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoBtnArtist: {
+    backgroundColor: '#7126D0',
+  },
+  demoBtnText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#374151',
+  },
+  demoBtnTextArtist: {
+    color: 'white',
   },
 });
 

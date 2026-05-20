@@ -75,11 +75,13 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 5,
     backgroundColor: 'white',
     paddingHorizontal: 16,
     borderColor: '#F3F4F6',
+    height: 48,
   },
   containerFocused: {
     borderColor: '#7126D0',
@@ -90,6 +92,7 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 12,
+    marginBottom: 4,
   },
   input: {
     flex: 1,
@@ -97,6 +100,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins-Regular',
     height: '100%',
+    paddingVertical: 0,
   },
   eyeBtn: {
     marginLeft: 8,

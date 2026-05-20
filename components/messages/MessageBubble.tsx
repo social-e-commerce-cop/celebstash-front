@@ -7,7 +7,8 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
-import { Audio } from "expo-av";
+import { useAudioPlayer } from "expo-audio";
+import { useEvent } from "expo";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -69,25 +70,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   previousType,
 }) => {
   const isOutgoing = type === "outgoing";
-  const [sound, setSound] = React.useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = React.useState(false);
+  const player = useAudioPlayer(uri || '');
+  const isPlaying = useEvent(player, 'playingChange', { playing: player.playing }).playing;
 
-  const playVoiceNote = async (uri: string) => {
-    if (sound) {
-      await sound.stopAsync();
-      setIsPlaying(false);
-      setSound(null);
+  const playVoiceNote = () => {
+    if (player.playing) {
+      player.pause();
     } else {
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri });
-      setSound(newSound);
-      setIsPlaying(true);
-      await newSound.playAsync();
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setIsPlaying(false);
-          setSound(null);
-        }
-      });
+      player.play();
     }
   };
 
@@ -136,7 +126,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </TouchableOpacity>
           ) : uri ? (
             <TouchableOpacity
-              onPress={() => playVoiceNote(uri)}
+              onPress={playVoiceNote}
               style={styles.voiceNote}
             >
               <Ionicons

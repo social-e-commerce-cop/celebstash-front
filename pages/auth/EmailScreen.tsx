@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, Mail } from 'lucide-react-native';
+import ZikiiiInput from '@/components/ZikiiiInput';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -12,17 +13,20 @@ type AppStackParamList = {
   Signup: undefined;
   Verify: undefined;
   PhoneNumber: undefined;
-  Email: undefined;
+  Email: { initialValue?: string } | undefined;
   PhoneVerification: { phone: string };
-  Verification: { identifier: string; type: 'email' | 'phone' };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
 };
 
 type EmailAddressScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Email'>;
 
 const EmailAddressScreen: React.FC = () => {
   const navigation = useNavigation<EmailAddressScreenNavigationProp>();
-  const [email, setEmail] = useState('');
+  const route = useRoute<RouteProp<AppStackParamList, 'Email'>>();
+  const [email, setEmail] = useState(route.params?.initialValue || '');
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+  
 
   const isValidEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -69,16 +73,15 @@ const EmailAddressScreen: React.FC = () => {
         <View style={styles.emailForm}>
           <View style={styles.inputContainer}>
             <Mail size={20} color="#999" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isLoading}
-              placeholderTextColor="#999"
-            />
+          <ZikiiiInput
+                          icon={Mail}
+                          placeholder="Email Address"
+                          value={email}
+                          onChangeText={(text) => { setEmail(text); setErrors({ ...errors, email: null }); }}
+                          autoCapitalize="none"
+                          error={errors.email}
+                        />
+            
           </View>
 
           <TouchableOpacity
@@ -134,8 +137,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 40,
     backgroundColor: '#F3E8FF',
     alignItems: 'center',
@@ -148,18 +151,17 @@ const styles = StyleSheet.create({
   },
   formHeaderTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
     color: '#111827',
     marginBottom: 12,
     textAlign: 'center',
     fontFamily: 'Poppins-Bold',
   },
   formHeaderText: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
   },
   emailForm: {
     width: '100%',
@@ -177,7 +179,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   input: {
-    width: '100%',
+     width: '100%',
     paddingVertical: 16,
     paddingLeft: 48,
     paddingRight: 16,
@@ -191,12 +193,11 @@ const styles = StyleSheet.create({
   },
   sendCodeBtn: {
     backgroundColor: '#7126D0',
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOpacity: 0,
-    elevation: 0,
+    marginTop: 8,
   },
   sendCodeBtnDisabled: {
     opacity: 0.6,
@@ -204,7 +205,6 @@ const styles = StyleSheet.create({
   sendCodeBtnText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
     fontFamily: 'Poppins-Bold',
   },
 });

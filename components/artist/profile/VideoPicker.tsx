@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { Video } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 interface VideoPickerRowProps {
   videos: string[];
@@ -17,6 +17,61 @@ interface VideoPickerRowProps {
 }
 
 const { width, height } = Dimensions.get("window");
+
+const VideoThumbnail = ({ uri, onPress }: { uri: string, onPress: () => void }) => {
+  const player = useVideoPlayer(uri, player => {
+    player.muted = true;
+    player.pause();
+  });
+
+  return (
+    <TouchableOpacity onPress={onPress}>
+      <View style={styles.thumbnail}>
+        <VideoView 
+          player={player} 
+          style={{ width: "100%", height: "100%" }} 
+          nativeControls={false} 
+        />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const PreviewVideoModal = ({ previewUri, setPreviewUri, removeVideo }: any) => {
+  const player = useVideoPlayer(previewUri, player => {
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <Modal visible={true} transparent animationType="fade">
+      <View style={styles.modal}>
+        <VideoView
+          player={player}
+          style={styles.modalVideo}
+          nativeControls
+        />
+
+        <TouchableOpacity
+          onPress={() => setPreviewUri(null)}
+          style={styles.modalButton}
+        >
+          <Text style={styles.modalButtonText}>Close</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {
+            removeVideo(previewUri);
+            setPreviewUri(null);
+          }}
+          style={[styles.modalButton, { backgroundColor: "red" }]}
+        >
+          <Text style={styles.modalButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
 
 const VideoPickerRow: React.FC<VideoPickerRowProps> = ({ videos, onChange }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
@@ -57,51 +112,20 @@ const VideoPickerRow: React.FC<VideoPickerRowProps> = ({ videos, onChange }) => 
             contentContainerStyle={styles.videoRow}
           >
             {videos.map((uri, idx) => (
-              <TouchableOpacity key={idx} onPress={() => setPreviewUri(uri)}>
-                <View style={styles.thumbnail}>
-                  <Video
-                    source={{ uri }}
-                    style={{ width: "100%", height: "100%" }}
-                    isMuted
-                    shouldPlay={false}
-                  />
-                </View>
-              </TouchableOpacity>
+              <VideoThumbnail key={idx} uri={uri} onPress={() => setPreviewUri(uri)} />
             ))}
           </ScrollView>
         </View>
       </View>
 
       {/* Modal Preview */}
-      <Modal visible={!!previewUri} transparent animationType="fade">
-        <View style={styles.modal}>
-          {previewUri && (
-        <Video
-  source={{ uri: previewUri }}
-  style={styles.modalVideo}
-  useNativeControls
-  isLooping
-/>
-          )}
-
-          <TouchableOpacity
-            onPress={() => setPreviewUri(null)}
-            style={styles.modalButton}
-          >
-            <Text style={styles.modalButtonText}>Close</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              if (previewUri) removeVideo(previewUri);
-              setPreviewUri(null);
-            }}
-            style={[styles.modalButton, { backgroundColor: "red" }]}
-          >
-            <Text style={styles.modalButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      {previewUri && (
+        <PreviewVideoModal 
+          previewUri={previewUri} 
+          setPreviewUri={setPreviewUri} 
+          removeVideo={removeVideo} 
+        />
+      )}
     </View>
   );
 };

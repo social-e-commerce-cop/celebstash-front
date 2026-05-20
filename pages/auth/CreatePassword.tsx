@@ -4,6 +4,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import ZikiiiInput from '@/components/ZikiiiInput';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -23,13 +24,14 @@ const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
   const route = useRoute<CreatePasswordScreenRouteProp>();
   const { email } = route.params || { email: 'you@example.com' };
-  
-  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('');
+    const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   const handleCreatePassword = async () => {
     if (password !== confirmPassword) {
@@ -68,7 +70,7 @@ const CreatePassword: React.FC = () => {
 
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
-            <Lock size={32} color="#7126D0" />
+            <Lock size={28} color="#7126D0" />
           </View>
         </View>
 
@@ -80,57 +82,31 @@ const CreatePassword: React.FC = () => {
         </View>
 
         <View style={styles.createPasswordForm}>
-          <View style={styles.inputContainer}>
-            <Lock size={20} color="#999" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="New Password"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                setError('');
-              }}
-              secureTextEntry={!showPassword}
-              editable={!isLoading}
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? (
-                <EyeOff size={20} color="#999" />
-              ) : (
-                <Eye size={20} color="#999" />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Lock size={20} color="#999" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                setError('');
-              }}
-              secureTextEntry={!showConfirmPassword}
-              editable={!isLoading}
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              {showConfirmPassword ? (
-                <EyeOff size={20} color="#999" />
-              ) : (
-                <Eye size={20} color="#999" />
-              )}
-            </TouchableOpacity>
-          </View>
+          <ZikiiiInput
+            icon={Lock}
+            placeholder="New Password"
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setError('');
+              setErrors({ ...errors, password: null });
+            }}
+            secureTextEntry
+            error={errors.password}
+          />
+          
+          <ZikiiiInput
+            icon={Lock}
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              setError('');
+              setErrors({ ...errors, confirmPassword: null });
+            }}
+            secureTextEntry
+            error={errors.confirmPassword}
+          />
 
           {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
 
@@ -176,7 +152,6 @@ const styles = StyleSheet.create({
   backBtn: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
   },
   backBtnDisabled: {
     opacity: 0.5,
@@ -186,8 +161,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     borderRadius: 40,
     backgroundColor: '#F3E8FF',
     alignItems: 'center',
@@ -200,7 +175,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
     color: '#111827',
     marginBottom: 12,
     fontFamily: 'Poppins-Bold',
@@ -210,11 +184,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: 22,
     textAlign: 'center',
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'Poppins-Medium',
   },
   createPasswordForm: {
     flexDirection: 'column',
-    gap: 20,
+    gap: 10,
   },
   inputContainer: {
     position: 'relative',
@@ -256,27 +230,18 @@ const styles = StyleSheet.create({
   },
   createPasswordBtn: {
     backgroundColor: '#7126D0',
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    marginTop: 20,
-    shadowColor: '#7126D0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   createPasswordBtnDisabled: {
-    backgroundColor: '#E5E7EB',
-    shadowOpacity: 0,
-    elevation: 0,
+    opacity: 0.6,
   },
   createPasswordBtnText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
     fontFamily: 'Poppins-Bold',
   },
 });
