@@ -29,81 +29,53 @@ type CheckoutButtonProps = {
 };
 
 const MainButton: React.FC<CheckoutButtonProps> = ({
-  total = '$650.00',
+  total = '',
   label = 'Checkout',
-  arrow = '→',
+  arrow = '',
   onPress = () => {},
   buttonStyle,
   totalStyle,
   labelStyle,
   arrowStyle,
 }) => {
-  const buttonHeight = Math.min(screenWidth * 0.06, 50); 
-  const fontSize = scaleFont(18); 
-
   return (
     <TouchableOpacity
       style={[
         styles.button,
-        { height: buttonHeight },
         buttonStyle,
       ]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Text
-        style={[
-          styles.total,
-          { fontSize },
-          totalStyle,
-        ]}
-      >
-        {total}
-      </Text>
-      <Text
-        style={[
-          styles.label,
-          { fontSize: scaleFont(16) },
-          labelStyle,
-        ]}
-      >
-        {label}
-        
-      </Text>
-      <Text
-        style={[
-          styles.arrow,
-          { fontSize },
-          arrowStyle,
-        ]}
-      >
-        {arrow}
-      </Text>
+      {!!total && (
+        <Text style={[styles.total, totalStyle]}>{total}</Text>
+      )}
+      <Text style={[styles.label, labelStyle]}>{label}</Text>
+      {!!arrow && (
+        <Text style={[styles.arrow, arrowStyle]}>{arrow}</Text>
+      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    flexDirection: 'row',
-    backgroundColor: '#FF9500', // Orange background
-    borderRadius: 12,
+    backgroundColor: '#7126D0',
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginHorizontal: 0,
     marginVertical: 12,
-    minHeight: 50, // Fallback for smaller screens
   },
   total: {
-    fontWeight: '700',
+    fontFamily: 'Poppins-Bold',
     color: '#FFFFFF',
     marginRight: 15,
   },
   label: {
-    fontWeight: '600',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
     color: '#FFFFFF',
-    marginRight: 15,
   },
   arrow: {
     fontWeight: 'bold',

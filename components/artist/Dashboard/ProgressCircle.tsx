@@ -16,7 +16,7 @@ const ProgressCircle: React.FC<HalfCircleProgressProps> = ({
   total,
   size = 140,
   strokeWidth = 12,
-  color = '#FF650E',
+  color = '#7126D0',
   backgroundColor = '#384147',
   unit = ' kcal',
 }) => {

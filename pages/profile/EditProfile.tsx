@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
   },
   optionText: {
-    color: "#FF650E",
+    color: "#7126D0",
     fontWeight: "600",
     fontSize: 16,
   },

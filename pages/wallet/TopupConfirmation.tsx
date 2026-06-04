@@ -19,7 +19,7 @@ interface PinEntryProps {
 const TopupPinEntry: React.FC<PinEntryProps> = ({
   label = "Enter your Pin to confirm the payment",
   circleColor = "#D3D3D3",
-  fillColor = "#FF650E",
+  fillColor = "#7126D0",
   circleSize = width * 0.12,
   spacing = width * 0.03,
 }) => {

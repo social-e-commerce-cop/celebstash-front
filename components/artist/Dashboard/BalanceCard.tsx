@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   balance: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#FF650E',
+    color: '#7126D0',
     marginBottom: 12,
   },
   date: {

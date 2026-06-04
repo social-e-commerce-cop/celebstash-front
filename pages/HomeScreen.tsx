@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 3,
-    backgroundColor: '#8A3FFC', // Vibrant Purple badge background
+    backgroundColor: '#7126D0', // Orange badge background
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: '#8A3FFC', // Thick purple underline indicator
+    backgroundColor: '#7126D0', // Orange underline indicator
     borderRadius: 2,
   },
   tabBarContainer: {

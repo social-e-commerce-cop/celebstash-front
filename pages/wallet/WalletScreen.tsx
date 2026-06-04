@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   },
   seeAll: {
     fontSize: 16,
-    color: "#FF650E",
+    color: "#7126D0",
     fontWeight: "600",
   },
   containerr: {

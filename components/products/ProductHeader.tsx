@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   },
   active: { backgroundColor: "#272522", borderColor: "#272522" },
   text: { color: "#272522" },
-  activeText: { color: "#FF650E", fontWeight: "bold" },
+  activeText: { color: "#7126D0", fontWeight: "bold" },
 });
 
 export default ProductHeader;

@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   mapContainer: { height: mapHeight, marginBottom: 20, borderRadius: 10, overflow: 'hidden' },
   map: { flex: 1 },
   addButton: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',

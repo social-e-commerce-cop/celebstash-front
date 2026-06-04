@@ -38,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({
       <Text
         style={[
           styles.headerRightText,
-          doneDisabled && { color: "#FF650E" },
+          doneDisabled && { color: "#7126D0" },
         ]}
       >
         Done
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   headerRightText: {
     fontSize: width * 0.045,
-    color: "#FF650E",
+    color: "#7126D0",
     fontWeight: "bold",
   },
 });

@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   badge: {
-    backgroundColor: '#8A3FFC',
+    backgroundColor: '#7126D0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 5,
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   shopButton: {
-    backgroundColor: '#8A3FFC',
+    backgroundColor: '#7126D0',
     paddingHorizontal: 22,
     paddingVertical: 10,
     borderRadius: 5,

@@ -148,7 +148,7 @@ const UserInfo: React.FC<UserInfoProps> = ({ name, email, bio }) => {
                     style={[styles.progress, { width: `${uploadProgress}%` }]}
                   />
                 </View>
-                <Text style={{ color: "#FF650E", fontSize: 20 }}>
+                <Text style={{ color: "#7126D0", fontSize: 20 }}>
                   {uploadProgress}%
                 </Text>
               </View>
@@ -260,11 +260,11 @@ const styles = StyleSheet.create({
   },
   progress: {
     height: "100%",
-    backgroundColor: "#FF650E",
+    backgroundColor: "#7126D0",
     borderRadius: 10,
   },
   uploadButton: {
-    backgroundColor: "#FF650E",
+    backgroundColor: "#7126D0",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,

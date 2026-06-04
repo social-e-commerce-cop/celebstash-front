@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   },
   title: { fontWeight: "bold", fontSize: 15 },
   name: { fontWeight: "bold", fontSize: 15 },
-  seeAll: { color: "#FF650E", fontSize: 15, fontWeight: "bold" },
+  seeAll: { color: "#7126D0", fontSize: 15, fontWeight: "bold" },
   mate: { alignItems: "center", marginRight: 20 },
   image: { width: 65, height: 65, borderRadius: 50, marginBottom: 4 },
 });

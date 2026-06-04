@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
   name: { fontWeight: "bold", fontSize: 16 },
   message: { color: "#303030B2", fontSize: 14, marginTop: 4, fontWeight: '500' },
   messageBadge: {
-    backgroundColor: "#FF650E",
+    backgroundColor: "#7126D0",
     borderRadius: 50,
     minWidth: 30,
     minHeight: 30,

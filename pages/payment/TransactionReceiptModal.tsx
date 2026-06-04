@@ -40,7 +40,7 @@ const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = ({
       const htmlContent = `
         <html>
           <body style="font-family: Arial; padding: 20px;">
-            <h1 style="color: #FF650E;">Transaction Receipt</h1>
+            <h1 style="color: #7126D0;">Transaction Receipt</h1>
             <p><strong>Transaction ID:</strong> ${transactionId}</p>
             <p><strong>Amount:</strong> ${currency}${amount}</p>
             <p><strong>Payment Method:</strong> ${paymentMethod}</p>
@@ -118,11 +118,11 @@ const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = ({
                     <Text style={styles.value}>{transactionId}</Text>
                     <TouchableOpacity onPress={copyTransactionId} style={styles.copyButton}>
                       <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                        <Path d="M20.998 10C20.986 7.825 20.89 6.647 20.121 5.879C19.243 5 17.828 5 15 5H12C9.172 5 7.757 5 6.879 5.879C6 6.757 6 8.172 6 11V16C6 18.828 6 20.243 6.879 21.121C7.757 22 9.172 22 12 22H15C17.828 22 19.243 22 20.121 21.121C21 20.243 21 18.828 21 16V15" stroke="#FF650E" strokeWidth={1.5} strokeLinecap="round"/>
-                        <Path d="M3 10V16C3 16.7956 3.31607 17.5587 3.87868 18.1213C4.44129 18.6839 5.20435 19 6 19M18 5C18 4.20435 17.6839 3.44129 17.1213 2.87868C16.5587 2.31607 15.7956 2 15 2H11C7.229 2 5.343 2 4.172 3.172C3.518 3.825 3.229 4.7 3.102 6" stroke="#FF650E" strokeWidth={1.5} strokeLinecap="round"/>
+                        <Path d="M20.998 10C20.986 7.825 20.89 6.647 20.121 5.879C19.243 5 17.828 5 15 5H12C9.172 5 7.757 5 6.879 5.879C6 6.757 6 8.172 6 11V16C6 18.828 6 20.243 6.879 21.121C7.757 22 9.172 22 12 22H15C17.828 22 19.243 22 20.121 21.121C21 20.243 21 18.828 21 16V15" stroke="#7126D0" strokeWidth={1.5} strokeLinecap="round"/>
+                        <Path d="M3 10V16C3 16.7956 3.31607 17.5587 3.87868 18.1213C4.44129 18.6839 5.20435 19 6 19M18 5C18 4.20435 17.6839 3.44129 17.1213 2.87868C16.5587 2.31607 15.7956 2 15 2H11C7.229 2 5.343 2 4.172 3.172C3.518 3.825 3.229 4.7 3.102 6" stroke="#7126D0" strokeWidth={1.5} strokeLinecap="round"/>
                       </Svg>
                     </TouchableOpacity>
-                    {copied && <Text style={{ marginLeft: 5, color: "#FF650E" }}>Copied!</Text>}
+                    {copied && <Text style={{ marginLeft: 5, color: "#7126D0" }}>Copied!</Text>}
                   </View>
                 </View>
 
@@ -153,24 +153,24 @@ const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = ({
 
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", justifyContent: "center", alignItems: "center" },
-  modalContainer: { backgroundColor: "#f5f8faff", borderRadius: width * 0.04, margin: width * 0.02, maxHeight: height * 0.85, width: width * 0.9, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  modalContainer: { backgroundColor: "#f5f8faff", borderRadius: 5, margin: width * 0.02, maxHeight: height * 0.85, width: width * 0.9, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 5 },
   header: { alignItems: "center", paddingVertical: height * 0.03, paddingHorizontal: width * 0.04 },
   successIconContainer: { marginBottom: height * 0 },
   detailsContainer: { padding: width * 0.04 },
   totalDetailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: height * 0.03, paddingHorizontal: width * 0.05, backgroundColor: '#fff', borderRadius: 5, marginBottom: height * 0.02 },
   details: { flexDirection: "column", backgroundColor: '#fff', borderRadius: 5, paddingVertical: height * 0.015 },
   detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: height * 0.015, paddingHorizontal: width * 0.05 },
-  label: { fontSize: width * 0.04, color: "#303030", fontWeight: "500" },
-  value: { fontSize: width * 0.04, color: "#000", fontWeight: "bold", textAlign: "right" },
+  label: { fontSize: width * 0.04, color: "#303030", fontFamily: "Poppins-Medium" },
+  value: { fontSize: width * 0.04, color: "#000", fontFamily: "Poppins-Bold", textAlign: "right" },
   transactionIdRow: { flexDirection: "row", alignItems: "center" },
   copyButton: { marginLeft: width * 0.02 },
-  statusContainer: { backgroundColor: "#FF650E", paddingHorizontal: width * 0.07, paddingVertical: height * 0.01, borderRadius: width * 0.009 },
-  statusText: { fontSize: width * 0.04, color: "#fff", fontWeight: "600" },
+  statusContainer: { backgroundColor: "#7126D0", paddingHorizontal: width * 0.07, paddingVertical: height * 0.01, borderRadius: width * 0.009 },
+  statusText: { fontSize: width * 0.04, color: "#fff", fontFamily: "Poppins-Bold" },
   buttonContainer: { padding: width * 0.04, borderTopWidth: 1, borderTopColor: "#F0F0F0" },
-  getReceiptButton: { backgroundColor: "#FF650E", paddingVertical: height * 0.02, borderRadius: width * 0.02, marginBottom: height * 0.015, alignItems: "center" },
-  getReceiptButtonText: { color: "#fff", fontSize: width * 0.04, fontWeight: "600" },
-  cancelButton: { backgroundColor: "#8F959E57", paddingVertical: height * 0.02, borderRadius: width * 0.02, alignItems: "center" },
-  cancelButtonText: { color: "#000", fontSize: width * 0.04, fontWeight: "bold" },
+  getReceiptButton: { backgroundColor: "#7126D0", paddingVertical: height * 0.013, borderRadius: 5, marginBottom: height * 0.013, alignItems: "center" },
+  getReceiptButtonText: { color: "#fff", fontSize: width * 0.04, fontFamily: "Poppins-Bold" },
+  cancelButton: { backgroundColor: "#8F959E57", paddingVertical: height * 0.013, borderRadius: 5, alignItems: "center" },
+  cancelButtonText: { color: "#000", fontSize: width * 0.04, fontFamily: "Poppins-Bold" },
 });
 
 export default TransactionReceiptModal;

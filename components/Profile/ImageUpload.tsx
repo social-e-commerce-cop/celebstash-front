@@ -137,7 +137,7 @@ const ImageUpload = () => {
                       style={[styles.progress, { width: `${uploadProgress}%` }]}
                     />
                   </View>
-                  <Text style={{ color: "#FF650E", fontSize: 20 }}>
+                  <Text style={{ color: "#7126D0", fontSize: 20 }}>
                     {uploadProgress}%
                   </Text>
                 </View>
@@ -177,7 +177,7 @@ const ImageUpload = () => {
     avatar: { width: 90, height: 90, borderRadius: 45 },
     editButton: {
       padding: 4,
-      color: '#FF650E',
+      color: '#7126D0',
       fontSize: 16,
       fontWeight: "500",
       textAlign: "center",
@@ -249,11 +249,11 @@ const ImageUpload = () => {
     },
     progress: {
       height: "100%",
-      backgroundColor: "#FF650E",
+      backgroundColor: "#7126D0",
       borderRadius: 10,
     },
     uploadButton: {
-      backgroundColor: "#FF650E",
+      backgroundColor: "#7126D0",
       paddingVertical: 12,
       paddingHorizontal: 20,
       borderRadius: 10,

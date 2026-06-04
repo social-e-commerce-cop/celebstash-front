@@ -4,6 +4,7 @@ import {
   FlatList, TextInput, Dimensions, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 
 const { height } = Dimensions.get('window');
 
@@ -34,7 +35,7 @@ interface CommentsModalProps {
 }
 
 const HeartIcon = ({ filled, size = 16 }: { filled: boolean; size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#8A3FFC' : 'none'} stroke={filled ? '#8A3FFC' : '#aaa'} strokeWidth="2">
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#7126D0' : 'none'} stroke={filled ? '#7126D0' : '#aaa'} strokeWidth="2">
     <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
   </Svg>
 );
@@ -205,8 +206,8 @@ const CommentsModal: React.FC<CommentsModalProps> = ({ visible, onClose, current
                       onChangeText={setReplyText}
                       autoFocus
                     />
-                    <TouchableOpacity onPress={() => handleAddReply(item.id)}>
-                      <Text style={styles.sendLabel}>Send</Text>
+                    <TouchableOpacity onPress={() => handleAddReply(item.id)} style={styles.replySendIconBtn}>
+                      <Ionicons name="send" size={18} color="#7126D0" />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -239,15 +240,20 @@ const CommentsModal: React.FC<CommentsModalProps> = ({ visible, onClose, current
         {/* Add comment bar */}
         <View style={styles.addRow}>
           <Image source={currentUserImage} style={styles.avatar} />
-          <TextInput
-            style={styles.addInput}
-            placeholder="Add comment"
-            placeholderTextColor="#333"
-            value={newComment}
-            onChangeText={setNewComment}
-            returnKeyType="send"
-            onSubmitEditing={handleAddComment}
-          />
+          <View style={styles.addInputContainer}>
+            <TextInput
+              style={styles.addInput}
+              placeholder="Add comment"
+              placeholderTextColor="#333"
+              value={newComment}
+              onChangeText={setNewComment}
+              returnKeyType="send"
+              onSubmitEditing={handleAddComment}
+            />
+            <TouchableOpacity onPress={handleAddComment} style={styles.sendIconBtn}>
+              <Ionicons name="send" size={18} color="#7126D0" />
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -281,13 +287,14 @@ const styles = StyleSheet.create({
   commentText: { fontSize: 16, fontFamily: 'Poppins-Regular', color: '#333', lineHeight: 22, marginTop: 2 },
   replyLabel: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#8c8c8c', marginTop: 5 },
   likeBtn: { alignItems: 'center', marginLeft: 8, minWidth: 20 },
-  likeCount: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#8A3FFC', marginTop: 2 },
+  likeCount: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#7126D0', marginTop: 2 },
   replyInputRow: {
     flexDirection: 'row', alignItems: 'center', marginTop: 8,
     backgroundColor: '#f5f5f5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
   },
   replyInput: { flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000', padding: 0 },
-  sendLabel: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#8A3FFC', marginLeft: 8 },
+  replySendIconBtn: { marginLeft: 8, justifyContent: 'center', alignItems: 'center' },
+  sendLabel: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0', marginLeft: 8 },
   replyRow: { flexDirection: 'row', marginTop: 10, paddingLeft: 8, alignItems: 'flex-start' },
   replyAvatar: { width: 38, height: 38, borderRadius: 19, marginRight: 8 },
   replyBody: { flex: 1 },
@@ -296,9 +303,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: '#f0f0f0',
   },
+  addInputContainer: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f5f5f5', borderRadius: 24,
+    paddingHorizontal: 16,
+  },
   addInput: {
-    flex: 1, backgroundColor: '#f5f5f5', borderRadius: 24,
-    paddingHorizontal: 16, paddingVertical: 12,
+    flex: 1, paddingVertical: 12,
     fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000',
+  },
+  sendIconBtn: {
+    marginLeft: 8, justifyContent: 'center', alignItems: 'center',
   },
 });

@@ -115,13 +115,13 @@ const TransactionDetails: React.FC<TransactionReceiptModalProps> = ({
                 <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
                   <Path
                     d="M20.998 10C20.986 7.825 20.89 6.647 20.121 5.879C19.243 5 17.828 5 15 5H12C9.172 5 7.757 5 6.879 5.879C6 6.757 6 8.172 6 11V16C6 18.828 6 20.243 6.879 21.121C7.757 22 9.172 22 12 22H15C17.828 22 19.243 22 20.121 21.121C21 20.243 21 18.828 21 16V15"
-                    stroke="#FF650E"
+                    stroke="#7126D0"
                     strokeWidth={1.5}
                     strokeLinecap="round"
                   />
                   <Path
                     d="M3 10V16C3 16.7956 3.31607 17.5587 3.87868 18.1213C4.44129 18.6839 5.20435 19 6 19M18 5C18 4.20435 17.6839 3.44129 17.1213 2.87868C16.5587 2.31607 15.7956 2 15 2H11C7.229 2 5.343 2 4.172 3.172C3.518 3.825 3.229 4.7 3.102 6"
-                    stroke="#FF650E"
+                    stroke="#7126D0"
                     strokeWidth={1.5}
                     strokeLinecap="round"
                   />
@@ -183,9 +183,9 @@ const styles = StyleSheet.create({
   value: { fontSize: width * 0.04, color: "#000", fontWeight: "bold", textAlign: "right" },
   transactionIdRow: { flexDirection: "row", alignItems: "center" },
   copyButton: { marginLeft: width * 0.02 },
-  copiedText: { marginLeft: 5, color: "#FF650E", fontSize: width * 0.035 },
+  copiedText: { marginLeft: 5, color: "#7126D0", fontSize: width * 0.035 },
   statusContainer: {
-    backgroundColor: "#FF650E",
+    backgroundColor: "#7126D0",
     paddingHorizontal: width * 0.07,
     paddingVertical: height * 0.01,
     borderRadius: width * 0.009,

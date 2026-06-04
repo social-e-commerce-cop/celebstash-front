@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   title: { fontSize: 18, fontWeight: "bold" },
-  done: { color: "#FF650E", fontSize: 18, fontWeight: "bold" },
+  done: { color: "#7126D0", fontSize: 18, fontWeight: "bold" },
   inputBox: {
     borderWidth: 2,
     borderColor: "#8F959E57",
@@ -97,8 +97,8 @@ const styles = StyleSheet.create({
   input: { fontSize: 16, marginTop: 4, fontWeight: "bold" },
   clearBtn: { position: "absolute", right: 10, top: "40%" },
   info: { fontSize: 14, color: "#000", lineHeight: 20, fontWeight: "bold" },
-  highlight: { color: "#FF650E", fontWeight: "600" },
-  link: { color: "#FF650E", fontWeight: "600" },
+  highlight: { color: "#7126D0", fontWeight: "600" },
+  link: { color: "#7126D0", fontWeight: "600" },
 });
 
 export default FieldEdit;

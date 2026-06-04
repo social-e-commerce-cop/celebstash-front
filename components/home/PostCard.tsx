@@ -9,26 +9,26 @@ import { PostData } from '@/lib/postsData';
 
 const { width } = Dimensions.get('window');
 
-// Purple verified badge
+// Orange verified badge
 const PurpleVerifiedBadge = () => (
   <Svg width="14" height="14" viewBox="0 0 18 18" fill="none">
     <Path
       d="M8.21256 10.0724L6.86556 8.72995C6.79556 8.65995 6.71031 8.62245 6.60981 8.61745C6.50881 8.61245 6.41706 8.65145 6.33456 8.73445C6.25456 8.81445 6.21456 8.90295 6.21456 8.99995C6.21456 9.09695 6.25456 9.18545 6.33456 9.26545L7.78806 10.7189C7.90956 10.8399 8.05106 10.9004 8.21256 10.9004C8.37406 10.9004 8.51556 10.8399 8.63706 10.7189L11.6656 7.69045C11.7386 7.61745 11.7768 7.53145 11.7803 7.43245C11.7838 7.33295 11.7456 7.24195 11.6656 7.15945C11.5831 7.07695 11.4938 7.03495 11.3978 7.03345C11.3018 7.03195 11.2128 7.07245 11.1308 7.15495L8.21256 10.0724ZM6.50256 15.462L5.51556 13.8119L3.65481 13.419C3.50581 13.3914 3.38706 13.3115 3.29856 13.179C3.21006 13.047 3.17356 12.9065 3.18906 12.7575L3.36681 10.8405L2.10456 9.40045C1.99856 9.29195 1.94556 9.15845 1.94556 8.99995C1.94556 8.84145 1.99856 8.70795 2.10456 8.59945L3.36681 7.15945L3.18906 5.2432C3.17406 5.0937 3.21056 4.95295 3.29856 4.82095C3.38706 4.68895 3.50581 4.60895 3.65481 4.58095L5.51481 4.1887L6.50181 2.5387C6.58281 2.4047 6.69156 2.3122 6.82806 2.2612C6.96456 2.2097 7.10581 2.21645 7.25181 2.28145L9.00006 3.0202L10.7476 2.28145C10.8941 2.21645 11.0356 2.2097 11.1721 2.2612C11.3086 2.3122 11.4173 2.4047 11.4983 2.5387L12.4846 4.1887L14.3453 4.58095C14.4943 4.60895 14.6131 4.68895 14.7016 4.82095C14.7901 4.95295 14.8266 5.0937 14.8111 5.2432L14.6341 7.15945L15.8956 8.59945C16.0016 8.70795 16.0546 8.84145 16.0546 8.99995C16.0546 9.15845 16.0016 9.2922 15.8956 9.4012L14.6341 10.8405L14.8111 12.7567C14.8261 12.9062 14.7896 13.047 14.7016 13.179C14.6131 13.3115 14.4943 13.3914 14.3453 13.419L12.4853 13.8119L11.4983 15.462C11.4173 15.5954 11.3086 15.688 11.1721 15.7395C11.0356 15.791 10.8943 15.784 10.7483 15.7185L9.00006 14.9797L7.25256 15.7185C7.10606 15.7835 6.96456 15.7902 6.82806 15.7387C6.69156 15.6877 6.58281 15.5952 6.50181 15.4612"
-      fill="#8A3FFC"
+      fill="#7126D0"
     />
   </Svg>
 );
 
 // Plus icon for Mate status
 const PlusIcon = () => (
-  <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8A3FFC" strokeWidth="3">
+  <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7126D0" strokeWidth="3">
     <Path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
 // Check icon for Mated status
 const CheckIcon = () => (
-  <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8A3FFC" strokeWidth="3">
+  <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7126D0" strokeWidth="3">
     <Path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
@@ -140,8 +140,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               width="20"
               height="20"
               viewBox="0 0 24 24"
-              fill={liked ? '#8A3FFC' : 'none'}
-              stroke={liked ? '#8A3FFC' : '#000'}
+              fill={liked ? '#7126D0' : 'none'}
+              stroke={liked ? '#7126D0' : '#000'}
               strokeWidth="2"
             >
               <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -232,9 +232,9 @@ const styles = StyleSheet.create({
   userInfo: { justifyContent: 'center' },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   userName: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
-  timeAgo: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#8c8c8c', marginTop: -1 },
+  timeAgo: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#000w', marginTop: -1 },
   mateButton: {
-    backgroundColor: 'rgba(138, 63, 252, 0.10)',
+    backgroundColor: '#e5d3fdff',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 5,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  mateText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#8A3FFC' },
+  mateText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0' },
   caption: {
     fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000',
     lineHeight: 20, marginBottom: 16,
@@ -261,8 +261,8 @@ const styles = StyleSheet.create({
   statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 24 },
   statItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statNum: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
-  statNumLiked: { color: '#8A3FFC' },
-  trending: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#8A3FFC' },
+  statNumLiked: { color: '#7126D0' },
+  trending: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0' },
   successToast: {
     position: 'absolute',
     top: '40%',

@@ -17,9 +17,9 @@ const OrderTrackingCard: React.FC<OrderTrackingProps> = ({ status, location, tim
         <View style={styles.leftSection}>
           {/* Custom SVG Icon */}
          <Svg width="50" height="50" viewBox="0 0 54 58" fill="none" >
-<Rect x="16.0044" y="0.5" width="22" height="22" rx="11" stroke="#FF650E"/>
-<Circle cx="27.0044" cy="11.5" r="7.5" fill="#FF650E"/>
-<Line x1="27.5044" y1="28" x2="27.5044" y2="58" stroke="#FF650E" stroke-dasharray="2 2"/>
+<Rect x="16.0044" y="0.5" width="22" height="22" rx="11" stroke="#7126D0"/>
+<Circle cx="27.0044" cy="11.5" r="7.5" fill="#7126D0"/>
+<Line x1="27.5044" y1="28" x2="27.5044" y2="58" stroke="#7126D0" stroke-dasharray="2 2"/>
 </Svg>
 
 

@@ -143,11 +143,11 @@ const styles = StyleSheet.create({
   },
   price: {
     fontWeight: '700',
-    color: '#FF650E',
+    color: '#7126D0',
     lineHeight: 24,
   },
   button: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     borderRadius: 24,
     minWidth: 100,
     justifyContent: 'center',

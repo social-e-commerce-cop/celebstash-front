@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   nameText: { fontSize: 16, fontWeight: "bold", color: "#000" },
   messageText: { color: "#303030B2", fontSize: 14, marginTop: 2 },
   badge: {
-    backgroundColor: "#FF650E",
+    backgroundColor: "#7126D0",
     borderRadius: 50,
     minWidth: 30,
     height: 30,
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   singleAvatar: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2 },
   singleStoryBorder: {
     borderWidth: STORY_BORDER_WIDTH,
-    borderColor: "#FF650E",
+    borderColor: "#7126D0",
     padding: BORDER_PADDING, 
   },
 
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   groupAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 3, borderColor: '#fff' },
   groupStoryBorder: {
     borderWidth: STORY_BORDER_WIDTH,
-    borderColor: "#FF650E",
+    borderColor: "#7126D0",
     padding: BORDER_PADDING,
   },
 });

@@ -134,8 +134,8 @@ const ProductDetails = () => {
                   width="22"
                   height="22"
                   viewBox="0 0 24 24"
-                  fill={isLiked ? '#8A3FFC' : 'none'}
-                  stroke={isLiked ? '#8A3FFC' : '#fff'}
+                  fill={isLiked ? '#7126D0' : 'none'}
+                  stroke={isLiked ? '#7126D0' : '#fff'}
                   strokeWidth="2.5"
                 >
                   <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -186,7 +186,7 @@ const ProductDetails = () => {
             <Text style={styles.artistName}>{paramArtistName}</Text>
             {paramVerified && (
               <View style={styles.verifiedBadge}>
-                <Svg width="14" height="14" viewBox="0 0 24 24" fill="#8A3FFC">
+                <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0">
                   <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 </Svg>
               </View>
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   thumbnailWrapper: {
     width: 68,
     height: 68,
-    borderRadius: 8,
+    borderRadius: 5,
     overflow: 'hidden',
     marginRight: 10,
     backgroundColor: '#f0f0f0',
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   thumbnailWrapperActive: {
-    borderColor: '#8A3FFC',
+    borderColor: '#7126D0',
   },
   thumbnailImage: {
     width: '100%',
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
-    color: '#8A3FFC',
+    color: '#7126D0',
   },
   verifiedBadge: {
     marginLeft: 4,
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   sizeBox: {
     width: 54,
     height: 44,
-    borderRadius: 8,
+    borderRadius: 5,
     backgroundColor: '#F2F2F2',
     alignItems: 'center',
     justifyContent: 'center',
@@ -398,11 +398,11 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   sizeBoxSelected: {
-    backgroundColor: '#8A3FFC',
+    backgroundColor: '#7126D0',
     borderWidth: 0,
   },
   sizeText: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
     color: '#000',
   },
@@ -443,12 +443,12 @@ const styles = StyleSheet.create({
   },
   buyButton: {
     flex: 1,
-    height: 54,
-    backgroundColor: '#8A3FFC',
-    borderRadius: 12,
+    backgroundColor: '#7126D0',
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    paddingVertical: 10,
   },
   buyButtonText: {
     color: '#fff',
@@ -456,9 +456,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
   cartButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 5,
     backgroundColor: '#F2F2F2',
     alignItems: 'center',
     justifyContent: 'center',

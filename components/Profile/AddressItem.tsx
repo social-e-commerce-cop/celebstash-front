@@ -28,8 +28,8 @@ const AddressItem: React.FC<AddressItemProps> = ({ address, isSelected, onSelect
       {isSelected && (
         <View style={styles.rightIcon}>
           <Svg width="23" height="23" viewBox="0 0 23 23" fill="none">
-            <Rect x="0.5" y="0.5" width="22" height="22" rx="11" stroke="#FF650E" />
-            <Circle cx="11.5" cy="11.5" r="7.5" fill="#FF650E" />
+            <Rect x="0.5" y="0.5" width="22" height="22" rx="11" stroke="#7126D0" />
+            <Circle cx="11.5" cy="11.5" r="7.5" fill="#7126D0" />
           </Svg>
         </View>
       )}

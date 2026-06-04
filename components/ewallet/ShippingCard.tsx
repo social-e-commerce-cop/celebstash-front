@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   promoButton: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 20,
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addButton: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     width: 40,
     height: 40,
     borderRadius: 20,

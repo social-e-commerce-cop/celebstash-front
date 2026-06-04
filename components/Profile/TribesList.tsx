@@ -44,5 +44,5 @@ const styles = StyleSheet.create({
   container: { padding: 16 },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
   title: { fontWeight: "bold", fontSize: 16, color: '#1D1E20' },
-  explore: { color: "#FF650E", fontWeight: "bold",fontSize: 14 },
+  explore: { color: "#7126D0", fontWeight: "bold",fontSize: 14 },
 });

@@ -70,22 +70,16 @@ const PaymentMethods = () => {
             key={method.name}
             name={method.name}
             icon={method.icon}
-            backgroundColor={selectedMethod === method.name ? '#fff' : '#fff'}
-            textColor={selectedMethod === method.name ? '#000' : '#000'}
-            borderRadius={8}
+            selected={selectedMethod === method.name}
             onPress={() => handleSelect(method.name)}
           />
         ))}
 
         <MainButton
-          total=""
           label="Confirm Payment"
-          arrow=''
           onPress={handleConfirmation}
-          buttonStyle={{ backgroundColor: '#FF650E', marginTop: 20 }} 
-          totalStyle={{ fontSize: 20 }} 
-          labelStyle={{ fontWeight: 'bold' }} 
-          arrowStyle={{ fontSize: 24 }} 
+          buttonStyle={{ marginTop: 20, justifyContent: 'center', borderRadius: 5, paddingVertical: 10 }}
+          labelStyle={{ fontFamily: 'Poppins-Bold', fontSize: 16 }}
         />
       </ScrollView>
     </View>
@@ -108,14 +102,14 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: "#000",
-    fontWeight: "bold",
+    fontFamily: "Poppins-Bold",
   },
   label: {
     fontSize: 16,
     color: '#303030',
     marginBottom: 20,
     paddingHorizontal: 10,
-    fontWeight: 'bold'
+    fontFamily: "Poppins-Bold",
   },
   iconButton: {}
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,16 @@ import {
   Dimensions,
   StatusBar,
   Alert,
-  KeyboardAvoidingView,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Circle } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
-const PURPLE = '#8A3FFC';
+const PURPLE = '#7126D0';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type CheckoutParams = {
@@ -83,7 +84,7 @@ const FormInput: React.FC<InputProps> = ({
       value={value}
       onChangeText={onChange}
       placeholder={placeholder ?? label}
-      placeholderTextColor="#ADADAD"
+      placeholderTextColor="#333qa"
       keyboardType={keyboardType}
       autoCapitalize="words"
     />
@@ -101,6 +102,15 @@ const Radio = ({ selected }: { selected: boolean }) => (
 const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const route = useRoute<RouteProp<CheckoutParams, 'CheckoutScreen'>>();
+
+  // keyboard visibility
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
 
   // product params
   const params    = route.params ?? {};
@@ -140,24 +150,38 @@ const CheckoutScreen: React.FC = () => {
   const fmt = (n: number) => `$${n.toFixed(2)}`;
 
   const handleContinue = () => {
+    // Contact details are always required
+    const missingContact = !fullName || !phone || !email;
+    if (missingContact) {
+      Alert.alert('Missing details', 'Please fill in all required contact information before continuing.');
+      return;
+    }
+
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailOk) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    // Address details are required only if shipping is selected
     if (shipping !== 'none') {
-      const missing = !fullName || !phone || !email || !street || !city || !stateProvince || !zip;
-      if (missing) {
-        Alert.alert('Missing details', 'Please fill in all required delivery information before continuing.');
-        return;
-      }
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-      if (!emailOk) {
-        Alert.alert('Invalid email', 'Please enter a valid email address.');
+      const missingAddress = !street || !city || !stateProvince || !zip;
+      if (missingAddress) {
+        Alert.alert('Missing details', 'Please fill in all required delivery address information before continuing.');
         return;
       }
     }
+
     navigation.navigate('PaymentMethods', { total });
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F7F5FF" />
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'android' ? -200 : 0}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF6ED" />
       <View style={styles.container}>
 
         {/* ── Header ── */}
@@ -169,38 +193,45 @@ const CheckoutScreen: React.FC = () => {
           <View style={styles.headerBtn} />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          style={styles.scroll} 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
 
           {/* ── Order Summary ── */}
           <Text style={styles.sectionTitle}>Order Summary</Text>
-          <View style={styles.card}>
+          <View style={[styles.card, styles.orderSummaryCard]}>
             <Image source={image} style={styles.productImage} resizeMode="cover" />
             <View style={styles.productInfo}>
-              <View style={styles.productTopRow}>
-                <Text style={styles.productName} numberOfLines={2}>{name}</Text>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                  <TrashIcon />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.productVariant}>{selColor} • {selSize}</Text>
-              <View style={styles.productBottomRow}>
-                <Text style={styles.productPrice}>{fmt(unitPrice)}</Text>
-                <View style={styles.qtyRow}>
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => setQty(q => Math.max(1, q - 1))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.qtyBtnText}>−</Text>
+              <View style={styles.productDetailsRow}>
+                <View style={styles.productTextCol}>
+                  <Text style={styles.productName} numberOfLines={2}>{name}</Text>
+                  <Text style={styles.productVariant}>{selColor} • {selSize}</Text>
+                  <Text style={styles.productPrice}>{fmt(unitPrice)}</Text>
+                </View>
+                <View style={styles.productActionsCol}>
+                  <TouchableOpacity onPress={() => navigation.goBack()} style={styles.trashBtn}>
+                    <TrashIcon />
                   </TouchableOpacity>
-                  <Text style={styles.qtyValue}>{qty}</Text>
-                  <TouchableOpacity
-                    style={[styles.qtyBtn, styles.qtyBtnPlus]}
-                    onPress={() => setQty(q => q + 1)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.qtyBtnText, { color: '#fff' }]}>+</Text>
-                  </TouchableOpacity>
+                  <View style={styles.qtyRow}>
+                    <TouchableOpacity
+                      style={styles.qtyBtn}
+                      onPress={() => setQty(q => Math.max(1, q - 1))}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.qtyBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.qtyValue}>{qty}</Text>
+                    <TouchableOpacity
+                      style={[styles.qtyBtn, styles.qtyBtnPlus]}
+                      onPress={() => setQty(q => q + 1)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.qtyBtnText, { color: '#fff' }]}>+</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
@@ -223,7 +254,7 @@ const CheckoutScreen: React.FC = () => {
                 activeOpacity={0.8}
               >
                 <View style={styles.shippingIconCircle}>
-                  <TruckIcon color={shipping === opt.id ? '#fff' : PURPLE} />
+                  <TruckIcon color={shipping === opt.id ? PURPLE : PURPLE} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.shippingLabel}>{opt.label}  <Text style={styles.shippingPrice}>${opt.price}</Text></Text>
@@ -234,15 +265,17 @@ const CheckoutScreen: React.FC = () => {
             ))}
           </View>
 
-          {/* ── Delivery Information ── */}
-          {shipping !== 'none' && (
-            <>
-              <Text style={styles.sectionTitle}>Delivery Information</Text>
-              <View style={styles.card}>
-                <FormInput label="Full Name" value={fullName} onChange={setFullName} placeholder="e.g. Jean Pierre Mugisha" />
-                <FormInput label="Phone Number" value={phone} onChange={setPhone} placeholder="+250 7XX XXX XXX" keyboardType="phone-pad" />
-                <FormInput label="Email Address" value={email} onChange={setEmail} placeholder="you@example.com" keyboardType="email-address" />
+          {/* ── Contact / Delivery Information ── */}
+          <Text style={styles.sectionTitle}>
+            {shipping === 'none' ? 'Contact Information' : 'Delivery Information'}
+          </Text>
+          <View style={styles.card}>
+            <FormInput label="Full Name" value={fullName} onChange={setFullName} placeholder="e.g. Jean Pierre Mugisha" />
+            <FormInput label="Phone Number" value={phone} onChange={setPhone} placeholder="+250 7XX XXX XXX" keyboardType="phone-pad" />
+            <FormInput label="Email Address" value={email} onChange={setEmail} placeholder="you@example.com" keyboardType="email-address" />
 
+            {shipping !== 'none' && (
+              <>
                 {/* divider */}
                 <View style={styles.divider} />
                 <Text style={styles.subSectionLabel}>Address</Text>
@@ -258,9 +291,9 @@ const CheckoutScreen: React.FC = () => {
                   </View>
                 </View>
                 <FormInput label="ZIP / Postal Code" value={zip} onChange={setZip} placeholder="00000" keyboardType="numeric" />
-              </View>
-            </>
-          )}
+              </>
+            )}
+          </View>
 
           {/* ── Promo Code ── */}
           <Text style={styles.sectionTitle}>Promo Code</Text>
@@ -276,7 +309,7 @@ const CheckoutScreen: React.FC = () => {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.promoChipText}>{promoApplied ? '✓ 25% OFF' : '25% OFF'}</Text>
+                <Text style={styles.promoChipText}>{promoApplied ? '25% OFF✓' : '25% OFF'}</Text>
               </TouchableOpacity>
               {!promoApplied && (
                 <TouchableOpacity style={styles.promoAdd} activeOpacity={0.8}>
@@ -289,7 +322,7 @@ const CheckoutScreen: React.FC = () => {
             <View style={styles.priceDivider} />
             <PriceRow label="Amount" value={fmt(subtotal)} />
             <PriceRow label="Shipping" value={shippingCost > 0 ? `+${fmt(shippingCost)}` : '$0.00'} />
-            {promoApplied && <PriceRow label="Discount" value={`−${fmt(discount)}`} valueColor="#FF4D4D" />}
+            {promoApplied && <PriceRow label="Discount" value={`−${fmt(discount)}`} valueColor={PURPLE} />}
             <View style={styles.totalDivider} />
             <PriceRow label="Total" value={fmt(total)} bold />
           </View>
@@ -297,12 +330,13 @@ const CheckoutScreen: React.FC = () => {
         </ScrollView>
 
         {/* ── Footer CTA ── */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.ctaButton} onPress={handleContinue} activeOpacity={0.85}>
-            <Text style={styles.ctaTotal}>{fmt(total)}</Text>
-            <Text style={styles.ctaLabel}>Continue to payment  →</Text>
-          </TouchableOpacity>
-        </View>
+        {!isKeyboardVisible && (
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.ctaButton} onPress={handleContinue} activeOpacity={0.85}>
+              <Text style={styles.ctaLabel}>Continue to payment</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
       </View>
     </KeyboardAvoidingView>
@@ -325,18 +359,16 @@ export default CheckoutScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F5FF',
+    backgroundColor: '#FFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingTop: height * 0.05,
     paddingBottom: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0EAFF',
   },
   headerBtn: {
     width: 40,
@@ -350,9 +382,12 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 120,
+    paddingBottom: 24,
   },
 
   // Section heading
@@ -367,67 +402,74 @@ const styles = StyleSheet.create({
   // Card wrapper
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 5,
     padding: 16,
     marginBottom: 18,
-    shadowColor: '#8A3FFC',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    // shadowColor: '#7126D0',
+    // shadowOpacity: 0.06,
+    // shadowRadius: 8,
+    // shadowOffset: { width: 0, height: 2 },
+    // elevation: 2,
   },
 
   // ── Order summary ──
+  orderSummaryCard: {
+    backgroundColor: '#F5EEFF', // Light purple background
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   productImage: {
     width: 90,
     height: 90,
-    borderRadius: 12,
+    borderRadius: 5,
     marginRight: 14,
   },
   productInfo: {
     flex: 1,
   },
-  productTopRow: {
+  productDetailsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
+    minHeight: 90,
+  },
+  productTextCol: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingRight: 8,
+  },
+  productActionsCol: {
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  trashBtn: {
+    padding: 4,
   },
   productName: {
-    flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
     color: '#111',
     marginRight: 6,
   },
   productVariant: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Poppins-Regular',
     color: '#888',
-    marginBottom: 8,
-  },
-  productBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   productPrice: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
     color: PURPLE,
   },
-  // card row direction for product
-  // (card already has padding; we lay image + info side-by-side)
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
   },
   qtyBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#F2EBFF',
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+    borderRadius: 5,
+    backgroundColor: '#E6E6E6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -456,7 +498,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   noDeliveryText: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'Poppins-Medium',
     color: '#333',
     marginLeft: 10,
@@ -464,7 +506,7 @@ const styles = StyleSheet.create({
   shippingOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 5,
     borderWidth: 1.5,
     borderColor: '#EEE',
     padding: 14,
@@ -473,18 +515,18 @@ const styles = StyleSheet.create({
   },
   shippingOptionSelected: {
     borderColor: PURPLE,
-    backgroundColor: '#F7F0FF',
+    backgroundColor: '#f7edfeff',
   },
   shippingIconCircle: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: '#EEE5FF',
+    borderRadius: 24,
+    backgroundColor: '#e2c2f9ff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   shippingLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
     color: '#111',
   },
@@ -492,9 +534,9 @@ const styles = StyleSheet.create({
     color: PURPLE,
   },
   shippingEta: {
-    fontSize: 12,
+    fontSize: 16,
     fontFamily: 'Poppins-Regular',
-    color: '#888',
+    color: '#000',
     marginTop: 2,
   },
   radioOuter: {
@@ -521,36 +563,36 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 16,
     fontFamily: 'Poppins-Medium',
     color: '#444',
     marginBottom: 5,
   },
   optionalTag: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#AAA',
     fontFamily: 'Poppins-Regular',
   },
   textInput: {
     height: 46,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#E8E0FF',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
     paddingHorizontal: 14,
     backgroundColor: '#FAFAFE',
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Regular',
     color: '#111',
   },
   divider: {
     height: 1,
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#FFE8D6',
     marginVertical: 14,
   },
   subSectionLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
-    color: PURPLE,
+    color: '#888',
     marginBottom: 12,
   },
   rowInputs: {
@@ -568,14 +610,14 @@ const styles = StyleSheet.create({
     backgroundColor: PURPLE,
     paddingVertical: 10,
     paddingHorizontal: 22,
-    borderRadius: 24,
+    borderRadius: 5,
   },
   promoChipApplied: {
-    backgroundColor: '#5B21B6',
+    backgroundColor:PURPLE,
   },
   promoChipText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
   },
   promoAdd: {
@@ -594,7 +636,7 @@ const styles = StyleSheet.create({
   },
   priceDivider: {
     height: 1,
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#e2c2f9ff',
     marginBottom: 12,
   },
   priceRow: {
@@ -603,7 +645,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   priceLabel: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Regular',
     color: '#555',
   },
@@ -612,7 +654,7 @@ const styles = StyleSheet.create({
     color: '#111',
   },
   priceValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Poppins-Regular',
     color: '#111',
   },
@@ -623,32 +665,26 @@ const styles = StyleSheet.create({
   },
   totalDivider: {
     height: 1,
-    backgroundColor: '#F0EAFF',
+    backgroundColor: '#e2c2f9ff',
     marginTop: 4,
     marginBottom: 12,
   },
 
   // ── Footer ──
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#fff',
     paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 28,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 28,
     borderTopWidth: 1,
-    borderTopColor: '#F0EAFF',
+    borderTopColor: '#e2c2f9ff',
   },
   ctaButton: {
     backgroundColor: PURPLE,
-    borderRadius: 14,
-    height: 56,
-    flexDirection: 'row',
+    borderRadius: 5,
+    paddingVertical: 10,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 22,
+    justifyContent: 'center',
   },
   ctaTotal: {
     fontSize: 16,

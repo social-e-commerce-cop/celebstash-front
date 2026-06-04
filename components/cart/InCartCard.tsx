@@ -119,7 +119,7 @@ const CartCard: React.FC<CartCardProps> = ({
               </Filter>
             </Defs>
             <G filter="url(#shadow)">
-              <Circle cx={14} cy={10.8601} r={10} fill="#FF650E" />
+              <Circle cx={14} cy={10.8601} r={10} fill="#7126D0" />
               <Circle cx={14} cy={10.8601} r={9.5} stroke="#D9D9D9" />
             </G>
             <Path

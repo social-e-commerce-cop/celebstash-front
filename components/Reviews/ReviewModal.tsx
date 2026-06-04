@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
   },
   submitButton: {
-    backgroundColor: '#FF650E',
+    backgroundColor: '#7126D0',
     paddingVertical: 12,
     borderRadius: 5,
     alignItems: 'center',
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   submitText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   cancelButton: { marginTop: 10, alignItems: 'center' },
-  cancelText: { color: '#FF650E', fontSize: 16 },
+  cancelText: { color: '#7126D0', fontSize: 16 },
 });
 
 export default ReviewModal;

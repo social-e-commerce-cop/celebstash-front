@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 16,
     fontFamily: "Poppins-Bold",
-    color: "#8A3FFC", // Vibrant Purple
+    color: "#7126D0", // Orange
   },
   scrollContainer: {
     paddingRight: 10,
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     borderWidth: 3,
-    borderColor: "#8A3FFC", // Vibrant Purple border
+    borderColor: "#7126D0", // Orange border
     borderRadius: BORDER_SIZE / 2,
     padding: 2,
   },

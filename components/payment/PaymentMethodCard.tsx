@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Rect, Circle } from "react-native-svg";
 
 const { width } = Dimensions.get("window");
 
@@ -10,27 +10,16 @@ const scale = (size: number) => (width / 375) * size; // 375 is base width for s
 interface PaymentMethodCardProps {
   name: string;
   icon?: React.ReactNode; // Custom icon (SVG or Image)
-  backgroundColor?: string;
-  borderRadius?: number;
-  textColor?: string;
+  selected?: boolean;
   onPress?: () => void;
 }
 
 const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
   name,
   icon,
-  backgroundColor = "#fff",
-  borderRadius = 12,
-  textColor = "#000",
+  selected = false,
   onPress,
 }) => {
-  const [isSelected, setIsSelected] = useState(false);
-
-  const handlePress = () => {
-    setIsSelected(!isSelected);
-    onPress?.();
-  };
-
   const defaultIcon = (
     <Svg width={scale(24)} height={scale(24)} viewBox="0 0 24 24" fill="none">
       <Path
@@ -49,20 +38,30 @@ const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
 
   return (
     <TouchableOpacity
-      onPress={handlePress}
+      onPress={onPress}
       activeOpacity={0.8}
       style={[
         styles.card,
         {
-          backgroundColor,
-          borderRadius,
-          borderWidth: isSelected ? 1 : 0,
-          borderColor: isSelected ? "#F5F5F8" : "transparent",
+          backgroundColor: selected ? "#f7edfeff" : "#fff",
+          borderRadius: 8,
+          borderWidth: 1.5,
+          borderColor: selected ? "#7126D0" : "transparent",
         },
       ]}
     >
       <View style={styles.iconWrapper}>{icon || defaultIcon}</View>
-      <Text style={[styles.title, { color: textColor }]}>{name}</Text>
+      <Text style={styles.title}>{name}</Text>
+
+      {/* Radio indicator only when selected */}
+      {selected && (
+        <View style={styles.radioWrapper}>
+          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <Rect x="0.5" y="0.5" width="23" height="23" rx="11.5" stroke="#7126D0" />
+            <Circle cx="12" cy="12" r="7.5" fill="#7126D0" />
+          </Svg>
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -83,8 +82,12 @@ const styles = StyleSheet.create({
     marginRight: scale(15),
   },
   title: {
+    flex: 1,
     fontSize: scale(15),
     fontWeight: "600",
+  },
+  radioWrapper: {
+    marginLeft: scale(10),
   },
 });
 

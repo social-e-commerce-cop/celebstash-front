@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#8A3FFC',
+    backgroundColor: '#7126D0',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   contactName: { fontSize: 14, fontFamily: 'Poppins-Medium', color: '#333', marginTop: 5, textAlign: 'center' },
   sendButton: {
-    backgroundColor: '#8A3FFC',
+    backgroundColor: '#7126D0',
     marginHorizontal: 16,
     marginVertical: 8,
     paddingVertical: 12,

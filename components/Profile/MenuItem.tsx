@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   highlighted: {
-    color: "#FF650E",
+    color: "#7126D0",
     fontWeight: "500",
   },
   logout: {

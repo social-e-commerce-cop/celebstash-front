@@ -65,5 +65,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  mateText: { color: "#FF650E", fontWeight: "bold" },
+  mateText: { color: "#7126D0", fontWeight: "bold" },
 });

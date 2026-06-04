@@ -165,8 +165,8 @@ const styles = StyleSheet.create({
   estimated: { fontSize: 14, color: '#666', marginTop: 2 },
   disabledText: { color: '#999' },
   rightSection: { justifyContent: 'center', alignItems: 'center', marginLeft: 12 },
-  price: { fontSize: 16, fontWeight: 'bold', color: '#FF650E', marginLeft: 8 },
-  selectedPrice: { color: '#FF650E' },
+  price: { fontSize: 16, fontWeight: 'bold', color: '#7126D0', marginLeft: 8 },
+  selectedPrice: { color: '#7126D0' },
   radioOuter: {
     width: 23,
     height: 23,
@@ -176,8 +176,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radioOuterSelected: { borderColor: '#FF650E' },
-  radioInner: { width: 15, height: 15, borderRadius: 7.5, backgroundColor: '#FF650E' },
+  radioOuterSelected: { borderColor: '#7126D0' },
+  radioInner: { width: 15, height: 15, borderRadius: 7.5, backgroundColor: '#7126D0' },
 });
 
 export default ShippingCard;

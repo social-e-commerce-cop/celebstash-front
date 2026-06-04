@@ -37,7 +37,7 @@ const TopupSucessModal: React.FC<TopupSucessModalProps> = ({
       const htmlContent = `
         <html>
           <body style="font-family: Arial; padding: 20px;">
-            <h1 style="color: #FF650E;">Top Up Receipt</h1>
+            <h1 style="color: #7126D0;">Top Up Receipt</h1>
             <p><strong>Amount:</strong> ${currency}${amount}</p>
             <p><strong>Payment Method:</strong> ${paymentMethod}</p>
             <p><strong>Date:</strong> ${date} | ${time}</p>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: "center" 
   },
   getReceiptButton: { 
-    backgroundColor: "#FF650E", 
+    backgroundColor: "#7126D0", 
     paddingVertical: height * 0.02, 
     borderRadius: width * 0.02, 
     width: "100%", 

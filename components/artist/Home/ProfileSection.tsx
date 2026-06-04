@@ -49,12 +49,12 @@ export default function ProfileSection() {
           <View
             style={[
               styles.imageWrapper,
-              { borderColor: hasStory ? "#FF650E" : "transparent" }, // ✅ No border until story is added
+              { borderColor: hasStory ? "#7126D0" : "transparent" }, // ✅ No border until story is added
             ]}
           >
             <Image source={profilePicture} style={styles.storyImage} />
             <View style={styles.addIconContainer}>
-              <Ionicons name="add-circle" size={22} color="#FF650E" />
+              <Ionicons name="add-circle" size={22} color="#7126D0" />
             </View>
           </View>
           <Text style={styles.storyText} numberOfLines={1}>
@@ -69,7 +69,7 @@ export default function ProfileSection() {
             style={styles.storyContainer}
             onPress={() => navigation.navigate("ProfileDetails", { story })}
           >
-            <View style={[styles.imageWrapper, { borderColor: "#FF650E" }]}>
+            <View style={[styles.imageWrapper, { borderColor: "#7126D0" }]}>
               <Image source={story.image} style={styles.storyImage} />
             </View>
             <Text style={styles.storyText} numberOfLines={1}>
