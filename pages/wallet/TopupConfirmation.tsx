@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, Dimensions, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from "@expo/vector-icons";
 import { StackNavigationProp } from '@react-navigation/stack';
 import TopupSucessModal from "@/components/ewallet/TopupSucessModal";
@@ -17,24 +17,31 @@ interface PinEntryProps {
 }
 
 const TopupPinEntry: React.FC<PinEntryProps> = ({
-  label = "Enter your Pin to confirm the payment",
   circleColor = "#D3D3D3",
   fillColor = "#7126D0",
   circleSize = width * 0.12,
   spacing = width * 0.03,
 }) => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const route = useRoute<any>();
+  
+  const amount = route.params?.amount || "0.00";
+  const provider = route.params?.provider || "Mobile Money";
+  const phoneNumber = route.params?.phoneNumber || "";
+
+  const label = `Enter your PIN to authorize the transfer of $${amount} from your ${provider} account (${phoneNumber})`;
+
   const [pin, setPin] = useState<string[]>(new Array(4).fill(""));
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const inputsRef = useRef<(TextInput | null)[]>([]);
 
   const transactionData = {
-    transactionId: "KU465453",
-    amount: "789.00",
-    paymentMethod: "My E-wallet",
-    date: "May 23, 2024",
-    time: "09:30 AM",
+    transactionId: "KU" + Math.floor(100000 + Math.random() * 900000),
+    amount: amount,
+    paymentMethod: provider,
+    date: "June 30, 2026",
+    time: "12:00 PM",
     status: "Paid",
     currency: "$",
   };

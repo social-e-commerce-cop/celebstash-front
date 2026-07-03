@@ -56,10 +56,8 @@ const Signin: React.FC = () => {
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <View style={styles.logoRow}>
-            <View style={styles.logoBox}>
-              <Ionicons name="flash" size={18} color="white" />
-            </View>
-            <Text style={styles.logoText}>Zikiii</Text>
+            <Text style={styles.logoText}>ZIKII</Text>
+            <Text style={styles.logoDot}>.</Text>
           </View>
         </View>
 
@@ -98,6 +96,7 @@ const Signin: React.FC = () => {
           <TouchableOpacity 
             style={[styles.mainBtn, !isFormValid && styles.disabledBtn]}
             onPress={handleSignIn}
+            disabled={!isFormValid}
           >
             <Text style={styles.mainBtnText}>Sign In</Text>
           </TouchableOpacity>
@@ -181,20 +180,16 @@ const styles = StyleSheet.create({
   },
   logoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoBox: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#7126D0',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
+    alignItems: 'baseline',
   },
   logoText: {
+    color: '#000',
+    fontSize: 32,
+    fontFamily: 'Poppins-Bold',
+  },
+  logoDot: {
     color: '#7126D0',
-    fontSize: 28,
+    fontSize: 32,
     fontFamily: 'Poppins-Bold',
   },
   headerArea: {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path, Polyline, Line } from 'react-native-svg';
+import Svg, { Path, Polyline, Line, Circle } from 'react-native-svg';
 import CommentsModal from './CommentsModal';
 import ShareModal from './ShareModal';
 import { PostData } from '@/lib/postsData';
@@ -33,6 +33,46 @@ const CheckIcon = () => (
   </Svg>
 );
 
+// Feather/Lucide Share icon (three connected nodes)
+const NodeShareIcon = ({ color = "#000", size = 20 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="18" cy="5" r="3" />
+    <Circle cx="6" cy="12" r="3" />
+    <Circle cx="18" cy="19" r="3" />
+    <Path d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49" />
+  </Svg>
+);
+
+// Speech bubble icon matching the screenshot
+const CommentIcon = ({ color = "#000", size = 20 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+  </Svg>
+);
+
+// Inactive Repost Icon (two circular arrows forming a loop)
+const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M17 1l4 4-4 4" />
+    <Path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <Path d="M7 23l-4-4 4-4" />
+    <Path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </Svg>
+);
+
+// Active Repost Icon (purple with a tick/checkmark in the middle)
+const RepostedIcon = ({ size = 22 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    {/* Purple loop */}
+    <Path d="M17 1l4 4-4 4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M3 11V9a4 4 0 0 1 4-4h14" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M7 23l-4-4 4-4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M21 13v2a4 4 0 0 1-4 4H3" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    {/* Tick in the middle */}
+    <Path d="M9 12l2 2 4-4" stroke="#7126D0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 // Compact like count formatter (15200 → 15.2K)
 const formatCount = (n: number): string => {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
@@ -48,6 +88,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [mated, setMated] = useState(false);
+  const [reposted, setReposted] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments);
@@ -131,7 +172,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <Image source={post.mainImage} style={styles.postImage} />
       </TouchableOpacity>
 
-      {/* Footer: like, comment, share + trending */}
+      {/* Footer: like, comment, share + repost */}
       <View style={styles.footer}>
         <View style={styles.statsLeft}>
           {/* Like */}
@@ -153,27 +194,30 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
           {/* Comment */}
           <TouchableOpacity style={styles.statItem} onPress={() => setCommentsOpen(true)} activeOpacity={0.7}>
-            <Svg width="20" height="20" viewBox="0 0 17 17" fill="none">
-              <Path d="M8.5 14.5C9.68669 14.5 10.8467 14.1481 11.8334 13.4888C12.8201 12.8295 13.5892 11.8925 14.0433 10.7961C14.4974 9.69975 14.6162 8.49335 14.3847 7.32946C14.1532 6.16558 13.5818 5.09648 12.7426 4.25736C11.9035 3.41825 10.8344 2.8468 9.67054 2.61529C8.50666 2.38378 7.30026 2.5026 6.2039 2.95673C5.10754 3.41085 4.17047 4.17989 3.51118 5.16658C2.85189 6.15328 2.5 7.31331 2.5 8.5C2.5 9.492 2.74 10.4273 3.16667 11.2513L2.5 14.5L5.74867 13.8333C6.57267 14.26 7.50867 14.5 8.5 14.5Z" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </Svg>
+            <CommentIcon color="#000" size={20} />
             <Text style={styles.statNum}>{formatCount(commentCount)}</Text>
           </TouchableOpacity>
 
           {/* Share */}
           <TouchableOpacity style={styles.statItem} onPress={() => setShareOpen(true)} activeOpacity={0.7}>
-            <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-              <Polyline points="16 6 12 2 8 6" />
-              <Line x1="12" y1="2" x2="12" y2="15" />
-            </Svg>
+            <NodeShareIcon color="#000" size={20} />
             <Text style={styles.statNum}>{formatCount(shareCount)}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Trending badge */}
-        {!!post.trending && (
-          <Text style={styles.trending}>{post.trending}</Text>
-        )}
+        {/* Right Actions: Trending & Repost */}
+        <View style={styles.rightActions}>
+          {!!post.trending && (
+            <Text style={styles.trending}>{post.trending}</Text>
+          )}
+          <TouchableOpacity
+            style={styles.repostButton}
+            onPress={() => setReposted(r => !r)}
+            activeOpacity={0.7}
+          >
+            {reposted ? <RepostedIcon size={22} /> : <RepostIcon color="#000" size={22} />}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Comments Modal */}
@@ -218,7 +262,7 @@ export default PostCard;
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    marginVertical: 10,
+    marginVertical: 14,
     width: '100%',
   },
   header: {
@@ -228,11 +272,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   profileDetails: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 45, height: 45, borderRadius: 20, marginRight: 10 },
+  avatar: { width: 45, height: 45, borderRadius: 22.5, marginRight: 10 },
   userInfo: { justifyContent: 'center' },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   userName: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
-  timeAgo: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#000w', marginTop: -1 },
+  timeAgo: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#888', marginTop: -1 },
   mateButton: {
     backgroundColor: '#e5d3fdff',
     paddingHorizontal: 12,
@@ -250,8 +294,8 @@ const styles = StyleSheet.create({
     lineHeight: 20, marginBottom: 16,
   },
   imageContainer: {
-    width: '100%', height: width * 0.5,
-    borderRadius: 5, overflow: 'hidden', marginBottom: 10,
+    width: '100%', height: width * 0.7, // slightly taller to match screenshot aspect ratio
+    borderRadius: 12, overflow: 'hidden', marginBottom: 10,
   },
   postImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   footer: {
@@ -259,9 +303,17 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingVertical: 4,
   },
   statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 24 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statNum: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
   statNumLiked: { color: '#7126D0' },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  repostButton: {
+    padding: 4,
+  },
   trending: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0' },
   successToast: {
     position: 'absolute',

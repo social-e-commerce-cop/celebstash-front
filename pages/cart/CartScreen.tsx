@@ -23,7 +23,7 @@ const Cart = () => {
       {/* Header */}
       <View style={styles.headerOverlay}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={width * 0.06} color="#000" />
+          <Ionicons name="arrow-back" size={width * 0.05} color="#000" />
         </TouchableOpacity>
 
         <Text style={[styles.headerTitle, { fontSize: width * 0.045 }]}>Cart</Text>
@@ -69,58 +69,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.06,
     paddingTop: height * 0.04,
     paddingBottom: height * 0.09,
-    backgroundColor: '#f5f8faff',
+    backgroundColor: '#fff',
   },
   headerOverlay: {
     height: height * 0.07,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: height * 0.01,
+    gap: 5,
   },
   headerTitle: {
     color: "#000",
-    fontWeight: "bold",
+    fontFamily: "Poppins-Bold",
+    fontSize: width * 0.08,
   },
   iconButton: {
-    padding: width * 0.015,
+    // padding: width * 0.015,
   },
   tabs: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: height * 0.02,
+    marginBottom: height * 0.01,
     borderBottomWidth: 2,
     borderColor: '#eee',
   },
   tabButton: {
     flex: 1,
-    alignItems: 'center',
+    
     paddingVertical: height * 0.015,
     borderBottomWidth: height * 0.005, // relative thickness for bottom border
     borderBottomColor: 'transparent', // default hidden
   },
   activeTabBorder: {
-    borderBottomColor: '#ff6600', // orange bottom border for active tab
+    borderBottomColor: '#7126D0', // orange bottom border for active tab
   },
   activeTabText: {
     color: '#000', // black for active tab
-    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
     fontSize: width * 0.045,
   },
   inactiveTabText: {
     color: '#8F959E', // grey color for inactive tab
     fontSize: width * 0.045,
+    fontFamily: 'Poppins-Regular',
   },
   tabBarContainer: {
     position: 'absolute',
-    bottom: -12,
+    bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: width * 0.01,
-    paddingVertical: height * 0.015,
-    backgroundColor: 'transparent', // Transparent or semi-transparent
-    marginHorizontal: 10,
-    borderRadius: 50
+    backgroundColor: 'transparent',
   },
 });
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, StatusBar, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, StatusBar, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import PaymentMethodItem from '@/components/payment/PaymentMethodItem';
 import PaymentMethodCard from '@/components/payment/PaymentMethodCard';
@@ -12,9 +12,12 @@ const { width, height } = Dimensions.get('window');
 
 const PaymentMethods = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const route = useRoute<any>();
   
-  // State to track the selected payment method
+  // State to track the selected payment method and phone number
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+250');
 
   const handleSelect = (name: string) => {
     setSelectedMethod(name);
@@ -22,19 +25,37 @@ const PaymentMethods = () => {
 
   const handleConfirmation = () => {
     if (selectedMethod) {
-      navigation.navigate('PinEntry'); // Go to Home screen
+      const isMoMo = ['MTN MoMo', 'Airtel Money'].includes(selectedMethod);
+      if (isMoMo && (!phoneNumber || phoneNumber.length < 7)) {
+        alert('Please enter a valid Mobile Money number');
+        return;
+      }
+
+      navigation.navigate('PinEntry', {
+        total: route.params?.total,
+        isMusic: route.params?.isMusic,
+        musicItem: route.params?.musicItem,
+        paymentMethod: isMoMo ? `${selectedMethod} (${countryCode} ${phoneNumber})` : selectedMethod,
+      }); // Go to PinEntry screen
     } else {
-      alert('Please select a payment method'); // Optional alert if nothing is selected
+      alert('Please select a payment method');
     }
   };
 
   const paymentMethods = [
+    // Cards
+    { name: 'Visa (**** **** *** *567)', icon: <VisaIcon /> },
+    { name: 'Mastercard (**** **** **** *123)', icon: <MasterCardIcon /> },
+    // MoMo options
+    { name: 'MTN MoMo', icon: <View style={[styles.momoIconBg, { backgroundColor: '#FFCC00' }]}><Text style={styles.momoIconText}>⚡</Text></View> },
+    { name: 'Airtel Money', icon: <View style={[styles.momoIconBg, { backgroundColor: '#E11900' }]}><Text style={styles.momoIconText}>🔴</Text></View> },
+    // E-Wallets / Others
     { name: 'Paypal', icon: <PayPalIcon /> },
     { name: 'Google Pay', icon: <GoogleIcon /> },
     { name: 'Apple Pay', icon: <AppleIcon /> },
-    { name: '**** **** *** *567', icon: <VisaIcon />},
-    { name: '**** **** **** *123', icon: <MasterCardIcon /> },
   ];
+
+  const isMoMoSelected = ['MTN MoMo', 'Airtel Money'].includes(selectedMethod || '');
 
   return (
     <View style={styles.container}>
@@ -75,6 +96,28 @@ const PaymentMethods = () => {
           />
         ))}
 
+        {/* Conditional Phone Input for MoMo */}
+        {isMoMoSelected && (
+          <View style={styles.phoneInputSection}>
+            <Text style={styles.phoneLabel}>Enter Mobile Money Account Number</Text>
+            <View style={styles.phoneInputContainer}>
+              <TouchableOpacity style={styles.countryCodeSelector} activeOpacity={0.7}>
+                <Text style={styles.countryCodeText}>{countryCode}</Text>
+                <Ionicons name="chevron-down" size={10} color="#666" style={{ marginLeft: 3 }} />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.phoneTextInput}
+                placeholder="788 000 000"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+                maxLength={12}
+                value={phoneNumber}
+                onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ''))}
+              />
+            </View>
+          </View>
+        )}
+
         <MainButton
           label="Confirm Payment"
           onPress={handleConfirmation}
@@ -111,7 +154,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     fontFamily: "Poppins-Bold",
   },
-  iconButton: {}
+  iconButton: {},
+  momoIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  momoIconText: {
+    fontSize: 14,
+  },
+  phoneInputSection: {
+    marginVertical: 15,
+    paddingHorizontal: 10,
+  },
+  phoneLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#7126D0',
+    height: 48,
+    overflow: 'hidden',
+  },
+  countryCodeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRightWidth: 1,
+    borderRightColor: '#E5E7EB',
+    height: '100%',
+  },
+  countryCodeText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#1F2937',
+  },
+  phoneTextInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: '#1F2937',
+  },
 });
 
 export default PaymentMethods;

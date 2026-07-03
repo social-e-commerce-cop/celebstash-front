@@ -58,7 +58,8 @@
     "react-native-webview": "13.13.5",
     "tailwindcss": "^3.4.1",
     "expo-audio": "~1.1.1",
-    "expo-video": "~3.0.16"
+    "expo-video": "~3.0.16",
+    "expo-navigation-bar": "~5.0.10"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

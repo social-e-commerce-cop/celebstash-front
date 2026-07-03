@@ -94,6 +94,7 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 18,
     color: "#7126D0",
+    fontFamily: 'Poppins-Medium'
   },
   radioWrapper: {
     marginLeft: 10,

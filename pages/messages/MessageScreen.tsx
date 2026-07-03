@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -88,6 +88,15 @@ const conversations = [
 
 const MessagesScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredConversations = searchQuery.trim()
+    ? conversations.filter(
+        item =>
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : conversations;
 
   const renderItem = ({ item }: any) => (
     <TouchableOpacity
@@ -131,13 +140,17 @@ const MessagesScreen = () => {
           <TouchableOpacity style={styles.iconButton}>{AddConversation}</TouchableOpacity>
         </View>
 
-        <SearchBar onSearch={(q) => console.log("Searching for:", q)} />
+        <SearchBar
+          onSearch={setSearchQuery}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
         <TabBar />
       </View>
 
       {/* Scrollable FlatList */}
       <FlatList
-        data={conversations}
+        data={filteredConversations}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
@@ -145,6 +158,13 @@ const MessagesScreen = () => {
           paddingBottom: height * 0.01,
         }}
         style={{ marginTop: 0 }}
+        ListEmptyComponent={
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <Text style={{ fontSize: 14, color: '#999', fontFamily: 'Poppins-Medium' }}>
+              No conversations found for "{searchQuery}"
+            </Text>
+          </View>
+        }
       />
     </View>
   );

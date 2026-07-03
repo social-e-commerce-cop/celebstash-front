@@ -24,6 +24,8 @@ type AppStackParamList = {
     description?: string;
     artistName?: string;
     verified?: boolean;
+    category?: string;
+    artistImage?: any;
   };
 };
 
@@ -57,6 +59,10 @@ const ProductDetails = () => {
   const paramDesc = route.params?.description || 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals';
   const paramArtistName = route.params?.artistName || 'Kenny K Shot';
   const paramVerified = route.params?.verified !== undefined ? route.params.verified : true;
+  const paramCategory = route.params?.category;
+  const paramArtistImage = route.params?.artistImage;
+
+  const isMusic = paramCategory === 'Music';
 
   // Build a custom image gallery list
   const galleryImages = [paramImage, ...defaultImages.filter(img => img !== paramImage)].slice(0, 5);
@@ -69,7 +75,7 @@ const ProductDetails = () => {
   const selectedColorValue = colors.find(c => c.id === selectedColor)?.value ?? null;
 
   const handleBuyNow = () => {
-    if (!selectedSize || !selectedColor) {
+    if (!isMusic && (!selectedSize || !selectedColor)) {
       Alert.alert(
         'Select options',
         'Please select a size and color before continuing.',
@@ -80,11 +86,14 @@ const ProductDetails = () => {
     navigation.navigate('CheckoutScreen', {
       name: paramName,
       price: paramPrice,
-      image: paramImage,
+      image: isMusic && paramArtistImage ? paramArtistImage : paramImage,
       artistName: paramArtistName,
-      selectedSize,
-      selectedColor,
-      selectedColorValue,
+      selectedSize: isMusic ? 'N/A' : selectedSize,
+      selectedColor: isMusic ? 'N/A' : selectedColor,
+      selectedColorValue: isMusic ? 'N/A' : selectedColorValue,
+      isDigital: isMusic,
+      isMusic: isMusic,
+      musicItem: isMusic ? { title: paramName, artist: paramArtistName, image: paramImage } : null,
     });
   };
 
@@ -97,7 +106,14 @@ const ProductDetails = () => {
       );
       return;
     }
-    Alert.alert('Added to cart', `${paramName} has been added to your cart!`, [{ text: 'OK' }]);
+    Alert.alert(
+      '✓ Added to Cart',
+      `${paramName} has been added to your cart!`,
+      [
+        { text: 'Continue Shopping', style: 'cancel' },
+        { text: 'View Cart', onPress: () => navigation.navigate('CartScreen') },
+      ]
+    );
   };
 
   // Clean numeric representation for the price text
@@ -110,7 +126,12 @@ const ProductDetails = () => {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Main Product Image Container */}
         <View style={styles.mainImageContainer}>
-          <Image source={activeImage} style={styles.mainImage} />
+          <Image source={isMusic && paramArtistImage ? paramArtistImage : activeImage} style={styles.mainImage} />
+          {paramCategory === 'Music' && paramArtistImage && (
+            <View style={styles.artistImageOverlay}>
+              <Image source={paramArtistImage} style={styles.artistAvatar} />
+            </View>
+          )}
 
           {/* Top Overlays */}
           <View style={styles.overlayHeader}>
@@ -155,23 +176,25 @@ const ProductDetails = () => {
         </View>
 
         {/* Thumbnail Gallery Scroll */}
-        <View style={styles.thumbnailSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailList}>
-            {galleryImages.map((img, idx) => {
-              const isActive = activeImage === img;
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => setActiveImage(img)}
-                  style={[styles.thumbnailWrapper, isActive && styles.thumbnailWrapperActive]}
-                  activeOpacity={0.8}
-                >
-                  <Image source={img} style={styles.thumbnailImage} />
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+        {!isMusic && (
+          <View style={styles.thumbnailSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailList}>
+              {galleryImages.map((img, idx) => {
+                const isActive = activeImage === img;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setActiveImage(img)}
+                    style={[styles.thumbnailWrapper, isActive && styles.thumbnailWrapperActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={img} style={styles.thumbnailImage} />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Product Details Info Block */}
         <View style={styles.detailsBlock}>
@@ -197,64 +220,134 @@ const ProductDetails = () => {
           <Text style={styles.descriptionText}>{paramDesc}</Text>
 
           {/* Size Options */}
-          <Text style={styles.sectionHeader}>Sizes:</Text>
-          <View style={styles.sizeContainer}>
-            {sizes.map(size => {
-              const isSelected = selectedSize === size;
-              return (
-                <TouchableOpacity
-                  key={size}
-                  style={[
-                    styles.sizeBox,
-                    isSelected && styles.sizeBoxSelected,
-                    !isSelected && styles.sizeBoxUnselected,
-                  ]}
-                  onPress={() => setSelectedSize(size)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.sizeText, isSelected && styles.sizeTextSelected]}>
-                    {size}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {!isMusic && (
+            <>
+              <Text style={styles.sectionHeader}>Sizes:</Text>
+              <View style={styles.sizeContainer}>
+                {sizes.map(size => {
+                  const isSelected = selectedSize === size;
+                  return (
+                    <TouchableOpacity
+                      key={size}
+                      style={[
+                        styles.sizeBox,
+                        isSelected && styles.sizeBoxSelected,
+                        !isSelected && styles.sizeBoxUnselected,
+                      ]}
+                      onPress={() => setSelectedSize(size)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.sizeText, isSelected && styles.sizeTextSelected]}>
+                        {size}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
-          {/* Color Options */}
-          <Text style={styles.sectionHeader}>Color:</Text>
-          <View style={styles.colorContainer}>
-            {colors.map(color => {
-              const isSelected = selectedColor === color.id;
-              const colorBg = color.value;
-              return (
-                <TouchableOpacity
-                  key={color.id}
-                  style={[styles.colorRing, isSelected && styles.colorRingSelected]}
-                  onPress={() => setSelectedColor(color.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.colorCircle, { backgroundColor: colorBg }]} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+              {/* Color Options */}
+              <Text style={styles.sectionHeader}>Color:</Text>
+              <View style={styles.colorContainer}>
+                {colors.map(color => {
+                  const isSelected = selectedColor === color.id;
+                  const colorBg = color.value;
+                  return (
+                    <TouchableOpacity
+                      key={color.id}
+                      style={[styles.colorRing, isSelected && styles.colorRingSelected]}
+                      onPress={() => setSelectedColor(color.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.colorCircle, { backgroundColor: colorBg }]} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {isMusic && (
+            <View style={styles.musicDetailsSection}>
+              <TouchableOpacity style={styles.accessNowBigBtn} onPress={handleBuyNow}>
+                <Text style={styles.accessNowBigText}>Access Now</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.tracksTitle}>Tracks</Text>
+              <View style={styles.tracksDivider} />
+              
+              <View style={styles.trackRow}>
+                <Text style={styles.trackNumber}>1.</Text>
+                <Text style={styles.trackName}>Mama</Text>
+                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+                  <Path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z" />
+                  <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </Svg>
+              </View>
+              <View style={styles.trackRow}>
+                <Text style={styles.trackNumber}>2.</Text>
+                <Text style={styles.trackName}>Corazol ft T-pain, Usher</Text>
+                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+                  <Path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z" />
+                  <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </Svg>
+              </View>
+
+              <View style={styles.premiumCard}>
+                <View style={styles.premiumCardInner}>
+                  <View>
+                    <Text style={styles.premiumCardTitle}>Get Premium Access for 3 days</Text>
+                    <Text style={styles.premiumCardPrice}>$2.56</Text>
+                  </View>
+                  <TouchableOpacity style={styles.premiumAccessBtn} onPress={handleBuyNow}>
+                    <Text style={styles.premiumAccessBtnText}>Get Access</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.musicFeatures}>
+                <View style={styles.featureRow}>
+                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <Path d="M22 4L12 14.01l-3-3" />
+                  </Svg>
+                  <Text style={styles.featureText}>3 access to the album</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <Path d="M22 4L12 14.01l-3-3" />
+                  </Svg>
+                  <Text style={styles.featureText}>Offline mode</Text>
+                </View>
+                <View style={styles.featureRow}>
+                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <Path d="M22 4L12 14.01l-3-3" />
+                  </Svg>
+                  <Text style={styles.featureText}>Download music to device</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
 
       {/* Sticky Bottom Actions Row */}
-      <View style={styles.bottomActionBar}>
-        <TouchableOpacity style={styles.buyButton} activeOpacity={0.8} onPress={handleBuyNow}>
-          <Text style={styles.buyButtonText}>Buy Now</Text>
-        </TouchableOpacity>
+      {!isMusic && (
+        <View style={styles.bottomActionBar}>
+          <TouchableOpacity style={styles.buyButton} activeOpacity={0.8} onPress={handleBuyNow}>
+            <Text style={styles.buyButtonText}>Buy Now</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cartButton} activeOpacity={0.8} onPress={handleAddToCart}>
-          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
-            <Circle cx="9" cy="21" r="1" />
-            <Circle cx="20" cy="21" r="1" />
-            <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-          </Svg>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.cartButton} activeOpacity={0.8} onPress={handleAddToCart}>
+            <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+              <Circle cx="9" cy="21" r="1" />
+              <Circle cx="20" cy="21" r="1" />
+              <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </Svg>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -275,6 +368,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mainImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  artistImageOverlay: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#fff',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  artistAvatar: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
@@ -457,10 +570,105 @@ const styles = StyleSheet.create({
   },
   cartButton: {
     paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
     borderRadius: 5,
-    backgroundColor: '#F2F2F2',
+    backgroundColor: '#111',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  musicDetailsSection: {
+    marginTop: 10,
+  },
+  accessNowBigBtn: {
+    backgroundColor: '#7126D0',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  accessNowBigText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+  },
+  tracksTitle: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#000',
+    marginBottom: 8,
+  },
+  tracksDivider: {
+    height: 1,
+    backgroundColor: '#eee',
+    marginBottom: 12,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  trackNumber: {
+    width: 24,
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#333',
+  },
+  trackName: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#111',
+  },
+  premiumCard: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  premiumCardInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  premiumCardTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    color: '#555',
+    marginBottom: 4,
+  },
+  premiumCardPrice: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+  },
+  premiumAccessBtn: {
+    backgroundColor: '#7126D0',
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  premiumAccessBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  musicFeatures: {
+    backgroundColor: '#f1f3f5',
+    padding: 16,
+    borderRadius: 8,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  featureText: {
+    marginLeft: 8,
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#555',
   },
 });

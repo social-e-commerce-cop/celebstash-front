@@ -1,18 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  Image,
-  TextInput,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  StatusBar,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-  Keyboard,
+  View, Text, Image, TextInput, StyleSheet, ScrollView,
+  TouchableOpacity, Dimensions, StatusBar, Alert,
+  Platform, KeyboardAvoidingView, Keyboard, Animated,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -21,7 +11,6 @@ import Svg, { Path, Circle } from 'react-native-svg';
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type CheckoutParams = {
   CheckoutScreen: {
     name?: string;
@@ -31,6 +20,11 @@ type CheckoutParams = {
     selectedSize?: string;
     selectedColor?: string;
     selectedColorValue?: string;
+    fromCart?: boolean;
+    cartItems?: Array<{ id: number; title: string; subtitle: string; price: number; quantity: number; imageSource: any }>;
+    isDigital?: boolean;
+    isMusic?: boolean;
+    musicItem?: { title: string; artist: string; image: any } | null;
   };
 };
 
@@ -43,7 +37,7 @@ const SHIPPING_OPTIONS = [
 
 // ─── Icons (inline SVG helpers) ───────────────────────────────────────────────
 const BackIcon = () => (
-  <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
+  <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
     <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
@@ -111,9 +105,13 @@ const CheckoutScreen: React.FC = () => {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-
   // product params
   const params    = route.params ?? {};
+  const fromCart  = params.fromCart ?? false;
+  const cartItems = params.cartItems ?? [];
+  const isDigital = params.isDigital ?? false;
+  const isMusic   = (params.isMusic ?? false) || !!params.musicItem;
+
   const name      = params.name        ?? 'Indorerwamo merch';
   const image     = params.image       ?? require('../../assets/images/products/product1.jpg');
   const artistName = params.artistName ?? 'Kenny K Shot';
@@ -126,12 +124,45 @@ const CheckoutScreen: React.FC = () => {
   const [qty, setQty] = useState(1);
 
   // shipping
-  const [shipping, setShipping] = useState<ShippingId>('economy');
+  const [shipping, setShipping] = useState<ShippingId>(isDigital ? 'none' : 'economy');
   const shippingCost = shipping === 'none' ? 0 : (SHIPPING_OPTIONS.find(o => o.id === shipping)?.price ?? 0);
 
   // promo
-  const [promoApplied, setPromoApplied] = useState(false);
+  const [appliedPromos, setAppliedPromos] = useState<{code: string, discount: number}[]>([]);
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState('');
+  const promoAnim = useRef(new Animated.Value(0)).current;
 
+  const VALID_CODES: Record<string, number> = { 'ZIKI25': 25, 'CELEB10': 10, 'VIP50': 50 };
+
+  const handleAddPromo = () => {
+    setShowPromoInput(v => {
+      const next = !v;
+      Animated.timing(promoAnim, { toValue: next ? 1 : 0, duration: 250, useNativeDriver: false }).start();
+      return next;
+    });
+  };
+
+  const applyPromo = () => {
+    const code = promoCode.trim().toUpperCase();
+    if (VALID_CODES[code]) {
+      if (appliedPromos.some(p => p.code === code)) {
+        setPromoMessage(`⚠ Code ${code} is already applied.`);
+        return;
+      }
+      setAppliedPromos(prev => [...prev, { code, discount: VALID_CODES[code] }]);
+      setPromoMessage(`✓ Promo code ${code} applied!`);
+      setPromoCode('');
+    } else {
+      setPromoMessage('✗ Invalid promo code. Try ZIKI25, CELEB10 or VIP50.');
+    }
+  };
+
+  const removePromo = (code: string) => {
+    setAppliedPromos(prev => prev.filter(p => p.code !== code));
+    setPromoMessage('');
+  };
   // delivery form
   const [fullName,   setFullName]   = useState('');
   const [phone,      setPhone]      = useState('');
@@ -143,9 +174,15 @@ const CheckoutScreen: React.FC = () => {
   const [zip,        setZip]        = useState('');
 
   // calculations
-  const subtotal = unitPrice * qty;
-  const discount = promoApplied ? +(subtotal * 0.25).toFixed(2) : 0;
-  const total    = +(subtotal + shippingCost - discount).toFixed(2);
+  const baseAmount = fromCart 
+    ? cartItems.reduce((s: number, i: any) => s + i.price * i.quantity, 0)
+    : unitPrice * qty;
+  const effectiveShippingCost = isMusic ? 0 : shippingCost;
+  const totalDiscountPercent = Math.min(appliedPromos.reduce((sum, p) => sum + p.discount, 0), 100);
+  const discountAmount = +(baseAmount * totalDiscountPercent / 100).toFixed(2);
+  const total    = +(baseAmount + effectiveShippingCost - discountAmount).toFixed(2);
+
+  const promoInputHeight = promoAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 90] });
 
   const fmt = (n: number) => `$${n.toFixed(2)}`;
 
@@ -172,7 +209,11 @@ const CheckoutScreen: React.FC = () => {
       }
     }
 
-    navigation.navigate('PaymentMethods', { total });
+    navigation.navigate('PaymentMethods', {
+      total,
+      isMusic,
+      musicItem: params.musicItem,
+    });
   };
 
   return (
@@ -202,68 +243,96 @@ const CheckoutScreen: React.FC = () => {
 
           {/* ── Order Summary ── */}
           <Text style={styles.sectionTitle}>Order Summary</Text>
-          <View style={[styles.card, styles.orderSummaryCard]}>
-            <Image source={image} style={styles.productImage} resizeMode="cover" />
-            <View style={styles.productInfo}>
-              <View style={styles.productDetailsRow}>
-                <View style={styles.productTextCol}>
-                  <Text style={styles.productName} numberOfLines={2}>{name}</Text>
-                  <Text style={styles.productVariant}>{selColor} • {selSize}</Text>
-                  <Text style={styles.productPrice}>{fmt(unitPrice)}</Text>
+          {fromCart && cartItems.length > 0 ? (
+            <View style={styles.card}>
+              {cartItems.map((item: any, idx: number) => (
+                <View key={item.id} style={[styles.cartItemRow, idx < cartItems.length - 1 && styles.cartItemBorder]}>
+                  <Image source={item.imageSource} style={styles.cartItemImage} resizeMode="cover" />
+                  <View style={styles.cartItemInfo}>
+                    <Text style={styles.cartItemName} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.cartItemSub}>{item.subtitle}</Text>
+                    <Text style={styles.cartItemPrice}>{fmt(item.price)}</Text>
+                  </View>
+                  <View style={styles.cartItemQtyBadge}>
+                    <Text style={styles.cartItemQtyText}>×{item.quantity}</Text>
+                  </View>
                 </View>
-                <View style={styles.productActionsCol}>
-                  <TouchableOpacity onPress={() => navigation.goBack()} style={styles.trashBtn}>
-                    <TrashIcon />
-                  </TouchableOpacity>
-                  <View style={styles.qtyRow}>
-                    <TouchableOpacity
-                      style={styles.qtyBtn}
-                      onPress={() => setQty(q => Math.max(1, q - 1))}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.qtyBtnText}>−</Text>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.card, styles.orderSummaryCard]}>
+              <Image source={image} style={styles.productImage} resizeMode="cover" />
+              <View style={styles.productInfo}>
+                <View style={styles.productDetailsRow}>
+                  <View style={styles.productTextCol}>
+                    <Text style={styles.productName} numberOfLines={2}>{name}</Text>
+                    {isMusic
+                      ? <Text style={styles.productVariant}>🎵 Digital Download</Text>
+                      : <Text style={styles.productVariant}>{selColor} - {selSize}</Text>
+                    }
+                    <Text style={styles.productPrice}>{fmt(unitPrice)}</Text>
+                  </View>
+                  <View style={styles.productActionsCol}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.trashBtn}>
+                      <TrashIcon />
                     </TouchableOpacity>
-                    <Text style={styles.qtyValue}>{qty}</Text>
-                    <TouchableOpacity
-                      style={[styles.qtyBtn, styles.qtyBtnPlus]}
-                      onPress={() => setQty(q => q + 1)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.qtyBtnText, { color: '#fff' }]}>+</Text>
-                    </TouchableOpacity>
+                    {/* Only show qty stepper for physical products */}
+                    {!isMusic && (
+                      <View style={styles.qtyRow}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => setQty(q => Math.max(1, q - 1))}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.qtyBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.qtyValue}>{qty}</Text>
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, styles.qtyBtnPlus]}
+                          onPress={() => setQty(q => q + 1)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.qtyBtnText, { color: '#fff' }]}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 </View>
               </View>
             </View>
-          </View>
+          )}
 
           {/* ── Choose Shipping ── */}
-          <Text style={styles.sectionTitle}>Choose Shipping</Text>
-          <View style={styles.card}>
-            {/* No delivery */}
-            <TouchableOpacity style={styles.shippingRow} onPress={() => setShipping('none')} activeOpacity={0.8}>
-              <Radio selected={shipping === 'none'} />
-              <Text style={styles.noDeliveryText}>No delivery</Text>
-            </TouchableOpacity>
+          {!isDigital && (
+            <>
+              <Text style={styles.sectionTitle}>Choose Shipping</Text>
+              <View style={styles.card}>
+                {/* No delivery */}
+                <TouchableOpacity style={styles.shippingRow} onPress={() => setShipping('none')} activeOpacity={0.8}>
+                  <Radio selected={shipping === 'none'} />
+                  <Text style={styles.noDeliveryText}>No delivery</Text>
+                </TouchableOpacity>
 
-            {SHIPPING_OPTIONS.map(opt => (
-              <TouchableOpacity
-                key={opt.id}
-                style={[styles.shippingOption, shipping === opt.id && styles.shippingOptionSelected]}
-                onPress={() => setShipping(opt.id)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.shippingIconCircle}>
-                  <TruckIcon color={shipping === opt.id ? PURPLE : PURPLE} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.shippingLabel}>{opt.label}  <Text style={styles.shippingPrice}>${opt.price}</Text></Text>
-                  <Text style={styles.shippingEta}>{opt.eta}</Text>
-                </View>
-                <Radio selected={shipping === opt.id} />
-              </TouchableOpacity>
-            ))}
-          </View>
+                {SHIPPING_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[styles.shippingOption, shipping === opt.id && styles.shippingOptionSelected]}
+                    onPress={() => setShipping(opt.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.shippingIconCircle}>
+                      <TruckIcon color={shipping === opt.id ? PURPLE : PURPLE} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.shippingLabel}>{opt.label}  <Text style={styles.shippingPrice}>${opt.price}</Text></Text>
+                      <Text style={styles.shippingEta}>{opt.eta}</Text>
+                    </View>
+                    <Radio selected={shipping === opt.id} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
           {/* ── Contact / Delivery Information ── */}
           <Text style={styles.sectionTitle}>
@@ -298,46 +367,74 @@ const CheckoutScreen: React.FC = () => {
           {/* ── Promo Code ── */}
           <Text style={styles.sectionTitle}>Promo Code</Text>
           <View style={styles.card}>
-            <View style={styles.promoRow}>
+            <View style={styles.promoHeaderRow}>
+              <Text style={styles.promoHeading}>Have a promo code?</Text>
               <TouchableOpacity
-                style={[styles.promoChip, promoApplied && styles.promoChipApplied]}
-                onPress={() => {
-                  if (!promoApplied) {
-                    setPromoApplied(true);
-                    Alert.alert('Promo applied!', '25% discount has been applied to your order.');
-                  }
-                }}
+                style={styles.promoAddBtn}
+                onPress={handleAddPromo}
                 activeOpacity={0.8}
               >
-                <Text style={styles.promoChipText}>{promoApplied ? '25% OFF✓' : '25% OFF'}</Text>
+                <Text style={styles.promoAddBtnText}>{showPromoInput ? '− Close' : '+ Add Code'}</Text>
               </TouchableOpacity>
-              {!promoApplied && (
-                <TouchableOpacity style={styles.promoAdd} activeOpacity={0.8}>
-                  <Text style={styles.promoAddText}>+</Text>
-                </TouchableOpacity>
-              )}
             </View>
+
+            {/* Expandable input */}
+            <Animated.View style={{ overflow: 'hidden', height: promoInputHeight }}>
+              <View style={styles.promoInputRow}>
+                <TextInput
+                  style={styles.promoInput}
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  placeholder="Enter promo code (e.g. ZIKI25)"
+                  placeholderTextColor="#BDBDBD"
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity style={styles.promoApplyBtn} onPress={applyPromo}>
+                  <Text style={styles.promoApplyText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+
+            {/* Applied Promos */}
+            {appliedPromos.length > 0 && (
+              <View style={styles.appliedPromosContainer}>
+                {appliedPromos.map(promo => (
+                  <View key={promo.code} style={styles.promoChipCard}>
+                    <Text style={styles.promoChipCardText}>{promo.code} ({promo.discount}%)</Text>
+                    <TouchableOpacity onPress={() => removePromo(promo.code)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
+                      <Text style={styles.promoChipCardRemove}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Promo message */}
+            {!!promoMessage && (
+              <View style={[styles.promoMsgBox, appliedPromos.length > 0 ? styles.promoMsgSuccess : styles.promoMsgError]}>
+                <Text style={[styles.promoMsgText, appliedPromos.length > 0 ? styles.promoMsgTextSuccess : styles.promoMsgTextError]}>
+                  {promoMessage}
+                </Text>
+              </View>
+            )}
 
             {/* Price breakdown */}
             <View style={styles.priceDivider} />
-            <PriceRow label="Amount" value={fmt(subtotal)} />
-            <PriceRow label="Shipping" value={shippingCost > 0 ? `+${fmt(shippingCost)}` : '$0.00'} />
-            {promoApplied && <PriceRow label="Discount" value={`−${fmt(discount)}`} valueColor={PURPLE} />}
+            <PriceRow label="Amount" value={fmt(baseAmount)} />
+            {!isMusic && (
+              <PriceRow label="Shipping" value={shippingCost > 0 ? `+${fmt(shippingCost)}` : '$0.00'} />
+            )}
+            {appliedPromos.length > 0 && <PriceRow label={`Discount (${totalDiscountPercent}%)`} value={`−${fmt(discountAmount)}`} valueColor={PURPLE} />}
             <View style={styles.totalDivider} />
             <PriceRow label="Total" value={fmt(total)} bold />
           </View>
 
+          {/* ── Continue Button ── */}
+          <TouchableOpacity style={styles.ctaButton} onPress={handleContinue} activeOpacity={0.85}>
+            <Text style={styles.ctaLabel}>Continue to payment</Text>
+          </TouchableOpacity>
+
         </ScrollView>
-
-        {/* ── Footer CTA ── */}
-        {!isKeyboardVisible && (
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.ctaButton} onPress={handleContinue} activeOpacity={0.85}>
-              <Text style={styles.ctaLabel}>Continue to payment</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
       </View>
     </KeyboardAvoidingView>
   );
@@ -364,7 +461,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 10,
     paddingTop: height * 0.05,
     paddingBottom: 12,
@@ -405,14 +501,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 16,
     marginBottom: 18,
-    // shadowColor: '#7126D0',
-    // shadowOpacity: 0.06,
-    // shadowRadius: 8,
-    // shadowOffset: { width: 0, height: 2 },
-    // elevation: 2,
   },
 
-  // ── Order summary ──
+  // ── Order summary (Single) ──
   orderSummaryCard: {
     backgroundColor: '#F5EEFF', // Light purple background
     flexDirection: 'row',
@@ -466,8 +557,8 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   qtyBtn: {
-  paddingVertical: 8,
-  paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 5,
     backgroundColor: '#E6E6E6',
     justifyContent: 'center',
@@ -489,6 +580,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
     color: '#111',
   },
+
+  // ── Cart items (multi) ──
+  cartItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  cartItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  cartItemImage: { width: 56, height: 56, borderRadius: 8, marginRight: 12 },
+  cartItemInfo: { flex: 1 },
+  cartItemName: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#111', marginBottom: 2 },
+  cartItemSub: { fontSize: 12, color: '#888', marginBottom: 4, fontFamily: 'Poppins-Regular' },
+  cartItemPrice: { fontSize: 14, fontFamily: 'Poppins-Bold', color: PURPLE },
+  cartItemQtyBadge: { backgroundColor: '#F5F5F5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  cartItemQtyText: { fontSize: 13, fontWeight: '700', color: '#333' },
 
   // ── Shipping ──
   shippingRow: {
@@ -600,40 +702,26 @@ const styles = StyleSheet.create({
   },
 
   // ── Promo ──
-  promoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-    gap: 10,
-  },
-  promoChip: {
-    backgroundColor: PURPLE,
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 5,
-  },
-  promoChipApplied: {
-    backgroundColor:PURPLE,
-  },
-  promoChipText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-  },
-  promoAdd: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: PURPLE,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  promoAddText: {
-    color: '#fff',
-    fontSize: 22,
-    fontFamily: 'Poppins-Bold',
-    lineHeight: 26,
-  },
+  promoHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  promoHeading: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111' },
+  promoAddBtn: { backgroundColor: PURPLE, borderRadius: 5, paddingHorizontal: 16, paddingVertical: 8 },
+  promoAddBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Poppins-Bold' },
+  promoInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  promoInput: { flex: 1, height: 46, borderRadius: 5, borderWidth: 1, borderColor: '#F3F4F6', paddingHorizontal: 14, backgroundColor: '#FAFAFE', fontSize: 16, fontFamily: 'Poppins-Regular', color: '#111' },
+  promoApplyBtn: { backgroundColor: '#111', borderRadius: 5, paddingHorizontal: 20, paddingVertical: 12 },
+  promoApplyText: { color: '#fff', fontSize: 14, fontFamily: 'Poppins-Bold' },
+  
+  appliedPromosContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  promoChipCard: { backgroundColor: PURPLE, borderRadius: 5, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  promoChipCardText: { color: '#fff', fontSize: 13, fontFamily: 'Poppins-Bold' },
+  promoChipCardRemove: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold', marginTop: -2 },
+
+  promoMsgBox: { borderRadius: 5, padding: 12, marginBottom: 14 },
+  promoMsgSuccess: { backgroundColor: '#EAF7F2' },
+  promoMsgError: { backgroundColor: '#F0E8FF' },
+  promoMsgText: { fontSize: 14, fontFamily: 'Poppins-Medium' },
+  promoMsgTextSuccess: { color: '#32A06E' },
+  promoMsgTextError: { color: '#E02020' },
   priceDivider: {
     height: 1,
     backgroundColor: '#e2c2f9ff',
@@ -670,21 +758,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  // ── Footer ──
-  footer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 28,
-    borderTopWidth: 1,
-    borderTopColor: '#e2c2f9ff',
-  },
+  // ── CTA Button ──
   ctaButton: {
     backgroundColor: PURPLE,
     borderRadius: 5,
     paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: Platform.OS === 'ios' ? 36 : 28,
   },
   ctaTotal: {
     fontSize: 16,

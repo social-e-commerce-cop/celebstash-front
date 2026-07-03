@@ -106,10 +106,13 @@ export default function SplashScreen() {
 
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
-            <Animated.View style={[styles.logoIcon, { transform: [{ scale: pulseAnim }] }]}>
+            {/* <Animated.View style={[styles.logoIcon, { transform: [{ scale: pulseAnim }] }]}>
               <LogoIcon />
-            </Animated.View>
-            <Text style={styles.logoText}>Zikiii</Text>
+            </Animated.View> */}
+            <View style={styles.logoRow}>
+              <Text style={styles.logoText}>ZIKII</Text>
+              <Text style={styles.logoDot}>.</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -136,12 +139,21 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   logoIcon: {},
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   logoText: {
     color: 'white',
     fontSize: 32,
-    fontWeight: '700',
     letterSpacing: -0.5,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
+  },
+  logoDot: {
+    color: '#e5d3fdff',
+    fontSize: 32,
+    fontWeight: '700',
     fontFamily: 'Poppins-Bold',
   },
   circle: {

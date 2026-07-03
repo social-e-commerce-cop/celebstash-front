@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActiveCart,
   ActiveHome,
@@ -16,8 +17,9 @@ import {
 type RootStackParamList = {
   Home: undefined;
   CartScreen: undefined;
+  Music: { initialQuery?: string } | undefined;
   Ewallet: undefined;
- MyProfile: undefined;
+  MyProfile: undefined;
 };
 
 type TabBarNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -30,7 +32,7 @@ export default function TabBar() {
 
   const handlePress = (tab: keyof RootStackParamList) => {
     if (tab !== activeTab) {
-      navigation.navigate(tab);
+      navigation.navigate(tab as any);
     }
   };
 
@@ -51,6 +53,20 @@ export default function TabBar() {
             {activeTab === "CartScreen" ? <ActiveCart /> : <CartIcon size={25} />}
           </View>
           {activeTab === "CartScreen" && <Text style={styles.tabText}>Cart</Text>}
+        </View>
+      </TouchableOpacity>
+
+      {/* Third Tab: Music */}
+      <TouchableOpacity onPress={() => handlePress("Music")}>
+        <View style={[styles.tab, activeTab === "Music" && styles.activeTab]}>
+          <View style={styles.iconContainer}>
+            {activeTab === "Music" ? (
+              <Ionicons name="musical-notes" size={25} color="#fff" />
+            ) : (
+              <Ionicons name="musical-notes-outline" size={25} color="#1D1E20" />
+            )}
+          </View>
+          {activeTab === "Music" && <Text style={styles.tabText}>Music</Text>}
         </View>
       </TouchableOpacity>
 
@@ -80,11 +96,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 20,
-backgroundColor: '#fff', 
-    borderRadius: 50,
-
+    paddingVertical: 14,
+    backgroundColor: '#fff',
   },
   tab: {
     flexDirection: "row",
@@ -94,7 +107,7 @@ backgroundColor: '#fff',
     borderRadius: 25,
   },
   activeTab: {
-    backgroundColor: "#FF6600",
+    backgroundColor: "#7126D0",
   },
   iconContainer: {
     marginRight: 6,

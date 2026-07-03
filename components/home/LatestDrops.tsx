@@ -12,7 +12,7 @@ const LatestDrops = () => {
       <TouchableOpacity
         activeOpacity={0.9}
         style={styles.bannerWrapper}
-        onPress={() => navigation.navigate('Drops')}
+        onPress={() => navigation.navigate('Shop')}
       >
         <ImageBackground
           source={require('../../assets/images/drop1.jpg')}
@@ -37,15 +37,8 @@ const LatestDrops = () => {
             style={styles.btnContainer}
             activeOpacity={0.8}
             onPress={(e) => {
-              e.stopPropagation(); // prevent parent TouchableOpacity from firing
-              navigation.navigate('ProductDetails', {
-                name: 'Indorerwamo Collection',
-                price: 30,
-                image: require('../../assets/images/products/product1.jpg'),
-                description: 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals',
-                artistName: 'Kenny K Shot',
-                verified: true,
-              });
+              e.stopPropagation();
+              navigation.navigate('Shop');
             }}
           >
             <View style={styles.shopButton}>

@@ -9,6 +9,7 @@ import ProfileSection from '@/components/home/ProfileSection';
 import LatestDrops from '@/components/home/LatestDrops';
 import AuctionGrid from '@/components/home/AuctionGrid';
 import Post from '@/components/home/Post';
+import LiveAuctionBanner from '@/components/home/LiveAuctionBanner';
 import { getSessionUser } from '@/lib/session';
 import postsData from '@/lib/postsData';
 
@@ -17,7 +18,7 @@ const { width, height } = Dimensions.get('window');
 const HomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
   const [user, setUser] = useState(getSessionUser());
-  const [activeTab, setActiveTab] = useState('For You');
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter posts by username or caption text
@@ -77,11 +78,11 @@ const HomeScreen = () => {
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
       >
-        {/* Header: Greeting & Purple Badged Icons */}
+        {/* Header: Logo & Purple Badged Icons */}
         <View style={styles.header}>
-          <View style={styles.greetingContainer}>
-            <Text style={styles.greetingLight}>Good Morning</Text>
-            <Text style={styles.greetingBold}>{user.fullName}</Text>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>ZIKII</Text>
+            <Text style={styles.logoDot}>.</Text>
           </View>
 
           <View style={styles.iconContainer}>
@@ -96,13 +97,13 @@ const HomeScreen = () => {
               </View>
             </TouchableOpacity>
 
-            {/* Messaging bubble button with purple badge '2' */}
+            {/* Messaging bubble button with purple badge '3' */}
             <TouchableOpacity style={styles.iconButton} onPress={handleChatPress} activeOpacity={0.8}>
               <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </Svg>
               <View style={styles.badge}>
-                <Text style={styles.badgeText}>2</Text>
+                <Text style={styles.badgeText}>3</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -128,34 +129,13 @@ const HomeScreen = () => {
           />
         </TouchableOpacity>
 
-         {/* Section 5: ProfileSection (Featured Artists Horizontal list) */}
+        {/* Section 5: ProfileSection (Featured Artists Horizontal list) */}
         <ProfileSection />
 
+        {/* Live Auction Banner — shown right below stories */}
+        <LiveAuctionBanner />
 
-        {/* Custom Navigation Tabs */}
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity 
-            style={styles.tabButton} 
-            onPress={() => setActiveTab('For You')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, activeTab === 'For You' ? styles.tabTextActive : styles.tabTextInactive]}>
-              For You
-            </Text>
-            {activeTab === 'For You' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabButton} 
-            onPress={() => setActiveTab('Following')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, activeTab === 'Following' ? styles.tabTextActive : styles.tabTextInactive]}>
-              Following
-            </Text>
-            {activeTab === 'Following' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
-        </View>
         {/* Section 4: Latest Drops (Drop Banner) */}
         <LatestDrops />
 
@@ -184,30 +164,28 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: width * 0.06,
     paddingVertical: height * 0.05,
-    paddingBottom: height * 0.12, // Space for floating bottom TabBar
+    // paddingBottom: height * 0.1, // Space for floating bottom TabBar
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,
-    backgroundColor: '#white',
+    backgroundColor: '#fff',
   },
-  greetingContainer: {
-    flexDirection: 'column',
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
-  greetingLight: {
-    fontSize: 24,
-    fontFamily: 'Poppins-Medium',
-    color: '#000',
-    lineHeight: 30,
-  },
-  greetingBold: {
-    fontSize: 24,
+  logoText: {
+    fontSize: 28,
     fontFamily: 'Poppins-Bold',
     color: '#000',
-    lineHeight: 30,
-    marginTop: -2,
+  },
+  logoDot: {
+    fontSize: 28,
+    fontFamily: 'Poppins-Bold',
+    color: '#7126D0',
   },
   iconContainer: {
     flexDirection: 'row',
@@ -218,7 +196,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#white',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -262,46 +240,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Medium',
     padding: 0, // Remove default TextInput padding
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    gap: 20,
-    marginVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f3f3',
-    paddingBottom: 2,
-  },
-  tabButton: {
-    paddingVertical: 6,
-    position: 'relative',
-  },
-  tabText: {
-    fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-  },
-  tabTextActive: {
-    color: '#000',
-  },
-  tabTextInactive: {
-    color: '#8c8c8c',
-  },
-  activeTabIndicator: {
-    position: 'absolute',
-    bottom: -4,
-    left: 0,
-    right: 0,
-    height: 3,
-    backgroundColor: '#7126D0', // Orange underline indicator
-    borderRadius: 2,
-  },
+
   tabBarContainer: {
     position: 'absolute',
-    bottom: -12,
+    bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: width * 0.01,
-    paddingVertical: height * 0.015,
     backgroundColor: 'transparent',
-    marginHorizontal: 10,
-    borderRadius: 50,
   },
 });

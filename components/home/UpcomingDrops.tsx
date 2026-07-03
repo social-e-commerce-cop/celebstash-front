@@ -78,7 +78,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
   );
 };
 
-const Drops = () => {
+const UpcomingDrops = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [activeTab, setActiveTab] = useState<"Upcoming" | "Past">("Upcoming");
   const [notifiedItems, setNotifiedItems] = useState<{ [key: string]: boolean }>({});
@@ -96,20 +96,6 @@ const Drops = () => {
       dateText: "May 25, 2026 • 8:00 PM",
       targetDate: new Date("2026-06-25T20:00:00"),
     },
-    {
-      id: "2",
-      title: "Indorerwamo Collection 2",
-      image: require("@/assets/images/drop1.jpg"),
-      dateText: "May 27, 2026 • 8:00 PM",
-      targetDate: new Date("2026-07-27T20:00:00"),
-    },
-    {
-      id: "3",
-      title: "Indorerwamo Collection 3",
-      image: require("@/assets/images/drop1.jpg"),
-      dateText: "May 29, 2026 • 8:00 PM",
-      targetDate: new Date("2026-08-29T20:00:00"),
-    },
   ];
 
   const pastCollections = [
@@ -123,177 +109,65 @@ const Drops = () => {
       date: "April 20, 2026",
       status: "Sold Out",
     },
-    {
-      id: "2",
-      name: "Ink Art Tee Collection",
-      price: "34",
-      image: require("@/assets/images/products/product2.jpg"),
-      artistName: "Kenny K Shot",
-      description: "Exclusive Ink Art Tee collection with beautiful graphics and premium fabric.",
-      date: "April 15, 2026",
-      status: "Ended",
-    },
-    {
-      id: "3",
-      name: "Classic Cap Collection",
-      price: "28",
-      image: require("@/assets/images/products/product3.jpg"),
-      artistName: "Kenny K Shot",
-      description: "Premium quality caps styled for daily wear. Limited run.",
-      date: "April 05, 2026",
-      status: "Sold Out",
-    },
-    {
-      id: "4",
-      name: "Artistic Prints Collection",
-      price: "45",
-      image: require("@/assets/images/products/product4.jpg"),
-      artistName: "Kenny K Shot",
-      description: "Limited edition high-quality artistic prints from the tour.",
-      date: "March 28, 2026",
-      status: "Ended",
-    },
   ];
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
-            <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Drops</Text>
-      </View>
-
-      {/* Toggle Selector */}
-      <View style={styles.toggleContainer}>
-        <TouchableOpacity
-          style={[styles.toggleButton, activeTab === "Upcoming" && styles.activeToggleButton]}
-          onPress={() => setActiveTab("Upcoming")}
-          activeOpacity={0.9}
-        >
-          <Text style={[styles.toggleText, activeTab === "Upcoming" && styles.activeToggleText]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleButton, activeTab === "Past" && styles.activeToggleButton]}
-          onPress={() => setActiveTab("Past")}
-          activeOpacity={0.9}
-        >
-          <Text style={[styles.toggleText, activeTab === "Past" && styles.activeToggleText]}>
-            Past
-          </Text>
-        </TouchableOpacity>
-      </View>
+      
 
       {/* Content */}
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab === "Upcoming" ? (
-          upcomingDrops.map((drop) => {
-            const isNotified = notifiedItems[drop.id];
-            return (
-              <View key={drop.id} style={styles.cardWrapper}>
-                <ImageBackground
-                  source={drop.image}
-                  style={styles.cardBackground}
-                  imageStyle={styles.cardImageStyle}
-                >
-                  <View style={styles.cardOverlay} />
+     <ScrollView
+  style={styles.scrollContent}
+  contentContainerStyle={styles.scrollContainer}
+  showsVerticalScrollIndicator={false}
+>
+  {upcomingDrops.map((drop) => {
+    const isNotified = notifiedItems[drop.id];
 
-                  <View style={styles.badgeRow}>
-                    <View style={styles.newDropBadge}>
-                      <Text style={styles.newDropBadgeText}>New Drop</Text>
-                    </View>
-                  </View>
+    return (
+      <View key={drop.id} style={styles.cardWrapper}>
+        <ImageBackground
+          source={drop.image}
+          style={styles.cardBackground}
+          imageStyle={styles.cardImageStyle}
+        >
+          <View style={styles.cardOverlay} />
 
-                  <Text style={styles.cardTitle}>{drop.title}</Text>
-
-                  <CountdownTimer targetDate={drop.targetDate} />
-
-                  <Text style={styles.cardDate}>{drop.dateText}</Text>
-
-                  <TouchableOpacity
-                    style={[styles.notifyButton, isNotified && styles.notifiedButton]}
-                    onPress={() => toggleNotification(drop.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.notifyButtonText}>
-                      {isNotified ? "Notified ✓" : "Notify Me"}
-                    </Text>
-                  </TouchableOpacity>
-                </ImageBackground>
-              </View>
-            );
-          })
-        ) : (
-          <View style={styles.gridContainer}>
-            {pastCollections.map((col) => (
-              <TouchableOpacity
-                key={col.id}
-                style={styles.pastCard}
-                activeOpacity={0.9}
-                onPress={() =>
-                  navigation.navigate("ProductDetails", {
-                    name: col.name,
-                    price: col.price,
-                    image: col.image,
-                    description: col.description,
-                    artistName: col.artistName,
-                    verified: true,
-                  })
-                }
-              >
-                <Image source={col.image} style={styles.pastCardImage} />
-                <View style={styles.pastBadgeContainer}>
-                  <View
-                    style={[
-                      styles.pastStatusBadge,
-                      col.status === "Sold Out"
-                        ? styles.badgeSoldOut
-                        : styles.badgeEnded,
-                    ]}
-                  >
-                    <Text style={styles.pastStatusText}>{col.status}</Text>
-                  </View>
-                </View>
-                <View style={styles.pastCardInfo}>
-                  <Text style={styles.pastCardName} numberOfLines={1}>
-                    {col.name}
-                  </Text>
-                  <Text style={styles.pastCardArtist}>{col.artistName}</Text>
-                  <View style={styles.pastCardFooter}>
-                    <Text style={styles.pastCardPrice}>${col.price}</Text>
-                    <Text style={styles.pastCardDate}>{col.date}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.badgeRow}>
+            <View style={styles.newDropBadge}>
+              <Text style={styles.newDropBadgeText}>New Drop</Text>
+            </View>
           </View>
-        )}
-      </ScrollView>
 
-      {/* Floating TabBar at the bottom */}
-      <View style={styles.tabBarContainer}>
-        <TabBar />
+          <Text style={styles.cardTitle}>{drop.title}</Text>
+
+          <CountdownTimer targetDate={drop.targetDate} />
+
+          <Text style={styles.cardDate}>{drop.dateText}</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.notifyButton,
+              isNotified && styles.notifiedButton,
+            ]}
+            onPress={() => toggleNotification(drop.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.notifyButtonText}>
+              {isNotified ? "Notified ✓" : "Notify Me"}
+            </Text>
+          </TouchableOpacity>
+        </ImageBackground>
       </View>
+    );
+  })}
+</ScrollView>
     </View>
   );
 };
 
-export default Drops;
+export default UpcomingDrops;
 
 const styles = StyleSheet.create({
   container: {
@@ -303,16 +177,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: width * 0.06,
     paddingTop: height * 0.05,
-    paddingBottom: 12,
   },
   backButton: {
     marginRight: 12,
     padding: 4,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontFamily: "Poppins-Bold",
     color: "#000",
   },
@@ -322,7 +194,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginHorizontal: width * 0.06,
     padding: 4,
-    marginBottom: 16,
   },
   toggleButton: {
     flex: 1,
@@ -347,18 +218,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContainer: {
-    paddingHorizontal: width * 0.06,
-    paddingBottom: height * 0.16,
+    paddingBottom: height * 0.04,
+     paddingTop: height * 0.014,
   },
   cardWrapper: {
     width: "100%",
     borderRadius: 5,
     overflow: "hidden",
-    marginBottom: 20,
   },
   cardBackground: {
     flex: 1,
-    padding: 24,
+    padding: 16,
     justifyContent: "space-between",
   },
   cardImageStyle: {
@@ -413,7 +283,7 @@ const styles = StyleSheet.create({
   },
   countdownSeparator: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 26,
     fontFamily: "Poppins-Bold",
     marginHorizontal: 6,
     paddingBottom: 22,
@@ -513,10 +383,9 @@ const styles = StyleSheet.create({
     color: "#999",
   },
   tabBarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
+    position: "absolute",
+    bottom: height * 0.03,
+    left: width * 0.06,
+    right: width * 0.06,
   },
 });

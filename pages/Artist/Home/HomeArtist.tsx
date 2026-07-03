@@ -64,14 +64,10 @@ const styles = StyleSheet.create({
   },
   tabBarContainer: {
     position: 'absolute',
-    bottom: -12,
+    bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: width * 0.01,
-    paddingVertical: height * 0.015,
-    backgroundColor: 'transparent', // Transparent or semi-transparent
-    marginHorizontal: 10,
-    borderRadius: 50
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',

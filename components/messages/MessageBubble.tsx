@@ -8,7 +8,6 @@ import {
   Dimensions,
 } from "react-native";
 import { useAudioPlayer } from "expo-audio";
-import { useEvent } from "expo";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -71,7 +70,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const isOutgoing = type === "outgoing";
   const player = useAudioPlayer(uri || '');
-  const isPlaying = useEvent(player, 'playingChange', { playing: player.playing }).playing;
+  const isPlaying = player?.playing ?? false;
 
   const playVoiceNote = () => {
     if (player.playing) {

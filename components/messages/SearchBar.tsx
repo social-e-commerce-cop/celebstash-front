@@ -4,20 +4,31 @@ import { Ionicons } from '@expo/vector-icons';
 
 interface SearchBarProps {
   onSearch?: (query: string) => void;
+  value?: string;
+  onChangeText?: (text: string) => void;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
-  const [query, setQuery] = useState('');
+const SearchBar: React.FC<SearchBarProps> = ({ onSearch, value, onChangeText }) => {
+  const [localQuery, setLocalQuery] = useState('');
 
-  const handleSearch = () => {
-    if (onSearch) {
-      onSearch(query.trim());
+  // Use controlled value if provided, otherwise use local state
+  const query = value !== undefined ? value : localQuery;
+  const handleChange = (text: string) => {
+    if (onChangeText) {
+      onChangeText(text);
+    } else {
+      setLocalQuery(text);
     }
+    if (onSearch) onSearch(text);
+  };
+
+  const handleSubmit = () => {
+    if (onSearch) onSearch(query.trim());
   };
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={handleSearch} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handleSubmit} activeOpacity={0.7}>
         <Ionicons
           name="search"
           size={20}
@@ -30,9 +41,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
         placeholderTextColor="#8A8A8A"
         style={styles.input}
         value={query}
-        onChangeText={setQuery}
+        onChangeText={handleChange}
         returnKeyType="search"
-        onSubmitEditing={handleSearch}
+        onSubmitEditing={handleSubmit}
       />
     </View>
   );

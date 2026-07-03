@@ -102,9 +102,9 @@ const BrowseScreen = () => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
+          {/* <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
             <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
+          </Svg> */}
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Browse</Text>
       </View>
@@ -198,11 +198,10 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   backButton: {
-    marginRight: 12,
-    padding: 4,
+    // marginRight: 12,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
     color: '#000',
   },
@@ -328,8 +327,9 @@ const styles = StyleSheet.create({
   },
   tabBarContainer: {
     position: 'absolute',
-    bottom: height * 0.03,
-    left: width * 0.06,
-    right: width * 0.06,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
   },
 });

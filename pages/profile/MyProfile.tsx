@@ -43,14 +43,10 @@ const styles = StyleSheet.create({
   scrollContent: { flex: 1 },
   tabBarContainer: {
     position: 'absolute',
-    bottom: -12,
+    bottom: 0,
     left: 0,
     right: 0,
-  paddingHorizontal: width * 0.01,
-    paddingVertical: height * 0.015,
-    backgroundColor: 'transparent', // Transparent or semi-transparent
-    marginHorizontal: 5,
-    borderRadius: 50
+    backgroundColor: 'transparent',
   },
   tabItem: { alignItems: 'center', flex: 1 },
 });
