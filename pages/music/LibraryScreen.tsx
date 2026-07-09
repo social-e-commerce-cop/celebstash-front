@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import { useMusicPlayer, playSong, pauseSong, resetPlayer, togglePlay, formatTim
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
 
-// ─── Animated Equalizer Component ("Earcbeats / Waveform") ────────────────────
+// â”€â”€â”€ Animated Equalizer Component ("Earcbeats / Waveform") â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Equalizer = ({ isPlaying }: { isPlaying: boolean }) => {
   const bar1 = useRef(new Animated.Value(4)).current;
   const bar2 = useRef(new Animated.Value(12)).current;
@@ -71,7 +71,7 @@ const Equalizer = ({ isPlaying }: { isPlaying: boolean }) => {
   );
 };
 
-// ─── Main Library Screen ───────────────────────────────────────────────────────
+// â”€â”€â”€ Main Library Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LibraryScreen = () => {
   const navigation = useNavigation<any>();
   const songs = useLibrary();
@@ -235,12 +235,12 @@ const LibraryScreen = () => {
               {/* Info Column */}
               <View style={styles.songInfo}>
                 <View style={styles.titleContainer}>
-                  <Text 
+                  <Text
                     style={[
                       styles.songName,
                       isCurrent && styles.songNameActive,
                       isExpired && styles.songNameExpiredText
-                    ]} 
+                    ]}
                     numberOfLines={1}
                   >
                     {song.title}
@@ -251,13 +251,13 @@ const LibraryScreen = () => {
                   <Text style={styles.songArtist}>By {song.artist}</Text>
                   {song.expiresAt && (
                     <View style={[styles.expiryBadge, isExpired && styles.expiryBadgeExpired]}>
-                      <Ionicons 
-                        name={isExpired ? "lock-closed-outline" : "time-outline"} 
-                        size={12} 
-                        color={isExpired ? "#DC2626" : "#D97706"} 
+                      <Ionicons
+                        name={isExpired ? 'lock-closed-outline' : 'time-outline'}
+                        size={12}
+                        color={isExpired ? '#DC2626' : '#D97706'}
                       />
                       <Text style={[styles.expiryText, isExpired && styles.expiryTextExpired]}>
-                        {isExpired ? "Access Ended" : `${formatRemainingTime(song.expiresAt)} left`}
+                        {isExpired ? 'Access Ended' : `${formatRemainingTime(song.expiresAt)} left`}
                       </Text>
                     </View>
                   )}
@@ -270,9 +270,9 @@ const LibraryScreen = () => {
                 onPress={() => {
                   if (isExpired) {
                     Alert.alert(
-                      "Access Expired",
+                      'Access Expired',
                       `Your 3-day access period for "${song.title}" has ended. Please visit the store to repurchase!`,
-                      [{ text: "OK" }]
+                      [{ text: 'OK' }]
                     );
                   } else {
                     handleSongPress(song);
@@ -280,10 +280,10 @@ const LibraryScreen = () => {
                 }}
               >
                 <Ionicons
-                  name={isExpired ? "lock-closed" : (isThisPlaying ? "pause" : "play")}
+                  name={isExpired ? 'lock-closed' : isThisPlaying ? 'pause' : 'play'}
                   size={16}
                   color="#fff"
-                  style={(!isThisPlaying && !isExpired) && { marginLeft: 2 }} // center play triangle slightly
+                  style={(!isThisPlaying && !isExpired) && { marginLeft: 2 }}
                 />
               </TouchableOpacity>
             </TouchableOpacity>
@@ -294,7 +294,7 @@ const LibraryScreen = () => {
       {/* Bottom Floating Premium Player */}
       {player.currentSong && (
         <View style={styles.playerContainer}>
-          {/* ── Row 1: album art + info + play/pause ── */}
+          {/* â”€â”€ Row 1: album art + info + play/pause â”€â”€ */}
           <View style={styles.playerInner}>
             <View style={styles.playerLeft}>
               <Image source={player.currentSong.image} style={styles.playerImage} />
@@ -321,7 +321,7 @@ const LibraryScreen = () => {
             </View>
           </View>
 
-          {/* ── Row 2: Scrubber + timestamps ── */}
+          {/* â”€â”€ Row 2: Scrubber + timestamps â”€â”€ */}
           <View style={styles.scrubberSection}>
             {/* Track bar */}
             <View style={styles.scrubberTrack}>
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // ── Scrubber ──
+  // â”€â”€ Scrubber â”€â”€
   scrubberSection: {
     paddingHorizontal: 14,
     paddingBottom: 4,
@@ -645,4 +645,39 @@ const styles = StyleSheet.create({
   lockButtonCircle: {
     backgroundColor: '#EF4444',
   },
+  // â”€â”€ Type badges â”€â”€
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeSingle: {
+    backgroundColor: '#ECFDF5',
+  },
+  typeBadgeAlbum: {
+    backgroundColor: '#F3F0FF',
+  },
+  typeBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Poppins-Bold',
+  },
+  typeBadgeTextSingle: {
+    color: '#059669',
+  },
+  typeBadgeTextAlbum: {
+    color: '#7126D0',
+  },
+  albumSubtitle: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  albumButtonCircle: {
+    backgroundColor: '#7126D0',
+  },
+
 });

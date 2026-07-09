@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
 import { Svg, Path } from "react-native-svg";
 import { useNavigation } from '@react-navigation/native';

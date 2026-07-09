@@ -41,6 +41,8 @@ import TransactionsSearch from '@/pages/wallet/TransactionHistory';
 import TransactionsDetails from '@/pages/wallet/TransactionDetails';
 import TopUpScreen from '@/pages/wallet/TopupWallet';
 import TopupPinEntry from '@/pages/wallet/TopupConfirmation';
+import ManageCardsScreen from '@/pages/wallet/ManageCardsScreen';
+import AddCardScreen from '@/pages/wallet/AddCardScreen';
 
 import Messages from '@/pages/message/Messages';
 import Notifications from '@/pages/message/Notifications';
@@ -113,10 +115,24 @@ type AppStackParamList = {
   TrackOrder: undefined;
   Ewallet: undefined;
   TransactionSearch: undefined;
-  TransactionDetails: undefined;
+  TransactionDetails: { transactionId: string } | undefined;
   TopupWallet: undefined;
-  TopupConfirmation: undefined;
+  TopupConfirmation: {
+    amount: string;
+    paymentMethodType: 'card' | 'momo';
+    // Card params
+    cardId?: string;
+    cardLast4?: string;
+    cardBrand?: string;
+    cardHolder?: string;
+    maskedNumber?: string;
+    // MoMo params
+    momoProvider?: 'MTN' | 'Airtel';
+    phoneNumber?: string;
+  } | undefined;
   AddWalletScreen: undefined;
+  ManageCards: undefined;
+  AddCard: { returnTo?: string } | undefined;
   Messages: undefined;
   Notifications: undefined;
   MyProfile: undefined;
@@ -206,6 +222,8 @@ export default function App() {
         <Stack.Screen name="TopupWallet" component={TopUpScreen} />
         <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
         <Stack.Screen name="AddWalletScreen" component={AddWalletScreen} />
+        <Stack.Screen name="ManageCards" component={ManageCardsScreen} />
+        <Stack.Screen name="AddCard" component={AddCardScreen} />
         <Stack.Screen name="Messages" component={Messages} />
         <Stack.Screen name="Notifications" component={Notifications} />
         <Stack.Screen name="MyProfile" component={MyProfile} />

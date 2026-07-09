@@ -1,5 +1,4 @@
-// screens/TransactionsSearch.tsx
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,185 +9,353 @@ import {
   Platform,
   ToastAndroid,
   StyleSheet,
-  Image,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { SearchIcon } from "@/assets/icons/Payment";
-import TransactionItem from "@/components/ewallet/TransactionItem";
-import PromoCodeDetail from "@/components/ewallet/ShippingCard";
-import * as Clipboard from "expo-clipboard";
-import Svg, { Path } from "react-native-svg";
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import * as Clipboard from 'expo-clipboard';
+import { getTransactionById, TransactionType } from '@/lib/walletStore';
 
-const { width, height } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
+const PURPLE = '#7126D0';
 
-interface TransactionReceiptModalProps {
-  visible?: boolean;
-  onClose?: () => void;
-  transactionId?: string;
-  amount?: string;
-  paymentMethod?: string;
-  date?: string;
-  time?: string;
-  status?: string;
-  currency?: string;
-}
+const TYPE_LABELS: Record<TransactionType, string> = {
+  top_up: 'Wallet Top Up',
+  purchase: 'Purchase Payment',
+  refund: 'Refund',
+  promo: 'Promotional Credit',
+};
 
-const TransactionDetails: React.FC<TransactionReceiptModalProps> = ({
-  visible = false,
-  onClose = () => {},
-  transactionId = "KU46545453",
-  amount = "100.00",
-  paymentMethod = "My E-wallet",
-  date = "September 18, 2025",
-  time = "08:55 PM",
-  status = "Paid",
-  currency = "$",
-}) => {
+const TYPE_ICONS: Record<TransactionType, any> = {
+  top_up: 'arrow-down-circle',
+  purchase: 'cart',
+  refund: 'refresh-circle',
+  promo: 'gift',
+};
+
+const TYPE_COLORS: Record<TransactionType, string> = {
+  top_up: '#16A34A',
+  purchase: '#DC2626',
+  refund: '#2563EB',
+  promo: '#D97706',
+};
+
+const TransactionDetails: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [showSearch, setShowSearch] = useState(false);
+  const route = useRoute<any>();
+  const transactionId = route.params?.transactionId;
+
   const [copied, setCopied] = useState(false);
 
-  const copyTransactionId = async () => {
-    await Clipboard.setStringAsync(transactionId);
+  const txn = getTransactionById(transactionId);
+
+  const copyId = async () => {
+    if (!txn) return;
+    await Clipboard.setStringAsync(txn.id);
     setCopied(true);
-    if (Platform.OS === "android") {
-      ToastAndroid.show("Transaction ID copied!", ToastAndroid.SHORT);
+    if (Platform.OS === 'android') {
+      ToastAndroid.show('Transaction ID copied!', ToastAndroid.SHORT);
     }
-    setTimeout(() => setCopied(false), 1000);
+    setTimeout(() => setCopied(false), 2000);
   };
 
+  if (!txn) {
+    return (
+      <View style={styles.notFound}>
+        <Ionicons name="alert-circle-outline" size={56} color="#D1D5DB" />
+        <Text style={styles.notFoundTitle}>Transaction not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isCredit = txn.type !== 'purchase';
+  const iconColor = TYPE_COLORS[txn.type];
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 20 }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#000" />
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
 
       {/* Header */}
-      <View style={styles.headerOverlay}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
           <Ionicons name="arrow-back" size={width * 0.06} color="#000" />
         </TouchableOpacity>
-
-        <Text style={[styles.headerTitle, { fontSize: width * 0.045 }]}>
-          Transaction History
-        </Text>
-
-        <TouchableOpacity onPress={() => setShowSearch(!showSearch)} style={styles.iconButton}>
-          <SearchIcon />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Transaction Details</Text>
+        <View style={styles.iconButton} />
       </View>
 
-     <View style={{ paddingHorizontal: width * 0.05, marginBottom: 20 }}>
-       <Image source={require('@/assets/images/wallet/barcode.png')} style={{ width: width * 0.8, height: height * 0.2 }} />
-     </View>
-
-      {/* Transaction Item */}
-      <TransactionItem
-        image={require("@/assets/images/wallet/transaction1.jpg")}
-        title="Kendric’s Jacket on Tour"
-        date="May 28, 2024"
-        time="08:40 AM"
-        amount=""
-      />
-
-      {/* Promo Code Detail */}
-      <PromoCodeDetail />
-
-      {/* Details */}
-      <View style={styles.detailsContainer}>
-        <View style={styles.details}>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Payment Method</Text>
-            <Text style={styles.value}>{paymentMethod}</Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Date</Text>
-            <Text style={styles.value}>{date} | {time}</Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Transaction ID</Text>
-            <View style={styles.transactionIdRow}>
-              <Text style={styles.value}>{transactionId}</Text>
-              <TouchableOpacity onPress={copyTransactionId} style={styles.copyButton}>
-                <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                  <Path
-                    d="M20.998 10C20.986 7.825 20.89 6.647 20.121 5.879C19.243 5 17.828 5 15 5H12C9.172 5 7.757 5 6.879 5.879C6 6.757 6 8.172 6 11V16C6 18.828 6 20.243 6.879 21.121C7.757 22 9.172 22 12 22H15C17.828 22 19.243 22 20.121 21.121C21 20.243 21 18.828 21 16V15"
-                    stroke="#7126D0"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                  />
-                  <Path
-                    d="M3 10V16C3 16.7956 3.31607 17.5587 3.87868 18.1213C4.44129 18.6839 5.20435 19 6 19M18 5C18 4.20435 17.6839 3.44129 17.1213 2.87868C16.5587 2.31607 15.7956 2 15 2H11C7.229 2 5.343 2 4.172 3.172C3.518 3.825 3.229 4.7 3.102 6"
-                    stroke="#7126D0"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-              </TouchableOpacity>
-              {copied && <Text style={styles.copiedText}>Copied!</Text>}
-            </View>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.statusContainer}>
-              <Text style={styles.statusText}>{status}</Text>
-            </View>
-          </View>
+      {/* Amount hero */}
+      <View style={styles.amountHero}>
+        <View style={[styles.heroIcon, { backgroundColor: iconColor + '18' }]}>
+          <Ionicons name={TYPE_ICONS[txn.type]} size={36} color={iconColor} />
         </View>
+        <Text style={styles.heroType}>{TYPE_LABELS[txn.type]}</Text>
+        <Text style={[styles.heroAmount, { color: isCredit ? '#16A34A' : '#DC2626' }]}>
+          {isCredit ? '+' : '-'}${txn.amount.toFixed(2)}
+        </Text>
+        <Text style={styles.heroDate}>{txn.date} at {txn.time}</Text>
+
+        {/* Status badge */}
+        <View style={[
+          styles.statusBadge,
+          {
+            backgroundColor:
+              txn.status === 'completed' ? '#D1FAE5'
+              : txn.status === 'pending' ? '#FEF3C7'
+              : '#FEE2E2',
+          },
+        ]}>
+          <Ionicons
+            name={
+              txn.status === 'completed' ? 'checkmark-circle'
+              : txn.status === 'pending' ? 'time'
+              : 'close-circle'
+            }
+            size={14}
+            color={
+              txn.status === 'completed' ? '#065F46'
+              : txn.status === 'pending' ? '#92400E'
+              : '#991B1B'
+            }
+          />
+          <Text style={[
+            styles.statusText,
+            {
+              color:
+                txn.status === 'completed' ? '#065F46'
+                : txn.status === 'pending' ? '#92400E'
+                : '#991B1B',
+            },
+          ]}>
+            {txn.status.charAt(0).toUpperCase() + txn.status.slice(1)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Detail card */}
+      <View style={styles.detailCard}>
+        {/* Transaction ID */}
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Transaction ID</Text>
+          <TouchableOpacity style={styles.idRow} onPress={copyId} activeOpacity={0.7}>
+            <Text style={styles.detailValue} numberOfLines={1}>{txn.id}</Text>
+            <Ionicons
+              name={copied ? 'checkmark' : 'copy-outline'}
+              size={16}
+              color={copied ? '#16A34A' : PURPLE}
+              style={{ marginLeft: 6 }}
+            />
+          </TouchableOpacity>
+        </View>
+        {copied && <Text style={styles.copiedHint}>Copied!</Text>}
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Type</Text>
+          <Text style={styles.detailValue}>{TYPE_LABELS[txn.type]}</Text>
+        </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Amount</Text>
+          <Text style={[styles.detailValue, { color: isCredit ? '#16A34A' : '#DC2626' }]}>
+            {isCredit ? '+' : '-'}${txn.amount.toFixed(2)}
+          </Text>
+        </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Date</Text>
+          <Text style={styles.detailValue}>{txn.date}</Text>
+        </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Time</Text>
+          <Text style={styles.detailValue}>{txn.time}</Text>
+        </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Status</Text>
+          <Text style={styles.detailValue}>{txn.status.charAt(0).toUpperCase() + txn.status.slice(1)}</Text>
+        </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Description</Text>
+          <Text style={[styles.detailValue, { maxWidth: '60%', textAlign: 'right' }]} numberOfLines={3}>
+            {txn.description}
+          </Text>
+        </View>
+
+        {txn.orderId && (
+          <>
+            <View style={styles.separator} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Order ID</Text>
+              <Text style={styles.detailValue}>{txn.orderId}</Text>
+            </View>
+          </>
+        )}
       </View>
     </ScrollView>
   );
 };
 
-export default TransactionDetails;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f8faff",
-    paddingHorizontal: width * 0.04,
-    paddingTop: height * 0.04,
+    backgroundColor: '#F5F8FA',
   },
-  headerOverlay: {
-    height: height * 0.07,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: height * 0.02,
+  scrollContent: {
+    paddingBottom: 40,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: height * 0.05,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  iconButton: { width: width * 0.06 },
   headerTitle: {
-    color: "#000",
-    fontWeight: "bold",
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#000',
   },
-  iconButton: {},
-  detailsContainer: { paddingTop: 10,  },
-  details: {
-    flexDirection: "column",
-    backgroundColor: "#fff",
-    borderRadius: 5,
-    paddingVertical: height * 0.015,
-    marginBottom: height * 0.08
+
+  // â”€â”€ Amount hero â”€â”€
+  amountHero: {
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  heroIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  heroType: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  heroAmount: {
+    fontSize: 40,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 6,
+  },
+  heroDate: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    marginBottom: 16,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+  },
+
+  // â”€â”€ Detail card â”€â”€
+  detailCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    borderRadius: 8,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: height * 0.015,
-    paddingHorizontal: width * 0.05,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
   },
-  label: { fontSize: width * 0.04, color: "#303030", fontWeight: "500" },
-  value: { fontSize: width * 0.04, color: "#000", fontWeight: "bold", textAlign: "right" },
-  transactionIdRow: { flexDirection: "row", alignItems: "center" },
-  copyButton: { marginLeft: width * 0.02 },
-  copiedText: { marginLeft: 5, color: "#7126D0", fontSize: width * 0.035 },
-  statusContainer: {
-    backgroundColor: "#7126D0",
-    paddingHorizontal: width * 0.07,
-    paddingVertical: height * 0.01,
-    borderRadius: width * 0.009,
+  detailLabel: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
   },
-  statusText: { fontSize: width * 0.04, color: "#fff", fontWeight: "600" },
+  detailValue: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#1F2937',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '60%',
+  },
+  copiedHint: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#16A34A',
+    textAlign: 'right',
+    marginTop: -8,
+    marginBottom: 4,
+  },
+
+  // â”€â”€ Not found â”€â”€
+  notFound: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#F5F8FA',
+  },
+  notFoundTitle: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#9CA3AF',
+  },
+  backBtn: {
+    backgroundColor: PURPLE,
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  backBtnText: {
+    color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+  },
 });
+
+export default TransactionDetails;

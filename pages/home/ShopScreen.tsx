@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -117,7 +117,7 @@ export default function ShopScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Shop</Text>
           <TouchableOpacity onPress={() => navigation.navigate('CartScreen')} style={styles.cartBtn}>
@@ -132,7 +132,7 @@ export default function ShopScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Search + Filter ── */}
+        {/* â”€â”€ Search + Filter â”€â”€ */}
         <View style={styles.searchRow}>
           <View style={styles.searchBar}>
             <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
@@ -156,7 +156,7 @@ export default function ShopScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Category Tabs ── */}
+        {/* â”€â”€ Category Tabs â”€â”€ */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
           {CATEGORIES.map(cat => (
             <TouchableOpacity
@@ -171,7 +171,7 @@ export default function ShopScreen() {
           ))}
         </ScrollView>
 
-        {/* ── Featured Drop Hero ── */}
+        {/* â”€â”€ Featured Drop Hero â”€â”€ */}
         {/* <TouchableOpacity activeOpacity={0.9} onPress={() => navigateToProduct()} style={styles.heroWrapper}>
           <ImageBackground
             source={require('../../assets/images/drop1.jpg')}
@@ -190,7 +190,7 @@ export default function ShopScreen() {
         </TouchableOpacity> */}
         <LatestDrops />
 
-        {/* ── Upcoming Drops ── */}
+        {/* â”€â”€ Upcoming Drops â”€â”€ */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Drops</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Drops')}>
@@ -198,7 +198,7 @@ export default function ShopScreen() {
           </TouchableOpacity>
         </View>
         <UpcomingDrops />
-        {/* ── Product Grid (2 columns, manual render to avoid nested VirtualizedList) ── */}
+        {/* â”€â”€ Product Grid (2 columns, manual render to avoid nested VirtualizedList) â”€â”€ */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             {activeCategory === 'All' ? 'All Products' : activeCategory}
@@ -243,7 +243,7 @@ export default function ShopScreen() {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* ── TabBar ── */}
+      {/* â”€â”€ TabBar â”€â”€ */}
       <View style={styles.tabBarWrapper}>
         <TabBar />
       </View>
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   notifyText: { color: '#fff', fontSize: 14, fontFamily: 'Poppins-Bold' },
 
-  // Product Grid – 2 columns
+  // Product Grid â€“ 2 columns
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

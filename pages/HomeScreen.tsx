@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -132,7 +132,7 @@ const HomeScreen = () => {
         {/* Section 5: ProfileSection (Featured Artists Horizontal list) */}
         <ProfileSection />
 
-        {/* Live Auction Banner — shown right below stories */}
+        {/* Live Auction Banner â€” shown right below stories */}
         <LiveAuctionBanner />
 
 

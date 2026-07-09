@@ -1,50 +1,45 @@
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { View, TextInput, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
+const PURPLE = '#7126D0';
 
 interface SearchBarProps {
   onSearch?: (query: string) => void;
   value?: string;
   onChangeText?: (text: string) => void;
+  placeholder?: string;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ onSearch, value, onChangeText }) => {
-  const [localQuery, setLocalQuery] = useState('');
-
-  // Use controlled value if provided, otherwise use local state
-  const query = value !== undefined ? value : localQuery;
+const SearchBar: React.FC<SearchBarProps> = ({
+  onSearch,
+  value = '',
+  onChangeText,
+  placeholder = 'Search messages…',
+}) => {
   const handleChange = (text: string) => {
-    if (onChangeText) {
-      onChangeText(text);
-    } else {
-      setLocalQuery(text);
-    }
-    if (onSearch) onSearch(text);
-  };
-
-  const handleSubmit = () => {
-    if (onSearch) onSearch(query.trim());
+    onChangeText?.(text);
+    onSearch?.(text);
   };
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={handleSubmit} activeOpacity={0.7}>
-        <Ionicons
-          name="search"
-          size={20}
-          color="#8A8A8A"
-          style={{ marginHorizontal: 8 }}
-        />
-      </TouchableOpacity>
+      <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.icon} />
       <TextInput
-        placeholder="Search"
-        placeholderTextColor="#8A8A8A"
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
         style={styles.input}
-        value={query}
+        value={value}
         onChangeText={handleChange}
         returnKeyType="search"
-        onSubmitEditing={handleSubmit}
+        onSubmitEditing={() => onSearch?.(value.trim())}
       />
+      {value.length > 0 && (
+        <TouchableOpacity onPress={() => { onChangeText?.(''); onSearch?.(''); }}>
+          <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -53,16 +48,21 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#8F959E33',
-    borderRadius: 50,
-    paddingVertical: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
     paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  icon: {
+    flexShrink: 0,
   },
   input: {
     flex: 1,
-    fontSize: 18,
-    color: '#8A8A8A',
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#111',
+    padding: 0,
   },
 });
 

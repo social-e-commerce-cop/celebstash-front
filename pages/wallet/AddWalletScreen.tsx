@@ -15,6 +15,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { addPaymentMethod } from '@/lib/paymentStore';
+import { MTNLogo, AirtelLogo } from '@/components/ewallet/CardAssets';
 
 const { width, height } = Dimensions.get('window');
 
@@ -144,7 +145,7 @@ const AddWalletScreen = () => {
       style={{ flex: 1, backgroundColor: '#FFF' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#000" />
@@ -197,7 +198,7 @@ const AddWalletScreen = () => {
               </View>
 
               <Text style={styles.mockCardNumber}>
-                {cardNumber || '•••• •••• •••• ••••'}
+                {cardNumber || 'â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢'}
               </Text>
 
               <View style={styles.cardFooterRow}>
@@ -289,7 +290,7 @@ const AddWalletScreen = () => {
             <Text style={styles.inputLabel}>Password</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               placeholderTextColor="#999"
               secureTextEntry
               value={paypalPassword}
@@ -317,7 +318,7 @@ const AddWalletScreen = () => {
                 ]}
                 onPress={() => setMomoProvider('mtn')}
               >
-                <Text style={{ fontSize: 24, marginBottom: 4 }}>⚡</Text>
+                <MTNLogo size={52} />
                 <Text style={styles.momoName}>MTN MoMo</Text>
               </TouchableOpacity>
 
@@ -328,7 +329,7 @@ const AddWalletScreen = () => {
                 ]}
                 onPress={() => setMomoProvider('airtel')}
               >
-                <Text style={{ fontSize: 24, marginBottom: 4 }}>🔴</Text>
+                <AirtelLogo size={52} />
                 <Text style={styles.momoName}>Airtel Money</Text>
               </TouchableOpacity>
             </View>

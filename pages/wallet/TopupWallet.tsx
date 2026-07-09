@@ -1,205 +1,384 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Dimensions, 
-  FlatList,
+﻿import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Alert,
+  Modal,
+  FlatList,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from '@expo/vector-icons';
+import { useCards, SavedCard, getDefaultCard } from '@/lib/cardStore';
+import CardSelector from '@/components/ewallet/CardSelector';
+
 
 const { width, height } = Dimensions.get('window');
+const PURPLE = '#7126D0';
 
-interface MoMoProvider {
-  id: string;
-  name: string;
-  brandColor: string;
-  textColor: string;
-  accentBg: string;
-  logo: string;
-}
-
-const PROVIDERS: MoMoProvider[] = [
-  { id: 'mtn', name: 'MTN MoMo', brandColor: '#FFCC00', textColor: '#000', accentBg: '#FFF9E6', logo: '⚡' },
-  { id: 'airtel', name: 'Airtel Money', brandColor: '#E11900', textColor: '#FFF', accentBg: '#FFEBEA', logo: '🔴' },
-];
-
+const MIN_AMOUNT = 1;
+const MAX_AMOUNT = 10000;
 const SUGGESTIONS = [10, 20, 50, 100, 200, 500];
+
+type PaymentType = 'card' | 'momo';
+type MoMoProvider = 'MTN' | 'Airtel';
+
+const COUNTRY_CODES = [
+  { code: '+250', label: 'ðŸ‡·ðŸ‡¼ Rwanda' },
+  { code: '+256', label: 'ðŸ‡ºðŸ‡¬ Uganda' },
+  { code: '+255', label: 'ðŸ‡¹ðŸ‡¿ Tanzania' },
+  { code: '+254', label: 'ðŸ‡°ðŸ‡ª Kenya' },
+  { code: '+243', label: 'ðŸ‡¨ðŸ‡© DR Congo' },
+  { code: '+237', label: 'ðŸ‡¨ðŸ‡² Cameroon' },
+  { code: '+233', label: 'ðŸ‡¬ðŸ‡­ Ghana' },
+  { code: '+234', label: 'ðŸ‡³ðŸ‡¬ Nigeria' },
+  { code: '+27',  label: 'ðŸ‡¿ðŸ‡¦ South Africa' },
+  { code: '+251', label: 'ðŸ‡ªðŸ‡¹ Ethiopia' },
+  { code: '+1',   label: 'ðŸ‡ºðŸ‡¸ USA' },
+  { code: '+44',  label: 'ðŸ‡¬ðŸ‡§ UK' },
+];
 
 const TopUpScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [selectedProvider, setSelectedProvider] = useState<MoMoProvider>(PROVIDERS[0]);
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const cards = useCards();
   const [amount, setAmount] = useState('');
-  const [countryCode, setCountryCode] = useState('+250'); // Default country code
+  const defaultCard = getDefaultCard();
+  const [selectedCard, setSelectedCard] = useState<SavedCard | null>(defaultCard ?? null);
+  const [paymentType, setPaymentType] = useState<PaymentType>('card');
+  const [momoProvider, setMomoProvider] = useState<MoMoProvider>('MTN');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+250');
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [amountError, setAmountError] = useState('');
 
   const handleAmountChange = (text: string) => {
-    const numericValue = text.replace(/[^0-9]/g, '');
+    const numericValue = text.replace(/[^0-9.]/g, '');
     setAmount(numericValue);
-  };
-
-  const handlePhoneChange = (text: string) => {
-    const numericValue = text.replace(/[^0-9]/g, '');
-    setPhoneNumber(numericValue);
+    setAmountError('');
   };
 
   const handleSelectSuggestion = (val: number) => {
     setAmount(val.toString());
+    setAmountError('');
+  };
+
+  const validate = (): boolean => {
+    const num = parseFloat(amount);
+    if (!amount || isNaN(num)) {
+      setAmountError('Please enter a valid amount.');
+      return false;
+    }
+    if (num < MIN_AMOUNT) {
+      setAmountError(`Minimum top-up amount is $${MIN_AMOUNT}.`);
+      return false;
+    }
+    if (num > MAX_AMOUNT) {
+      setAmountError(`Maximum top-up amount is $${MAX_AMOUNT.toLocaleString()}.`);
+      return false;
+    }
+    if (paymentType === 'card' && !selectedCard) {
+      Alert.alert('No Card Selected', 'Please select or add a payment card.');
+      return false;
+    }
+    if (paymentType === 'momo' && (!phoneNumber || phoneNumber.length < 7)) {
+      Alert.alert('Invalid Number', 'Please enter a valid Mobile Money phone number.');
+      return false;
+    }
+    return true;
   };
 
   const handleContinue = () => {
-    if (!amount || !phoneNumber || phoneNumber.length < 7) {
-      return;
+    if (!validate()) return;
+
+    if (paymentType === 'card') {
+      navigation.navigate('TopupConfirmation', {
+        amount: parseFloat(amount).toFixed(2),
+        paymentMethodType: 'card',
+        cardId: selectedCard!.id,
+        cardLast4: selectedCard!.last4,
+        cardBrand: selectedCard!.brand,
+        cardHolder: selectedCard!.holderName,
+        maskedNumber: selectedCard!.maskedNumber,
+      });
+    } else {
+      navigation.navigate('TopupConfirmation', {
+        amount: parseFloat(amount).toFixed(2),
+        paymentMethodType: 'momo',
+        momoProvider,
+        phoneNumber: `${countryCode} ${phoneNumber}`,
+      });
     }
-    navigation.navigate("TopupConfirmation", {
-      amount,
-      provider: selectedProvider.name,
-      phoneNumber: `${countryCode} ${phoneNumber}`
-    });
   };
 
-  const isFormValid = amount && phoneNumber && phoneNumber.length >= 7;
+  const isFormValid =
+    !!amount &&
+    parseFloat(amount) >= MIN_AMOUNT &&
+    (paymentType === 'card' ? !!selectedCard : phoneNumber.length >= 7);
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: '#FFF' }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#fff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header */}
         <View style={styles.headerOverlay}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={width * 0.06} color="#000" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Top Up via MoMo</Text>
+          <Text style={styles.headerTitle}>Top Up Wallet</Text>
           <View style={{ width: width * 0.06 }} />
         </View>
 
-        {/* 1. Choose MoMo Provider */}
-        <Text style={styles.sectionLabel}>Select Mobile Money Provider</Text>
-        <View style={styles.providersContainer}>
-          {PROVIDERS.map((provider) => {
-            const isSelected = selectedProvider.id === provider.id;
-            return (
-              <TouchableOpacity
-                key={provider.id}
-                style={[
-                  styles.providerCard,
-                  isSelected && { 
-                    borderColor: provider.brandColor,
-                    backgroundColor: provider.accentBg,
-                    borderWidth: 2 
-                  }
-                ]}
-                onPress={() => setSelectedProvider(provider)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.providerLogo}>{provider.logo}</Text>
-                <Text style={styles.providerName}>{provider.name}</Text>
-                {isSelected && (
-                  <View style={[styles.checkBadge, { backgroundColor: provider.brandColor }]}>
-                    <Ionicons name="checkmark" size={10} color={provider.textColor} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* 2. Mobile Wallet Number */}
-        <Text style={styles.sectionLabel}>Mobile Money Account Number</Text>
-        <View style={styles.phoneInputContainer}>
-          <TouchableOpacity style={styles.countryCodeSelector} activeOpacity={0.7}>
-            <Text style={styles.countryCodeText}>{countryCode}</Text>
-            <Ionicons name="chevron-down" size={12} color="#666" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.phoneTextInput}
-            placeholder="788 000 000"
-            placeholderTextColor="#999"
-            keyboardType="phone-pad"
-            maxLength={12}
-            value={phoneNumber}
-            onChangeText={handlePhoneChange}
-          />
-        </View>
-
-        {/* 3. Enter Top Up Amount */}
+        {/* Amount section */}
         <Text style={styles.sectionLabel}>Enter Top Up Amount</Text>
-        <View style={styles.amountContainer}>
-          <Text style={styles.currencyPrefix}>$</Text>
-          <TextInput
-            style={styles.amountInput}
-            value={amount}
-            onChangeText={handleAmountChange}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor="#DDD"
-            returnKeyType="done"
-            onSubmitEditing={handleContinue}
-          />
+
+        {/* Premium Amount Card */}
+        <View style={[styles.amountContainer, amountError ? styles.amountContainerError : {}]}>
+          <View style={styles.amountInner}>
+            <Text style={styles.currencyPrefix}>USD</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={amount}
+                onChangeText={handleAmountChange}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor="#C9D0DA"
+                returnKeyType="done"
+              />
+            </View>
+            {!!amount && (
+              <Text style={styles.amountSubtext}>â‰ˆ {parseFloat(amount || '0').toLocaleString('en-US', { style: 'currency', currency: 'USD' })} will be credited</Text>
+            )}
+          </View>
         </View>
 
-        {/* Suggestions chips */}
+        {!!amountError && (
+          <View style={styles.errorBox}>
+            <Ionicons name="warning-outline" size={14} color="#DC2626" />
+            <Text style={styles.errorText}>{amountError}</Text>
+          </View>
+        )}
+
+        {/* Suggestion chips */}
         <View style={styles.suggestionsWrapper}>
           {SUGGESTIONS.map((val) => (
             <TouchableOpacity
               key={val}
               style={[
                 styles.suggestionChip,
-                amount === val.toString() && {
-                  backgroundColor: selectedProvider.brandColor,
-                  borderColor: selectedProvider.brandColor,
-                }
+                amount === val.toString() && styles.suggestionChipActive,
               ]}
               onPress={() => handleSelectSuggestion(val)}
               activeOpacity={0.7}
             >
-              <Text 
+              <Text style={styles.suggestionChipCurrency}>
+                {amount === val.toString() ? '$' : '$'}
+              </Text>
+              <Text
                 style={[
-                  styles.suggestionText,
-                  amount === val.toString() && { color: selectedProvider.textColor, fontWeight: '700' }
+                  styles.suggestionAmount,
+                  amount === val.toString() && styles.suggestionAmountActive,
                 ]}
               >
-                ${val}
+                {val}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* Min/max info */}
+        <Text style={styles.limitHint}>Min $1 Â· Max $10,000</Text>
+
+        {/* Payment Method Tabs */}
+        <Text style={styles.sectionLabel}>Select Payment Type</Text>
+        <View style={styles.tabsRow}>
+          <TouchableOpacity
+            style={[styles.tabButton, paymentType === 'card' && styles.tabButtonActive]}
+            onPress={() => setPaymentType('card')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="card"
+              size={18}
+              color={paymentType === 'card' ? '#fff' : '#6B7280'}
+            />
+            <Text style={[styles.tabButtonText, paymentType === 'card' && styles.tabButtonTextActive]}>
+              Bank Card
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, paymentType === 'momo' && styles.tabButtonActive]}
+            onPress={() => setPaymentType('momo')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="phone-portrait-outline"
+              size={18}
+              color={paymentType === 'momo' ? '#fff' : '#6B7280'}
+            />
+            <Text style={[styles.tabButtonText, paymentType === 'momo' && styles.tabButtonTextActive]}>
+              Mobile Money
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Dynamic Payment Method Forms */}
+        {paymentType === 'card' ? (
+          <View style={styles.methodContainer}>
+            <Text style={styles.subLabel}>Choose Saved Card</Text>
+            <CardSelector
+              selectedCardId={selectedCard?.id ?? null}
+              onSelectCard={setSelectedCard}
+              onAddNew={() => navigation.navigate('AddCard', { returnTo: 'TopupWallet' })}
+            />
+          </View>
+        ) : (
+          <View style={styles.methodContainer}>
+            <Text style={styles.subLabel}>Select Mobile Money Provider</Text>
+            <View style={styles.providersRow}>
+              <TouchableOpacity
+                style={[
+                  styles.providerCard,
+                  momoProvider === 'MTN' && styles.providerCardActiveMTN,
+                ]}
+                onPress={() => setMomoProvider('MTN')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.providerLabel}>MTN MoMo</Text>
+                {momoProvider === 'MTN' && (
+                  <View style={[styles.checkBadge, { backgroundColor: '#FFCC00' }]}>
+                    <Ionicons name="checkmark" size={10} color="#000" />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.providerCard,
+                  momoProvider === 'Airtel' && styles.providerCardActiveAirtel,
+                ]}
+                onPress={() => setMomoProvider('Airtel')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.providerLabel}>Airtel Money</Text>
+                {momoProvider === 'Airtel' && (
+                  <View style={[styles.checkBadge, { backgroundColor: '#E11900' }]}>
+                    <Ionicons name="checkmark" size={10} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.subLabel}>Mobile Number</Text>
+            <View style={styles.phoneInputContainer}>
+              <TouchableOpacity
+                style={styles.countryCodeSelector}
+                activeOpacity={0.7}
+                onPress={() => setShowCountryPicker(true)}
+              >
+                <Text style={styles.countryCodeText}>{countryCode}</Text>
+                <Ionicons name="chevron-down" size={10} color="#666" style={{ marginLeft: 3 }} />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.phoneTextInput}
+                placeholder="788 000 000"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+                maxLength={12}
+                value={phoneNumber}
+                onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ''))}
+              />
+            </View>
+
+            {/* Country Code Picker Modal */}
+            <Modal
+              visible={showCountryPicker}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowCountryPicker(false)}
+            >
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setShowCountryPicker(false)}
+              >
+                <View style={styles.modalSheet}>
+                  <View style={styles.modalHandle} />
+                  <Text style={styles.modalTitle}>Select Country Code</Text>
+                  <FlatList
+                    data={COUNTRY_CODES}
+                    keyExtractor={(item) => item.code}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.countryRow,
+                          countryCode === item.code && styles.countryRowActive,
+                        ]}
+                        onPress={() => {
+                          setCountryCode(item.code);
+                          setShowCountryPicker(false);
+                        }}
+                      >
+                        <Text style={styles.countryLabel}>{item.label}</Text>
+                        <Text style={styles.countryCodeBadge}>{item.code}</Text>
+                        {countryCode === item.code && (
+                          <Ionicons name="checkmark-circle" size={18} color={PURPLE} />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          </View>
+        )}
+
         {/* Summary Info */}
         {isFormValid && (
           <View style={styles.summaryBox}>
-            <Ionicons name="information-circle-outline" size={18} color="#7126D0" style={{ marginRight: 8 }} />
+            <Ionicons name="information-circle-outline" size={18} color={PURPLE} style={{ marginRight: 8 }} />
             <Text style={styles.summaryText}>
-              Authorize transfer of <Text style={{ fontWeight: 'bold' }}>${amount}</Text> from your <Text style={{ fontWeight: 'bold' }}>{selectedProvider.name}</Text> account to E-Wallet balance.
+              {paymentType === 'card' ? (
+                <>
+                  <Text style={{ fontWeight: 'bold' }}>${parseFloat(amount).toFixed(2)}</Text> will be added to your wallet from{' '}
+                  <Text style={{ fontWeight: 'bold' }}>{selectedCard!.maskedNumber}</Text>.
+                </>
+              ) : (
+                <>
+                  Authorize transfer of <Text style={{ fontWeight: 'bold' }}>${parseFloat(amount).toFixed(2)}</Text> from your{' '}
+                  <Text style={{ fontWeight: 'bold' }}>{momoProvider} Money</Text> account ({countryCode} {phoneNumber}) to wallet balance.
+                </>
+              )}
             </Text>
           </View>
         )}
 
-        {/* Submit Button */}
+        {/* Continue button */}
         <TouchableOpacity
-          style={[
-            styles.submitButton,
-            !isFormValid && styles.disabledButton,
-            isFormValid && { backgroundColor: selectedProvider.brandColor }
-          ]}
+          style={[styles.submitButton, !isFormValid && styles.disabledButton]}
           onPress={handleContinue}
           disabled={!isFormValid}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
-          <Text style={[
-            styles.submitButtonText,
-            isFormValid && { color: selectedProvider.textColor }
-          ]}>
-            Continue with {selectedProvider.name}
+          <Text style={[styles.submitButtonText, isFormValid && { color: '#fff' }]}>
+            Continue to Confirm
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -211,18 +390,16 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: width * 0.06,
     paddingTop: height * 0.04,
-    paddingBottom: height * 0.05,
+    paddingBottom: height * 0.06,
   },
   headerOverlay: {
     height: height * 0.07,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: height * 0.03,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: height * 0.02,
   },
-  backButton: {
-    padding: 4,
-  },
+  backButton: { padding: 4 },
   headerTitle: {
     fontSize: 18,
     fontFamily: 'Poppins-Bold',
@@ -235,142 +412,315 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
-  providersContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  providerCard: {
-    width: (width * 0.88 - 12) / 2,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  providerLogo: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  providerName: {
-    fontSize: 14,
+  subLabel: {
+    fontSize: 12,
     fontFamily: 'Poppins-Bold',
-    color: '#1F2937',
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  countryCodeSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    borderRightWidth: 1,
-    borderRightColor: '#E5E7EB',
-    height: 50,
-  },
-  countryCodeText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    color: '#1F2937',
-  },
-  phoneTextInput: {
-    flex: 1,
-    height: 50,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    fontFamily: 'Poppins-Regular',
-    color: '#1F2937',
+    color: '#4B5563',
+    marginTop: 14,
+    marginBottom: 8,
   },
   amountContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 20,
-    height: 90,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    shadowColor: '#7126D0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  amountContainerError: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  amountInner: {
+    alignItems: 'center',
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 4,
   },
   currencyPrefix: {
-    fontSize: 36,
+    fontSize: 11,
     fontFamily: 'Poppins-Bold',
-    color: '#1F2937',
-    marginRight: 6,
+    color: '#9CA3AF',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  currencySymbol: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    color: '#9CA3AF',
+    marginTop: 8,
+    marginRight: 2,
   },
   amountInput: {
-    flex: 1,
-    fontSize: 36,
+    fontSize: 56,
     fontFamily: 'Poppins-Bold',
     color: '#1F2937',
-    height: '100%',
+    minWidth: 80,
     padding: 0,
+    lineHeight: 68,
+  },
+  amountSubtext: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#DC2626',
   },
   suggestionsWrapper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
-    marginBottom: 20,
+    marginTop: 14,
+    marginBottom: 6,
   },
   suggestionChip: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    backgroundColor: '#F8F9FB',
     borderRadius: 8,
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    gap: 1,
   },
-  suggestionText: {
+  suggestionChipActive: {
+    backgroundColor: '#1D1E20',
+    borderColor: '#1D1E20',
+  },
+  suggestionChipCurrency: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  suggestionAmount: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#374151',
+  },
+  suggestionAmountActive: {
+    color: '#fff',
+  },
+  limitHint: {
     fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-    color: '#4B5563',
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    marginBottom: 4,
   },
+
+  // â”€â”€ Tabs Row â”€â”€
+  tabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+    marginBottom: 10,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tabButtonActive: {
+    backgroundColor: PURPLE,
+  },
+  tabButtonText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
+  },
+  tabButtonTextActive: {
+    color: '#fff',
+    fontFamily: 'Poppins-Bold',
+  },
+
+  methodContainer: {
+    marginTop: 6,
+    marginBottom: 14,
+  },
+
+  // â”€â”€ MoMo Providers Row â”€â”€
+  providersRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+  },
+  providerCard: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#F2F4F7',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 6,
+    position: 'relative',
+  },
+  providerCardActiveMTN: {
+    borderColor: '#FFCC00',
+    backgroundColor: '#FFFDEB',
+  },
+  providerCardActiveAirtel: {
+    borderColor: '#E11900',
+    backgroundColor: '#FFF5F5',
+  },
+  providerLabel: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#1F2937',
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // â”€â”€ Phone Input â”€â”€
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    height: 48,
+    overflow: 'hidden',
+  },
+  countryCodeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRightWidth: 1.5,
+    borderRightColor: '#E5E7EB',
+    height: '100%',
+  },
+  countryCodeText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#1F2937',
+  },
+  phoneTextInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#1F2937',
+  },
+
+  // â”€â”€ Country Code Modal â”€â”€
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+    maxHeight: height * 0.55,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  countryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  countryRowActive: {
+    backgroundColor: '#F5F0FF',
+  },
+  countryLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#1F2937',
+  },
+  countryCodeBadge: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#6B7280',
+    marginRight: 8,
+  },
+
   summaryBox: {
     flexDirection: 'row',
-    backgroundColor: '#F5EEFF',
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 12,
     alignItems: 'center',
     marginBottom: 20,
+    marginTop: 8,
+    justifyContent: 'center',
   },
   summaryText: {
     flex: 1,
-    fontSize: 12,
-    fontFamily: 'Poppins-Regular',
-    color: '#5B21B6',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#333',
     lineHeight: 18,
   },
   submitButton: {
-    height: 54,
+    height: 48,
     borderRadius: 12,
+    backgroundColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    marginTop: 8,
   },
   disabledButton: {
     backgroundColor: '#E5E7EB',

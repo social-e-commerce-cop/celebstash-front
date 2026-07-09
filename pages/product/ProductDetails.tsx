@@ -306,24 +306,12 @@ const ProductDetails = () => {
 
               <View style={styles.musicFeatures}>
                 <View style={styles.featureRow}>
-                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
-                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <Path d="M22 4L12 14.01l-3-3" />
-                  </Svg>
                   <Text style={styles.featureText}>3 access to the album</Text>
                 </View>
                 <View style={styles.featureRow}>
-                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
-                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <Path d="M22 4L12 14.01l-3-3" />
-                  </Svg>
                   <Text style={styles.featureText}>Offline mode</Text>
                 </View>
                 <View style={styles.featureRow}>
-                  <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
-                    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <Path d="M22 4L12 14.01l-3-3" />
-                  </Svg>
                   <Text style={styles.featureText}>Download music to device</Text>
                 </View>
               </View>

@@ -1,110 +1,99 @@
-// components/ChatHeader.tsx
-import React from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Animated } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { VideoCall } from "@/assets/icons/Settings";
+import React from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Dimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+
+const { width } = Dimensions.get('window');
+const PURPLE = '#7126D0';
 
 interface ChatHeaderProps {
   scrollY: Animated.Value;
+  isOnline?: boolean;
 }
 
-export const ChatHeader: React.FC<ChatHeaderProps> = ({ scrollY }) => {
+export const ChatHeader: React.FC<ChatHeaderProps> = ({ scrollY, isOnline = true }) => {
   const navigation = useNavigation();
+  const route = useRoute<any>();
+  const name = route?.params?.name ?? 'Ange Nadette';
 
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 140],
     outputRange: [220, 70],
-    extrapolate: "clamp",
+    extrapolate: 'clamp',
   });
-
   const largeOpacity = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [1, 0],
-    extrapolate: "clamp",
+    extrapolate: 'clamp',
   });
-
   const compactOpacity = scrollY.interpolate({
     inputRange: [60, 140],
     outputRange: [0, 1],
-    extrapolate: "clamp",
+    extrapolate: 'clamp',
   });
 
   return (
     <View style={styles.container}>
-      {/* Large Header */}
-      <Animated.View
-        style={[
-          styles.largeHeader,
-          { height: headerHeight, opacity: largeOpacity },
-        ]}
-      >
-        {/* Top Bar */}
+      {/* ── Large / Expanded Header ── */}
+      <Animated.View style={[styles.largeHeader, { height: headerHeight, opacity: largeOpacity }]}>
+        {/* Top bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#000" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+            <Ionicons name="arrow-back" size={22} color="#111" />
           </TouchableOpacity>
-          <View style={styles.callButtons}>
-            <TouchableOpacity
-              onPress={() => alert("Starting video call...")}
-              style={styles.callIcon}
-            >
-              {VideoCall}
+          <View style={styles.callBtns}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
+              <Ionicons name="videocam-outline" size={24} color="#111" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => alert("Starting audio call...")}
-              style={styles.callIcon}
-            >
-              <Ionicons name="call" size={22} color="#000" />
+            <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
+              <Ionicons name="call-outline" size={22} color="#111" />
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={{ alignItems: "center" }}>
-          <Image
-            source={require("../../assets/images/feed6.jpg")}
-            style={styles.largeAvatar}
-          />
-          <Text style={styles.name}>Ange Nadette</Text>
+        {/* Avatar + name + status */}
+        <View style={styles.profileBlock}>
+          <View style={styles.avatarWrap}>
+            <Image
+              source={require('../../assets/images/feed6.jpg')}
+              style={styles.largeAvatar}
+            />
+            {isOnline && <View style={styles.onlineDot} />}
+          </View>
+          <Text style={styles.largeName}>{name}</Text>
+          <Text style={styles.statusLine}>{isOnline ? '🟢 Online' : 'last seen recently'}</Text>
         </View>
       </Animated.View>
 
-      {/* Compact Header */}
-      <Animated.View
-        style={[
-          styles.compactHeader,
-          { opacity: compactOpacity },
-        ]}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {/* BACK BUTTON */}
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={{ padding: 6, marginRight: 6, borderRadius: 20 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#000" />
+      {/* ── Compact / Collapsed Header ── */}
+      <Animated.View style={[styles.compactHeader, { opacity: compactOpacity }]}>
+        <View style={styles.compactLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+            <Ionicons name="arrow-back" size={22} color="#111" />
           </TouchableOpacity>
-
-          {/* AVATAR AND NAME */}
-          <Image
-            source={require("../../assets/images/feed6.jpg")}
-            style={styles.compactAvatar}
-          />
-          <View style={{ marginLeft: 10 }}>
-            <Text style={styles.compactName}>Ange Nadette</Text>
-            <Text style={styles.lastSeen}>1h</Text>
+          <View style={styles.compactAvatarWrap}>
+            <Image source={require('../../assets/images/feed6.jpg')} style={styles.compactAvatar} />
+            {isOnline && <View style={styles.compactOnlineDot} />}
+          </View>
+          <View style={styles.compactInfo}>
+            <Text style={styles.compactName}>{name}</Text>
+            <Text style={styles.compactStatus}>{isOnline ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity style={{ marginRight: 12 }}>
-            {VideoCall}
+        <View style={styles.callBtns}>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Ionicons name="videocam-outline" size={22} color="#111" />
           </TouchableOpacity>
-          <TouchableOpacity>
-            <Ionicons name="call" size={22} />
+          <TouchableOpacity style={styles.iconBtn}>
+            <Ionicons name="call-outline" size={22} color="#111" />
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -114,52 +103,88 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({ scrollY }) => {
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
     zIndex: 10,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
     paddingTop: 32,
   },
+
+  // Large
   largeHeader: {
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    paddingBottom: 0,
-    paddingTop: 24,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+    paddingTop: 8,
   },
-  largeAvatar: { width: 70, height: 70, borderRadius: 50 },
-  name: { marginTop: 8, fontSize: 18, fontWeight: "700" },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  callBtns: { flexDirection: 'row', gap: 4 },
+  iconBtn: { padding: 8, borderRadius: 20 },
+  profileBlock: { alignItems: 'center', paddingTop: 12 },
+  avatarWrap: { position: 'relative' },
+  largeAvatar: { width: 68, height: 68, borderRadius: 34 },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  largeName: {
+    fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+    marginTop: 8,
+  },
+  statusLine: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+
+  // Compact
   compactHeader: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
-    zIndex: 20,
-    height: 56,
+    height: 60,
     paddingHorizontal: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    marginTop: 36,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    zIndex: 20,
+    marginTop: 32,
   },
-  compactAvatar: { width: 40, height: 40, borderRadius: 20 },
-  compactName: { fontWeight: "700" },
-  lastSeen: { color: "#6B7280", fontSize: 12 },
-  topBar: {
-    position: "absolute",
-    top: 8,
-    left: 0,
+  compactLeft: { flexDirection: 'row', alignItems: 'center' },
+  compactAvatarWrap: { position: 'relative', marginLeft: 4 },
+  compactAvatar: { width: 38, height: 38, borderRadius: 19 },
+  compactOnlineDot: {
+    position: 'absolute',
+    bottom: 0,
     right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  backButton: { padding: 8, borderRadius: 20 },
-  callButtons: { flexDirection: "row", alignItems: "center" },
-  callIcon: { padding: 8, borderRadius: 20, marginLeft: 8 },
+  compactInfo: { marginLeft: 10 },
+  compactName: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#111' },
+  compactStatus: { fontSize: 11, fontFamily: 'Poppins-Regular', color: '#22C55E' },
 });
