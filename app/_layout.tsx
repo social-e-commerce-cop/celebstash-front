@@ -23,6 +23,22 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
+      // Set Poppins as the default font for ALL Text and TextInput components
+      const defaultTextStyle = { fontFamily: 'Poppins-Regular' };
+      const oldTextRender = (Text as any).render;
+      (Text as any).render = function (...args: any[]) {
+        const origin = oldTextRender.call(this, ...args);
+        return React.cloneElement(origin, {
+          style: [defaultTextStyle, origin.props.style],
+        });
+      };
+      const oldTextInputRender = (TextInput as any).render;
+      (TextInput as any).render = function (...args: any[]) {
+        const origin = oldTextInputRender.call(this, ...args);
+        return React.cloneElement(origin, {
+          style: [defaultTextStyle, origin.props.style],
+        });
+      };
       SplashScreen.hideAsync();
     }
   }, [loaded]);

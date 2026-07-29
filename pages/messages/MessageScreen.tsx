@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,286 +9,274 @@ import {
   FlatList,
   Image,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import SearchBar from '@/components/messages/SearchBar';
+import FilterTabBar from '@/components/messages/TabBar';
 import ConversationItem from '@/components/messages/Conversations';
+import { ChatFilterTab, Conversation } from '@/types/chatTypes';
+import { MOCK_CONVERSATIONS, MOCK_STORIES, getConversationName } from '@/data/mockChatData';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
 
-type FilterTab = 'All' | 'Unread' | 'Groups';
-
-const STORIES = [
-  { id: 's0', name: 'Your Story', avatar: require('../../assets/images/storyItem.jpg'), isSelf: true },
-  { id: 's1', name: 'Kenny', avatar: require('../../assets/images/feed6.jpg'), hasStory: true },
-  { id: 's2', name: 'Ange', avatar: require('../../assets/images/feed5.png'), hasStory: true },
-  { id: 's3', name: 'Drake', avatar: require('../../assets/images/feed4.png'), hasStory: true },
-  { id: 's4', name: 'Weeknd', avatar: require('../../assets/images/feed3.png'), hasStory: false },
-];
-
-const ALL_CONVERSATIONS = [
-  {
-    id: '1',
-    name: 'Kenny K Shot ðŸŽ¤',
-    lastMessage: 'Did you check out the new drop?',
-    unreadCount: 3,
-    hasStory: true,
-    isOnline: true,
-    timestamp: '2m',
-    isPinned: true,
-    isRead: false,
-    groupMembers: [{ avatar: require('../../assets/images/feed6.jpg') }],
-  },
-  {
-    id: '2',
-    name: 'Ange Nadette',
-    lastMessage: 'Love your new post! ðŸ”¥',
-    unreadCount: 0,
-    hasStory: false,
-    isOnline: true,
-    timestamp: '15m',
-    isPinned: false,
-    isRead: true,
-    groupMembers: [{ avatar: require('../../assets/images/feed6.jpg') }],
-  },
-  {
-    id: '3',
-    name: 'Fan Club ðŸŽ¶',
-    lastMessage: 'New album drops Friday!',
-    unreadCount: 12,
-    isGroup: true,
-    hasStory: false,
-    isOnline: false,
-    timestamp: '1h',
-    isPinned: true,
-    isRead: false,
-    senderPrefix: 'Ange: ',
-    groupMembers: [
-      { avatar: require('../../assets/images/feed6.jpg') },
-      { avatar: require('../../assets/images/feed5.png') },
-      { avatar: require('../../assets/images/feed4.png') },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Drake',
-    lastMessage: 'Certified ðŸ¦‰',
-    unreadCount: 1,
-    hasStory: true,
-    isOnline: false,
-    timestamp: '3h',
-    isRead: false,
-    groupMembers: [{ avatar: require('../../assets/images/feed4.png') }],
-  },
-  {
-    id: '5',
-    name: 'The Weeknd',
-    lastMessage: 'Blinding lights ðŸŽµ',
-    unreadCount: 0,
-    hasStory: false,
-    isOnline: false,
-    timestamp: 'Mon',
-    isRead: true,
-    isMuted: true,
-    groupMembers: [{ avatar: require('../../assets/images/feed3.png') }],
-  },
-  {
-    id: '6',
-    name: 'Merch Team',
-    lastMessage: 'Shipment confirmed âœ…',
-    unreadCount: 0,
-    isGroup: true,
-    hasStory: false,
-    isOnline: false,
-    timestamp: 'Sun',
-    isRead: true,
-    senderPrefix: 'You: ',
-    groupMembers: [
-      { avatar: require('../../assets/images/feed6.jpg') },
-      { avatar: require('../../assets/images/feed5.png') },
-    ],
-  },
-  {
-    id: '7',
-    name: 'Emelyne ðŸ’–',
-    lastMessage: 'typingâ€¦',
-    unreadCount: 0,
-    hasStory: false,
-    isOnline: true,
-    timestamp: 'now',
-    isRead: true,
-    isTyping: true,
-    groupMembers: [{ avatar: require('../../assets/images/feed6.jpg') }],
-  },
-];
-
-const FILTER_TABS: FilterTab[] = ['All', 'Unread', 'Groups'];
+const FILTER_TABS: ChatFilterTab[] = ['All', 'Unread', 'Favorites', 'Groups', 'Archived'];
 
 const MessagesScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<FilterTab>('All');
+  const [activeTab, setActiveTab] = useState<ChatFilterTab>('All');
+  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const [contextMenu, setContextMenu] = useState<{ visible: boolean; conv: Conversation | null }>({ visible: false, conv: null });
+  const [showSearch, setShowSearch] = useState(false);
 
-  const filtered = ALL_CONVERSATIONS
-    .filter(c => {
-      if (activeTab === 'Unread') return c.unreadCount > 0;
-      if (activeTab === 'Groups') return !!c.isGroup;
-      return true;
-    })
-    .filter(c =>
-      !searchQuery.trim() ||
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  // ── Badge counts ──
+  const badgeCounts = useMemo(() => ({
+    Unread: conversations.filter(c => c.unreadCount > 0 && !c.isArchived).length,
+    Groups: conversations.filter(c => c.type === 'group' && !c.isArchived).length,
+    Favorites: conversations.filter(c => c.isFavorite && !c.isArchived).length,
+    Archived: conversations.filter(c => c.isArchived).length,
+  }), [conversations]);
 
-  const pinned = filtered.filter(c => c.isPinned);
-  const regular = filtered.filter(c => !c.isPinned);
+  // ── Filtering ──
+  const filtered = useMemo(() => {
+    let list = conversations;
+    switch (activeTab) {
+      case 'Unread':
+        list = list.filter(c => c.unreadCount > 0 && !c.isArchived);
+        break;
+      case 'Favorites':
+        list = list.filter(c => c.isFavorite && !c.isArchived);
+        break;
+      case 'Groups':
+        list = list.filter(c => c.type === 'group' && !c.isArchived);
+        break;
+      case 'Archived':
+        list = list.filter(c => c.isArchived);
+        break;
+      default:
+        list = list.filter(c => !c.isArchived);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c =>
+        getConversationName(c).toLowerCase().includes(q) ||
+        (c.lastMessage?.text ?? '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [conversations, activeTab, searchQuery]);
 
-  const renderItem = ({ item }: any) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('ChatScreen', { name: item.name, groupMembers: item.groupMembers, isGroup: item.isGroup })}
-      activeOpacity={0.75}
-    >
-      <ConversationItem
-        name={item.name}
-        lastMessage={item.lastMessage}
-        unreadCount={item.unreadCount}
-        isGroup={item.isGroup}
-        groupMembers={item.groupMembers}
-        hasStory={item.hasStory}
-        isOnline={item.isOnline}
-        timestamp={item.timestamp}
-        isPinned={item.isPinned}
-        isMuted={item.isMuted}
-        isTyping={item.isTyping}
-        senderPrefix={item.senderPrefix}
-        isRead={item.isRead}
-      />
-    </TouchableOpacity>
+  // Sort pinned to top, then by timestamp (mock data is mostly pre-sorted, but let's ensure pinned are at top if needed, or just leave as is)
+  const displayList = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0;
+    });
+  }, [filtered]);
+
+  // ── Context menu actions ──
+  const togglePin = useCallback((convId: string) => {
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, isPinned: !c.isPinned } : c));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  const toggleMute = useCallback((convId: string) => {
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, isMuted: !c.isMuted } : c));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  const toggleFavorite = useCallback((convId: string) => {
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, isFavorite: !c.isFavorite } : c));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  const archiveConversation = useCallback((convId: string) => {
+    setConversations(prev => prev.map(c => c.id === convId ? { ...c, isArchived: !c.isArchived } : c));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  const deleteConversation = useCallback((convId: string) => {
+    setConversations(prev => prev.filter(c => c.id !== convId));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  const markReadUnread = useCallback((convId: string) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id !== convId) return c;
+      return { ...c, unreadCount: c.unreadCount > 0 ? 0 : 1 };
+    }));
+    setContextMenu({ visible: false, conv: null });
+  }, []);
+
+  // ── Navigate to chat ──
+  const openChat = (conv: Conversation) => {
+    navigation.navigate('ChatScreen', { conversationId: conv.id });
+  };
+
+  // ── Render ──
+  const renderConversation = ({ item }: { item: Conversation }) => (
+    <ConversationItem
+      conversation={item}
+      onPress={() => openChat(item)}
+      onLongPress={() => setContextMenu({ visible: true, conv: item })}
+    />
   );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Fixed Header */}
+      {/* ── Fixed Header ── */}
       <View style={styles.fixedTop}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
             <Ionicons name="arrow-back" size={22} color="#111" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => navigation.navigate('NewChat')}
-          >
-            <Ionicons name="create-outline" size={22} color="#111" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => {
+              setShowSearch(!showSearch);
+              if (showSearch) setSearchQuery('');
+            }}>
+              <Ionicons name="search" size={22} color="#000" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CreateGroupScreen')}>
+              <Ionicons name="create" size={22} color="#000" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <SearchBar
-          onSearch={setSearchQuery}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+        {showSearch && (
+          <SearchBar
+            onSearch={setSearchQuery}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search conversations…"
+          />
+        )}
 
-        {/* Filter Tabs */}
-        <View style={styles.tabsRow}>
-          {FILTER_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabChip, activeTab === tab && styles.tabChipActive]}
-              onPress={() => setActiveTab(tab)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabChipText, activeTab === tab && styles.tabChipTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.tabsWrap}>
+          <FilterTabBar
+            tabs={FILTER_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            badgeCounts={badgeCounts}
+          />
         </View>
       </View>
 
       <FlatList
-        data={regular}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        data={displayList}
+        keyExtractor={item => item.id}
+        renderItem={renderConversation}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View>
-            {/* Stories row */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesRow}>
-              {STORIES.map(s => (
-                <TouchableOpacity key={s.id} style={styles.storyItem} activeOpacity={0.8}>
-                  <View style={[styles.storyRing, !s.isSelf && s.hasStory && styles.storyRingActive]}>
-                    {s.isSelf ? (
-                      <View style={styles.selfStoryAvatar}>
-                        <Image source={s.avatar} style={styles.storyAvatar} />
-                        <View style={styles.storyAddBtn}>
-                          <Ionicons name="add" size={12} color="#fff" />
-                        </View>
-                      </View>
-                    ) : (
-                      <Image source={s.avatar} style={styles.storyAvatar} />
-                    )}
-                  </View>
-                  <Text style={styles.storyName} numberOfLines={1}>{s.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Pinned conversations */}
-            {pinned.length > 0 && (
-              <View>
-                <Text style={styles.sectionLabel}>ðŸ“Œ Pinned</Text>
-                {pinned.map(item => (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => navigation.navigate('ChatScreen', { name: item.name })}
-                    activeOpacity={0.75}
-                  >
-                    <ConversationItem
-                      name={item.name}
-                      lastMessage={item.lastMessage}
-                      unreadCount={item.unreadCount}
-                      isGroup={item.isGroup}
-                      groupMembers={item.groupMembers}
-                      hasStory={item.hasStory}
-                      isOnline={item.isOnline}
-                      timestamp={item.timestamp}
-                      isPinned={item.isPinned}
-                      isMuted={item.isMuted}
-                      isTyping={item.isTyping}
-                      senderPrefix={item.senderPrefix}
-                      isRead={item.isRead}
-                    />
-                  </TouchableOpacity>
-                ))}
-                <View style={styles.divider} />
-                <Text style={styles.sectionLabel}>All Messages</Text>
-              </View>
-            )}
-          </View>
-        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={52} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No conversations yet</Text>
-            <Text style={styles.emptySubtitle}>Start a new conversation</Text>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="chatbubbles-outline" size={52} color={PURPLE} />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'Archived' ? 'No archived chats' : 'No conversations yet'}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {activeTab === 'Archived'
+                ? 'Archived conversations will appear here'
+                : 'Start a new conversation to get started'}
+            </Text>
           </View>
         }
       />
+
+      {/* ── FAB — New Chat ── */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateGroupScreen')}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      {/* ── Context Menu Modal ── */}
+      <Modal visible={contextMenu.visible} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
+          onPress={() => setContextMenu({ visible: false, conv: null })}
+        >
+          <View style={styles.menuSheet}>
+            <View style={styles.menuHandle} />
+            <Text style={styles.menuTitle} numberOfLines={1}>
+              {contextMenu.conv ? getConversationName(contextMenu.conv) : ''}
+            </Text>
+
+            {contextMenu.conv && (
+              <>
+                <MenuItem
+                  icon={contextMenu.conv.isPinned ? 'pin-outline' : 'pin'}
+                  label={contextMenu.conv.isPinned ? 'Unpin' : 'Pin'}
+                  onPress={() => togglePin(contextMenu.conv!.id)}
+                />
+                <MenuItem
+                  icon={contextMenu.conv.isFavorite ? 'star' : 'star-outline'}
+                  label={contextMenu.conv.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+                  onPress={() => toggleFavorite(contextMenu.conv!.id)}
+                  iconColor={contextMenu.conv.isFavorite ? '#F59E0B' : undefined}
+                />
+                <MenuItem
+                  icon={contextMenu.conv.isMuted ? 'volume-high-outline' : 'volume-mute-outline'}
+                  label={contextMenu.conv.isMuted ? 'Unmute' : 'Mute'}
+                  onPress={() => toggleMute(contextMenu.conv!.id)}
+                />
+                <MenuItem
+                  icon="archive-outline"
+                  label={contextMenu.conv.isArchived ? 'Unarchive' : 'Archive'}
+                  onPress={() => archiveConversation(contextMenu.conv!.id)}
+                />
+                <MenuItem
+                  icon={contextMenu.conv.unreadCount > 0 ? 'checkmark-done-outline' : 'mail-unread-outline'}
+                  label={contextMenu.conv.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'}
+                  onPress={() => markReadUnread(contextMenu.conv!.id)}
+                />
+                <View style={styles.menuDivider} />
+                <MenuItem
+                  icon="trash-outline"
+                  label="Delete Chat"
+                  onPress={() => deleteConversation(contextMenu.conv!.id)}
+                  danger
+                />
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
 
+// ── Menu Item Sub-component ──
+const MenuItem: React.FC<{
+  icon: any;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  iconColor?: string;
+}> = ({ icon, label, onPress, danger, iconColor }) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <Ionicons name={icon} size={20} color={danger ? '#EF4444' : iconColor ?? '#374151'} />
+    <Text style={[styles.menuItemText, danger && { color: '#EF4444' }]}>{label}</Text>
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
 
+  // ── Header ──
   fixedTop: {
     paddingTop: height * 0.05,
     paddingHorizontal: width * 0.05,
@@ -308,126 +296,115 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
     color: '#111',
   },
+  headerActions: {
+    flexDirection: 'row',
+  },
   iconBtn: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Tabs
-  tabsRow: {
-    flexDirection: 'row',
-    gap: 8,
+  tabsWrap: {
     marginTop: 10,
   },
-  tabChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-  },
-  tabChipActive: {
-    backgroundColor: PURPLE,
-  },
-  tabChipText: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Medium',
-    color: '#6B7280',
-  },
-  tabChipTextActive: {
-    color: '#fff',
-    fontFamily: 'Poppins-Bold',
-  },
 
+  // ── List ──
   listContent: {
     paddingHorizontal: width * 0.05,
-    paddingBottom: height * 0.1,
+    paddingBottom: height * 0.12,
   },
 
-  // Stories
-  storiesRow: {
-    paddingVertical: 14,
-    paddingRight: 8,
-    gap: 16,
-  },
-  storyItem: {
-    alignItems: 'center',
-    width: 64,
-  },
-  storyRing: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  storyRingActive: {
-    borderColor: PURPLE,
-  },
-  selfStoryAvatar: {
-    position: 'relative',
-  },
-  storyAddBtn: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: PURPLE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  storyAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-  },
-  storyName: {
-    fontSize: 11,
-    fontFamily: 'Poppins-Medium',
-    color: '#374151',
-    marginTop: 5,
-    textAlign: 'center',
-  },
-
-  // Section labels
-  sectionLabel: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Bold',
-    color: '#9CA3AF',
-    marginTop: 12,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginVertical: 8,
-  },
-
-  // Empty
+  // ── Empty ──
   emptyState: {
     alignItems: 'center',
     paddingTop: 60,
     gap: 10,
   },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F8F5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
   emptyTitle: {
     fontSize: 16,
     fontFamily: 'Poppins-Bold',
-    color: '#9CA3AF',
+    color: '#374151',
   },
   emptySubtitle: {
     fontSize: 13,
     fontFamily: 'Poppins-Regular',
-    color: '#D1D5DB',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+
+  // ── FAB ──
+  fab: { 
+    position: 'absolute',
+    bottom: 28,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PURPLE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+
+  // ── Context Menu ──
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  menuSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+  },
+  menuHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 14,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Medium',
+    color: '#374151',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginVertical: 4,
   },
 });
 

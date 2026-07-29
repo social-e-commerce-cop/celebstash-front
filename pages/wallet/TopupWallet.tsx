@@ -1,24 +1,21 @@
-﻿import React, { useState } from 'react';
+import CardSelector from '@/components/ewallet/CardSelector';
+import { SavedCard, getDefaultCard, useCards } from '@/lib/cardStore';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
-  Modal,
-  FlatList,
-  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import { useCards, SavedCard, getDefaultCard } from '@/lib/cardStore';
-import CardSelector from '@/components/ewallet/CardSelector';
 
 
 const { width, height } = Dimensions.get('window');
@@ -31,21 +28,6 @@ const SUGGESTIONS = [10, 20, 50, 100, 200, 500];
 type PaymentType = 'card' | 'momo';
 type MoMoProvider = 'MTN' | 'Airtel';
 
-const COUNTRY_CODES = [
-  { code: '+250', label: 'ðŸ‡·ðŸ‡¼ Rwanda' },
-  { code: '+256', label: 'ðŸ‡ºðŸ‡¬ Uganda' },
-  { code: '+255', label: 'ðŸ‡¹ðŸ‡¿ Tanzania' },
-  { code: '+254', label: 'ðŸ‡°ðŸ‡ª Kenya' },
-  { code: '+243', label: 'ðŸ‡¨ðŸ‡© DR Congo' },
-  { code: '+237', label: 'ðŸ‡¨ðŸ‡² Cameroon' },
-  { code: '+233', label: 'ðŸ‡¬ðŸ‡­ Ghana' },
-  { code: '+234', label: 'ðŸ‡³ðŸ‡¬ Nigeria' },
-  { code: '+27',  label: 'ðŸ‡¿ðŸ‡¦ South Africa' },
-  { code: '+251', label: 'ðŸ‡ªðŸ‡¹ Ethiopia' },
-  { code: '+1',   label: 'ðŸ‡ºðŸ‡¸ USA' },
-  { code: '+44',  label: 'ðŸ‡¬ðŸ‡§ UK' },
-];
-
 const TopUpScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const cards = useCards();
@@ -56,7 +38,6 @@ const TopUpScreen = () => {
   const [momoProvider, setMomoProvider] = useState<MoMoProvider>('MTN');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+250');
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [amountError, setAmountError] = useState('');
 
   const handleAmountChange = (text: string) => {
@@ -128,7 +109,6 @@ const TopUpScreen = () => {
       style={{ flex: 1, backgroundColor: '#fff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
@@ -163,7 +143,7 @@ const TopUpScreen = () => {
               />
             </View>
             {!!amount && (
-              <Text style={styles.amountSubtext}>â‰ˆ {parseFloat(amount || '0').toLocaleString('en-US', { style: 'currency', currency: 'USD' })} will be credited</Text>
+              <Text style={styles.amountSubtext}>≈ {parseFloat(amount || '0').toLocaleString('en-US', { style: 'currency', currency: 'USD' })} will be credited</Text>
             )}
           </View>
         </View>
@@ -203,7 +183,7 @@ const TopUpScreen = () => {
         </View>
 
         {/* Min/max info */}
-        <Text style={styles.limitHint}>Min $1 Â· Max $10,000</Text>
+        <Text style={styles.limitHint}>Min $1 · Max $10,000</Text>
 
         {/* Payment Method Tabs */}
         <Text style={styles.sectionLabel}>Select Payment Type</Text>
@@ -288,11 +268,7 @@ const TopUpScreen = () => {
 
             <Text style={styles.subLabel}>Mobile Number</Text>
             <View style={styles.phoneInputContainer}>
-              <TouchableOpacity
-                style={styles.countryCodeSelector}
-                activeOpacity={0.7}
-                onPress={() => setShowCountryPicker(true)}
-              >
+              <TouchableOpacity style={styles.countryCodeSelector} activeOpacity={0.7}>
                 <Text style={styles.countryCodeText}>{countryCode}</Text>
                 <Ionicons name="chevron-down" size={10} color="#666" style={{ marginLeft: 3 }} />
               </TouchableOpacity>
@@ -306,47 +282,6 @@ const TopUpScreen = () => {
                 onChangeText={(text) => setPhoneNumber(text.replace(/[^0-9]/g, ''))}
               />
             </View>
-
-            {/* Country Code Picker Modal */}
-            <Modal
-              visible={showCountryPicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowCountryPicker(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowCountryPicker(false)}
-              >
-                <View style={styles.modalSheet}>
-                  <View style={styles.modalHandle} />
-                  <Text style={styles.modalTitle}>Select Country Code</Text>
-                  <FlatList
-                    data={COUNTRY_CODES}
-                    keyExtractor={(item) => item.code}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.countryRow,
-                          countryCode === item.code && styles.countryRowActive,
-                        ]}
-                        onPress={() => {
-                          setCountryCode(item.code);
-                          setShowCountryPicker(false);
-                        }}
-                      >
-                        <Text style={styles.countryLabel}>{item.label}</Text>
-                        <Text style={styles.countryCodeBadge}>{item.code}</Text>
-                        {countryCode === item.code && (
-                          <Ionicons name="checkmark-circle" size={18} color={PURPLE} />
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              </TouchableOpacity>
-            </Modal>
           </View>
         )}
 
@@ -533,7 +468,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // â”€â”€ Tabs Row â”€â”€
+  // ── Tabs Row ──
   tabsRow: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -569,7 +504,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  // â”€â”€ MoMo Providers Row â”€â”€
+  // ── MoMo Providers Row ──
   providersRow: {
     flexDirection: 'row',
     gap: 12,
@@ -611,7 +546,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // â”€â”€ Phone Input â”€â”€
+  // ── Phone Input ──
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -644,60 +579,6 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
 
-  // â”€â”€ Country Code Modal â”€â”€
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingBottom: 32,
-    maxHeight: height * 0.55,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 15,
-    fontFamily: 'Poppins-Bold',
-    color: '#111',
-    textAlign: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 20,
-  },
-  countryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  countryRowActive: {
-    backgroundColor: '#F5F0FF',
-  },
-  countryLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'Poppins-Regular',
-    color: '#1F2937',
-  },
-  countryCodeBadge: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Bold',
-    color: '#6B7280',
-    marginRight: 8,
-  },
-
   summaryBox: {
     flexDirection: 'row',
     borderRadius: 8,
@@ -715,8 +596,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   submitButton: {
-    height: 48,
-    borderRadius: 12,
+    height: 45,
+    borderRadius: 8,
     backgroundColor: PURPLE,
     alignItems: 'center',
     justifyContent: 'center',

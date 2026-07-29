@@ -8,13 +8,12 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import NotificationItem, { NotificationType } from '@/components/messages/NotificationItem';
+import NotificationItem, { NotificationType, FollowMode } from '@/components/messages/NotificationItem';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
-const { width, height } = Dimensions.get('window');
-const PURPLE = '#7126D0';
+const { height } = Dimensions.get('window');
 
 interface Notification {
   id: string;
@@ -22,92 +21,137 @@ interface Notification {
   user: string;
   action: string;
   type?: NotificationType;
+  followMode?: FollowMode;
+  avatar?: any;
+  thumbnail?: any;
   comment?: string;
-  photos?: (string | number)[];
+  actionButtonLabel?: string;
   isRead?: boolean;
+  isFollowing?: boolean;
   date: string;
 }
 
 const INITIAL_NOTIFICATIONS: Notification[] = [
+  // ── New ──
   {
     id: '1',
-    time: '2m ago',
-    user: 'Kenny K Shot',
-    action: 'liked your photo.',
-    type: 'like',
-    photos: [require('../../assets/images/feed6.jpg')],
+    time: '5m',
+    user: 'theweeknd',
+    action: 'is host of a Live Stash Auction: "After Hours Signed Vinyl".',
+    type: 'live',
+    avatar: require('../../assets/images/black-man.png'),
+    actionButtonLabel: 'Join Live',
     isRead: false,
-    date: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
   },
   {
     id: '2',
-    time: '18m ago',
-    user: 'Ange Nadette',
-    action: 'commented on your post.',
-    type: 'comment',
-    comment: '"This is absolutely fire 🔥 I love this one so much, keep it up!"',
+    time: '22m',
+    user: 'leviileon',
+    action: 'started following you.',
+    type: 'follow',
+    followMode: 'follow_back',
+    avatar: require('../../assets/images/smiling-black.png'),
+    isFollowing: false,
     isRead: false,
-    date: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
   },
   {
     id: '3',
-    time: '1h ago',
-    user: 'The Weeknd Fan Page',
-    action: 'started following you.',
-    type: 'follow',
+    time: '45m',
+    user: 'ange_nadette',
+    action: 'outbid you ($340) on "Vintage Leather Bomber".',
+    type: 'auction',
+    avatar: require('../../assets/images/prof.jpg'),
+    thumbnail: require('../../assets/images/product1.jpg'),
+    actionButtonLabel: 'Bid $360',
     isRead: false,
-    date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
   },
   {
     id: '4',
-    time: '3h ago',
-    user: 'Drake',
-    action: 'mentioned you in a comment.',
-    type: 'mention',
-    comment: '"Check out @you for the best merch drops this season!"',
-    isRead: true,
-    date: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    time: '2h',
+    user: 'mbestra',
+    action: 'commented on your product drop:',
+    type: 'comment',
+    comment: 'Need this jacket in size L! Is it still available? 🔥',
+    avatar: require('../../assets/images/profile.jpg'),
+    thumbnail: require('../../assets/images/product3.jpg'),
+    isRead: false,
+    date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   },
+
+  // ── Yesterday ──
   {
     id: '5',
-    time: '5h ago',
-    user: 'Ange Nadette',
-    action: 'liked 3 of your photos.',
-    type: 'like',
-    photos: [
-      require('../../assets/images/feed6.jpg'),
-      require('../../assets/images/feed5.png'),
-      require('../../assets/images/feed4.png'),
-    ],
+    time: '12h',
+    user: 'king_kivumbi',
+    action: 'shared your item "Custom Oversized Tee" to their story.',
+    type: 'share',
+    avatar: require('../../assets/images/story3.png'),
+    thumbnail: require('../../assets/images/feed7.png'),
     isRead: true,
-    date: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: '6',
-    time: 'Yesterday',
-    user: 'CelebStash',
-    action: 'Your purchase of "After Hours" album was successful.',
-    type: 'purchase',
+    time: '14h',
+    user: 'halukman',
+    action: 'suggested for you based on items you bought.',
+    type: 'follow',
+    followMode: 'follow',
+    avatar: require('../../assets/images/professional-black.png'),
+    isFollowing: false,
     isRead: true,
-    date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: '7',
-    time: 'Yesterday',
-    user: 'Justin Timberlake',
-    action: 'started following you.',
-    type: 'follow',
+    time: '18h',
+    user: 'verna.dare',
+    action: 'liked your story drop.',
+    type: 'like',
+    avatar: require('../../assets/images/ast.png'),
+    thumbnail: require('../../assets/images/drop1.jpg'),
     isRead: true,
-    date: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: '8',
-    time: '3 days ago',
-    user: 'Ange Nadette',
-    action: 'tagged you in a post.',
-    type: 'tag',
+    time: '22h',
+    user: 'fateme_ahmadi',
+    action: 'started following you.',
+    type: 'follow',
+    followMode: 'follow_back',
+    avatar: require('../../assets/images/story1.png'),
+    isFollowing: true,
     isRead: true,
-    date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    date: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(),
+  },
+
+  // ── Last 7 days ──
+  {
+    id: '9',
+    time: '2d',
+    user: 'zahrakan',
+    action: 'liked your collection drop.',
+    type: 'like',
+    avatar: require('../../assets/images/story2.png'),
+    thumbnail: require('../../assets/images/product5.jpg'),
+    isRead: true,
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: '10',
+    time: '4d',
+    user: 'drake_official',
+    action: 'suggested for you from your favorite artists.',
+    type: 'follow',
+    followMode: 'follow',
+    avatar: require('../../assets/images/feed6.jpg'),
+    isFollowing: false,
+    isRead: true,
+    date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
 
@@ -115,35 +159,30 @@ const Notifications: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  };
-
   const markRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   };
 
   const groupNotifications = (list: Notification[]) => {
     const now = Date.now();
-    const DAY = 24 * 60 * 60 * 1000;
+    const HOUR = 60 * 60 * 1000;
+    const DAY = 24 * HOUR;
 
     const groups: Record<string, Notification[]> = {
-      Today: [],
+      New: [],
       Yesterday: [],
-      'This Week': [],
+      'Last 7 days': [],
       Earlier: [],
     };
 
     list.forEach(n => {
       const age = now - new Date(n.date).getTime();
-      if (age < DAY) {
-        groups['Today'].push(n);
-      } else if (age < 2 * DAY) {
+      if (age <= 12 * HOUR) {
+        groups['New'].push(n);
+      } else if (age <= 36 * HOUR) {
         groups['Yesterday'].push(n);
-      } else if (age < 7 * DAY) {
-        groups['This Week'].push(n);
+      } else if (age <= 7 * DAY) {
+        groups['Last 7 days'].push(n);
       } else {
         groups['Earlier'].push(n);
       }
@@ -158,55 +197,52 @@ const Notifications: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAFAFA" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F4F4F6" />
+
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color="#111" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('NotificationSettings')} style={styles.backBtn}>
+          <Ionicons name="settings-outline" size={22} color="#111" />
+        </TouchableOpacity>
+      </View>
 
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={true}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <NotificationItem
-            {...item}
-            onPress={() => markRead(item.id)}
-          />
-        )}
         renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeaderWrap}>
-            <Text style={styles.sectionText}>{title}</Text>
-          </View>
+          <Text style={styles.sectionTitle}>{title}</Text>
         )}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            {/* Back + Title */}
-            <View style={styles.headerTop}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <Ionicons name="arrow-back" size={22} color="#111" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Notifications</Text>
-              <View style={styles.backBtn} />
+        renderItem={({ item, index, section }) => {
+          const isFirst = index === 0;
+          const isLast = index === section.data.length - 1;
+          return (
+            <View
+              style={[
+                styles.itemCard,
+                isFirst && styles.itemCardFirst,
+                isLast && styles.itemCardLast,
+                !isLast && styles.itemBorderBottom,
+              ]}
+            >
+              <NotificationItem
+                {...item}
+                onPress={() => markRead(item.id)}
+              />
             </View>
-
-            {/* Unread count + Mark all read */}
-            {unreadCount > 0 && (
-              <View style={styles.subHeader}>
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{unreadCount} new</Text>
-                </View>
-                <TouchableOpacity onPress={markAllRead} style={styles.markAllBtn}>
-                  <Ionicons name="checkmark-done-outline" size={16} color={PURPLE} />
-                  <Text style={styles.markAllText}>Mark all read</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        }
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="notifications-off-outline" size={52} color="#D1D5DB" />
             <Text style={styles.emptyTitle}>No notifications yet</Text>
-            <Text style={styles.emptySubtitle}>When someone interacts with you, it will show up here.</Text>
+            <Text style={styles.emptySubtitle}>When someone interacts with your products, auctions, or profile, it will show up here.</Text>
           </View>
         }
       />
@@ -217,23 +253,16 @@ const Notifications: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F4F4F6',
   },
-  listContent: {
-    paddingBottom: 32,
-    paddingHorizontal: 16,
-  },
-
-  // ── Header ──
   header: {
-    paddingTop: height * 0.055,
-    paddingBottom: 8,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingTop: height * 0.055,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F4F4F6',
   },
   backBtn: {
     width: 40,
@@ -246,52 +275,36 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
     color: '#111',
   },
-  subHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 4,
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
-  unreadBadge: {
-    backgroundColor: '#EDE9FE',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  unreadBadgeText: {
-    fontSize: 12,
+  sectionTitle: {
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
-    color: PURPLE,
+    color: '#111',
+    marginTop: 16,
+    marginBottom: 10,
+    marginLeft: 4,
   },
-  markAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+  itemCard: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
   },
-  markAllText: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Medium',
-    color: PURPLE,
+  itemCardFirst: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 6,
   },
-
-  // ── Section header ──
-  sectionHeaderWrap: {
-    backgroundColor: '#FAFAFA',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+  itemCardLast: {
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    paddingBottom: 6,
   },
-  sectionText: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Bold',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  itemBorderBottom: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-
-  // ── Empty state ──
   emptyState: {
     alignItems: 'center',
     paddingTop: 80,

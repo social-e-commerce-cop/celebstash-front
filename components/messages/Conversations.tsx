@@ -1,55 +1,52 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Conversation, MessageContentType } from '@/types/chatTypes';
+import { getOtherUser, getConversationName, getConversationAvatar } from '@/data/mockChatData';
 
 const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
-
 const AVATAR_SIZE = 52;
 const STORY_WIDTH = 3;
 const STORY_PAD = 3;
 
 interface ConversationItemProps {
-  isGroup?: boolean;
-  groupMembers?: { avatar: any }[];
-  name: string;
-  lastMessage: string;
-  unreadCount?: number;
-  hasStory?: boolean;
-  isOnline?: boolean;
-  timestamp?: string;
-  isPinned?: boolean;
-  isMuted?: boolean;
-  isTyping?: boolean;
-  senderPrefix?: string; // "You: " or "Name: " for group
-  isRead?: boolean;
+  conversation: Conversation;
+  onPress?: () => void;
+  onLongPress?: () => void;
 }
 
-const ConversationItem: React.FC<ConversationItemProps> = ({
-  isGroup,
-  groupMembers = [],
-  name,
-  lastMessage,
-  unreadCount = 0,
-  hasStory = false,
-  isOnline = false,
-  timestamp,
-  isPinned = false,
-  isMuted = false,
-  isTyping = false,
-  senderPrefix,
-  isRead = true,
-}) => {
-  const hasUnread = unreadCount > 0;
+// ── Icon hint for message type ──
+const typeIcon = (type?: MessageContentType): string => {
+  switch (type) {
+    case 'image': return '📷 ';
+    case 'video': return '🎬 ';
+    case 'voice': return '🎤 ';
+    case 'document': return '📄 ';
+    case 'product': return '🛍️ ';
+    case 'link': return '🔗 ';
+    case 'sticker': return '😀 ';
+    case 'gif': return 'GIF ';
+    default: return '';
+  }
+};
 
+const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onPress, onLongPress }) => {
+  const conv = conversation;
+  const name = getConversationName(conv);
+  const hasUnread = conv.unreadCount > 0;
+  const isGroup = conv.type === 'group';
+  const otherUser = !isGroup ? getOtherUser(conv) : null;
+  const isOnline = otherUser?.isOnline ?? false;
+
+  // ── Avatar ──
   const renderAvatar = () => {
-    if (isGroup && groupMembers.length > 1) {
+    if (isGroup && conv.participants.length > 2) {
+      const members = conv.participants.filter(p => p.id !== 'me').slice(0, 3);
       return (
         <View style={styles.groupContainer}>
-          {groupMembers.slice(0, 3).map((m, i) => (
-            <View
-              key={i}
-              style={[styles.groupAvatarWrap, { left: i * 18, zIndex: 3 - i }]}
-            >
+          {members.map((m, i) => (
+            <View key={m.id} style={[styles.groupAvatarWrap, { left: i * 18, zIndex: 3 - i }]}>
               <Image source={m.avatar} style={styles.groupAvatar} />
             </View>
           ))}
@@ -57,66 +54,103 @@ const ConversationItem: React.FC<ConversationItemProps> = ({
       );
     }
 
+    const avatar = getConversationAvatar(conv);
     return (
       <View style={styles.avatarWrapper}>
-        <View style={[styles.singleWrap, hasStory && styles.storyRing]}>
-          <Image
-            source={groupMembers[0]?.avatar ?? require('../../assets/images/feed6.jpg')}
-            style={styles.singleAvatar}
-          />
+        <View style={[styles.singleWrap, conv.hasStory && styles.storyRing]}>
+          <Image source={avatar} style={styles.singleAvatar} />
         </View>
         {isOnline && !isGroup && <View style={styles.onlineDot} />}
       </View>
     );
   };
 
+  // ── Last message prefix ──
+  const getSenderPrefix = (): string => {
+    if (!conv.lastMessage) return '';
+    if (conv.lastMessage.senderId === 'me') return 'You: ';
+    if (isGroup) {
+      const sender = conv.participants.find(p => p.id === conv.lastMessage!.senderId);
+      return sender ? `${sender.name.split(' ')[0]}: ` : '';
+    }
+    return '';
+  };
+
+  const lastMsgType = conv.lastMessage?.type;
+  const lastMsgText = conv.lastMessage?.text ?? '';
+  const senderPrefix = getSenderPrefix();
+  const isRead = conv.unreadCount === 0;
+
+  // ── Timestamp ──
+  const formatTimestamp = (ts?: string): string => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
-    <View style={[styles.row, hasUnread && styles.rowUnread]}>
+    <TouchableOpacity
+      style={[styles.row, hasUnread && styles.rowUnread]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+      delayLongPress={400}
+    >
       {renderAvatar()}
 
       <View style={styles.body}>
         <View style={styles.topLine}>
           <View style={styles.nameRow}>
-            {isPinned && (
-              <Text style={styles.pinIcon}>📌 </Text>
-            )}
+            {conv.isPinned && <Text style={styles.pinIcon}>📌 </Text>}
+            {conv.isFavorite && <Text style={styles.favIcon}>⭐ </Text>}
             <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
               {name}
             </Text>
-            {isMuted && (
-              <Text style={styles.mutedIcon}> 🔇</Text>
+            {conv.isMuted && (
+              <Ionicons name="volume-mute" size={14} color="#9CA3AF" style={{ marginLeft: 4 }} />
             )}
           </View>
           <Text style={[styles.timestamp, hasUnread && styles.timestampUnread]}>
-            {timestamp ?? ''}
+            {formatTimestamp(conv.lastMessage?.timestamp)}
           </Text>
         </View>
 
         <View style={styles.bottomLine}>
-          {isTyping ? (
-            <Text style={styles.typingText} numberOfLines={1}>typing…</Text>
+          {conv.isTyping ? (
+            <Text style={styles.typingText} numberOfLines={1}>
+              {conv.typingUser ? `${conv.typingUser} is typing…` : 'typing…'}
+            </Text>
           ) : (
-            <Text
-              numberOfLines={1}
-              style={[styles.preview, hasUnread && styles.previewUnread]}
-            >
-              {senderPrefix ? (
-                <Text style={styles.senderPrefix}>{senderPrefix}</Text>
-              ) : null}
-              {lastMessage}
+            <Text numberOfLines={1} style={[styles.preview, hasUnread && styles.previewUnread]}>
+              {senderPrefix ? <Text style={styles.senderPrefix}>{senderPrefix}</Text> : null}
+              {typeIcon(lastMsgType)}{lastMsgText}
             </Text>
           )}
 
           {hasUnread ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              <Text style={styles.badgeText}>
+                {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+              </Text>
             </View>
           ) : (
-            isRead && <Text style={styles.readTick}>✓✓</Text>
+            conv.lastMessage?.senderId === 'me' && (
+              <Text style={styles.readTick}>✓✓</Text>
+            )
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -126,7 +160,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 4,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   rowUnread: {
     backgroundColor: '#F8F5FF',
@@ -175,7 +209,7 @@ const styles = StyleSheet.create({
   },
   groupAvatarWrap: {
     position: 'absolute',
-    top: 0,
+    top: 4,
   },
   groupAvatar: {
     width: 38,
@@ -202,21 +236,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 6,
   },
-  pinIcon: {
-    fontSize: 11,
-  },
-  mutedIcon: {
-    fontSize: 11,
-  },
+  pinIcon: { fontSize: 11 },
+  favIcon: { fontSize: 11 },
   name: {
     fontSize: 15,
     fontFamily: 'Poppins-Bold',
     color: '#111',
     flexShrink: 1,
   },
-  nameUnread: {
-    color: '#000',
-  },
+  nameUnread: { color: '#000' },
   timestamp: {
     fontSize: 11,
     fontFamily: 'Poppins-Regular',

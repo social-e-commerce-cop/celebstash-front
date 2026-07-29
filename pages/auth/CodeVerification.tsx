@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
+import { authService } from '../../lib/authService';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -11,8 +12,8 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   Verify: undefined;
-  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
-  CreatePassword: { email: string };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password'; fullName?: string; username?: string; password?: string };
+  CreatePassword: { email: string; otp?: string };
   Home: undefined;
 };
 
@@ -22,7 +23,7 @@ type VerificationScreenRouteProp = RouteProp<AppStackParamList, 'Verification'>;
 const CodeVerification: React.FC = () => {
   const navigation = useNavigation<VerificationScreenNavigationProp>();
   const route = useRoute<VerificationScreenRouteProp>();
-  const { identifier, type, flow } = route.params || { identifier: 'you@example.com', type: 'email', flow: 'signup' };
+  const { identifier, type, flow, fullName = 'User', username = '', password = 'Password123!' } = (route.params as any) || {};
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,29 +54,60 @@ const CodeVerification: React.FC = () => {
     }
   };
 
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const handleVerify = async () => {
     const fullCode = code.join('');
     if (fullCode.length !== 6) return;
 
     setIsLoading(true);
+    setApiError(null);
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
       if (flow === 'forgot_password') {
-        navigation.navigate('CreatePassword', { email: identifier });
+        await authService.verifyPasswordResetOtp(identifier, fullCode);
+        navigation.navigate('CreatePassword', { email: identifier, otp: fullCode });
       } else {
-        navigation.navigate('Signin');
+        const res = await authService.completeSignup({
+          identifier,
+          otp: fullCode,
+          type: 'SIGNUP',
+          username,
+        });
+
+        if (res.success) {
+          navigation.navigate('Home');
+        } else {
+          setApiError(res.message || 'Invalid or expired verification code.');
+        }
       }
-    } catch (error) {
-      console.error('Verification failed:', error);
+    } catch (error: any) {
+      setApiError(error.message || 'Verification failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (timer === 0) {
       setTimer(30);
-      console.log('Resending code to:', identifier);
+      setApiError(null);
+      setIsLoading(true);
+      try {
+        if (flow === 'forgot_password') {
+          await authService.initiatePasswordReset(identifier);
+        } else {
+          await authService.initiateSignup({
+            fullName: fullName,
+            email: identifier,
+            password: password,
+          });
+        }
+      } catch (err: any) {
+        setApiError(err.message || 'Failed to resend code');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -104,6 +136,14 @@ const CodeVerification: React.FC = () => {
             We've sent a 6-digit code to {identifier}. Please enter it below.
           </Text>
         </View>
+
+        {apiError && (
+          <View style={{ backgroundColor: '#FEE2E2', padding: 12, borderRadius: 6, marginBottom: 16 }}>
+            <Text style={{ color: '#DC2626', fontFamily: 'Poppins-Medium', fontSize: 13, textAlign: 'center' }}>
+              {apiError}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.formSection}>
           <View style={styles.otpContainer}>

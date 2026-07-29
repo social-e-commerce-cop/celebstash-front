@@ -7,6 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import GoogleLogo from '@/components/GoogleLogo';
 import ZikiiiInput from '@/components/ZikiiiInput';
 
+import { ActivityIndicator } from 'react-native';
+import { authService } from '../../lib/authService';
+
 // Define the navigation stack param list
 type AppStackParamList = {
   Splash: undefined;
@@ -24,25 +27,39 @@ const Signin: React.FC = () => {
   const navigation = useNavigation<SignInScreenNavigationProp>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   const isEmailValid = (e: string) => /\S+@\S+\.\S+/.test(e);
-  const isFormValid = isEmailValid(email) && password.length >= 6;
+  const isFormValid = (isEmailValid(email) || email.length >= 3) && password.length >= 6;
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const newErrors: Record<string, string | null> = {};
+    setApiError(null);
     
-    if (!isEmailValid(email)) newErrors.email = "Invalid email";
+    if (!email.trim()) newErrors.email = "Email or phone is required";
     if (password.length < 6) newErrors.password = "Min 6 characters";
 
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length === 0) {
-      console.log('Sign in with:', { email, password });
-      if (email.toLowerCase() === 'artist@zikiii.com') {
-        navigation.navigate('ArtHome');
-      } else {
-        navigation.navigate('Home');
+      setIsLoading(true);
+      try {
+        const response = await authService.login({ emailOrPhone: email.trim(), password });
+        if (response.success) {
+          if (email.toLowerCase().includes('artist')) {
+            navigation.navigate('ArtHome');
+          } else {
+            navigation.navigate('Home');
+          }
+        } else {
+          setApiError(response.message || 'Login failed. Please check credentials.');
+        }
+      } catch (err: any) {
+        setApiError(err.message || 'Failed to connect to backend server');
+      } finally {
+        setIsLoading(false);
       }
     }
   };
@@ -93,12 +110,24 @@ const Signin: React.FC = () => {
             <Text style={styles.forgotBtnText}>Forgot your password?</Text>
           </TouchableOpacity>
 
+          {apiError && (
+            <View style={{ backgroundColor: '#FEE2E2', padding: 12, borderRadius: 6, marginBottom: 12 }}>
+              <Text style={{ color: '#DC2626', fontFamily: 'Poppins-Medium', fontSize: 13, textAlign: 'center' }}>
+                {apiError}
+              </Text>
+            </View>
+          )}
+
           <TouchableOpacity 
-            style={[styles.mainBtn, !isFormValid && styles.disabledBtn]}
+            style={[styles.mainBtn, (!isFormValid || isLoading) && styles.disabledBtn]}
             onPress={handleSignIn}
-            disabled={!isFormValid}
+            disabled={!isFormValid || isLoading}
           >
-            <Text style={styles.mainBtnText}>Sign In</Text>
+            {isLoading ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <Text style={styles.mainBtnText}>Sign In</Text>
+            )}
           </TouchableOpacity>
 
           {/* Quick Demo Logins Section */}

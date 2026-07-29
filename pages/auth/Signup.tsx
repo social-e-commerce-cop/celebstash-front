@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { User, Mail, Lock, AtSign } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GoogleLogo from '@/components/GoogleLogo';
 import ZikiiiInput from '@/components/ZikiiiInput';
-import { setSessionUser } from '@/lib/session';
+import { setSessionUser } from '../../lib/session';
+import { authService } from '../../lib/authService';
 
 // Define the navigation stack param list
 type AppStackParamList = {
@@ -15,7 +16,7 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   Verify: { methodType?: 'email' | 'phone'; contactValue?: string } | undefined;
-  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
+  Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password'; fullName?: string; username?: string; password?: string };
 };
 
 type SignUpScreenNavigationProp = StackNavigationProp<AppStackParamList, 'Signup'>;
@@ -28,6 +29,8 @@ const Signup: React.FC = () => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const isEmailValid = (email: string) => /\S+@\S+\.\S+/.test(email);
   const isPhoneValid = (phone: string) => /^\+?[0-9]{10,15}$/.test(phone);
@@ -49,21 +52,44 @@ const Signup: React.FC = () => {
     }
   };
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     if (username.length < 3) {
       setErrors({ username: "Username is too short" });
       return;
     }
     
-    console.log('Sign up with:', { fullName, emailOrPhone, password, username });
-    
-    // Save to global session store
-    setSessionUser({ fullName, username, email: emailOrPhone });
-    
-    const isEmail = isEmailValid(emailOrPhone);
-    const methodType = isEmail ? 'email' : 'phone';
-    
-    navigation.navigate('Verification', { identifier: emailOrPhone, type: methodType });
+    setApiError(null);
+    setIsLoading(true);
+
+    try {
+      setSessionUser({ fullName, username, email: emailOrPhone });
+
+      const res: any = await authService.initiateSignup({
+        fullName,
+        email: emailOrPhone,
+        password,
+      });
+
+      const isEmail = isEmailValid(emailOrPhone);
+      const methodType = isEmail ? 'email' : 'phone';
+      
+      navigation.navigate('Verification', { 
+        identifier: emailOrPhone, 
+        type: methodType,
+        fullName,
+        username,
+        password
+      });
+    } catch (err: any) {
+      const errorMsg = err.message || 'Signup failed. Please try again.';
+      setApiError(errorMsg);
+      const lower = errorMsg.toLowerCase();
+      if (lower.includes('password') || lower.includes('email') || lower.includes('identifier') || lower.includes('name')) {
+        setStep(1);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -91,6 +117,14 @@ const Signup: React.FC = () => {
           </Text>
         </View>
 
+        {apiError && (
+          <View style={{ backgroundColor: '#FEE2E2', padding: 12, borderRadius: 6, marginBottom: 16 }}>
+            <Text style={{ color: '#DC2626', fontFamily: 'Poppins-Medium', fontSize: 13, textAlign: 'center' }}>
+              {apiError}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.formArea}>
           {step === 1 ? (
             <>
@@ -98,7 +132,7 @@ const Signup: React.FC = () => {
                 icon={User}
                 placeholder="Full Name"
                 value={fullName}
-                onChangeText={(text) => { setFullName(text); setErrors({ ...errors, fullName: null }); }}
+                onChangeText={(text) => { setFullName(text); setErrors({ ...errors, fullName: null }); setApiError(null); }}
                 error={errors.fullName}
               />
               
@@ -106,7 +140,7 @@ const Signup: React.FC = () => {
                 icon={Mail}
                 placeholder="Email or Phone Number"
                 value={emailOrPhone}
-                onChangeText={(text) => { setEmailOrPhone(text); setErrors({ ...errors, emailOrPhone: null }); }}
+                onChangeText={(text) => { setEmailOrPhone(text); setErrors({ ...errors, emailOrPhone: null }); setApiError(null); }}
                 autoCapitalize="none"
                 error={errors.emailOrPhone}
               />
@@ -115,7 +149,7 @@ const Signup: React.FC = () => {
                 icon={Lock}
                 placeholder="Password"
                 value={password}
-                onChangeText={(text) => { setPassword(text); setErrors({ ...errors, password: null }); }}
+                onChangeText={(text) => { setPassword(text); setErrors({ ...errors, password: null }); setApiError(null); }}
                 secureTextEntry
                 error={errors.password}
               />
@@ -133,16 +167,21 @@ const Signup: React.FC = () => {
                 icon={AtSign}
                 placeholder="Username"
                 value={username}
-                onChangeText={(text) => { setUsername(text); setErrors({ ...errors, username: null }); }}
+                onChangeText={(text) => { setUsername(text); setErrors({ ...errors, username: null }); setApiError(null); }}
                 autoCapitalize="none"
                 error={errors.username}
               />
 
               <TouchableOpacity 
-                style={[styles.mainBtn, !isStep2Valid && styles.disabledBtn]}
+                style={[styles.mainBtn, (!isStep2Valid || isLoading) && styles.disabledBtn]}
                 onPress={handleSignUp}
+                disabled={!isStep2Valid || isLoading}
               >
-                <Text style={styles.mainBtnText}>Create Account</Text>
+                {isLoading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.mainBtnText}>Create Account</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity 

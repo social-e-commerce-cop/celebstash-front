@@ -75,15 +75,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#1D1E20",
-    fontWeight: "bold",
+    fontFamily: "Poppins-Bold",
   },
   highlighted: {
     color: "#7126D0",
-    fontWeight: "500",
+    fontFamily: "Poppins-Medium",
   },
   logout: {
     color: "red",
-    fontWeight: "500",
+    fontFamily: "Poppins-Medium",
   },
 });
 

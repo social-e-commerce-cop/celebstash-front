@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { walletService } from './walletService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,60 +45,31 @@ const generateId = (): string => 'TXN' + Date.now() + Math.floor(Math.random() *
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let walletState: WalletState = {
-  balance: 4405.00,
-  totalToppedUp: 5937.00,
-  totalSpent: 1532.00,
+  balance: 1250.50,
+  totalToppedUp: 2000.00,
+  totalSpent: 749.50,
   transactions: [
     {
-      id: 'TXN_ADA',
-      type: 'purchase',
-      amount: 1923,
-      date: 'Nov 12',
-      time: '12:30 PM',
-      status: 'completed',
-      description: 'Purchase payment for merchandise',
-      senderOrReceiver: 'Purchased',
-      subtitle: 'Sent by you • Nov 12',
-      secondaryAmount: '$129.45',
-      direction: 'up',
-    },
-    {
-      id: 'TXN_MUSA',
+      id: 'TXN_INITIAL',
       type: 'top_up',
-      amount: 1532,
-      date: 'Nov 14',
-      time: '10:15 AM',
+      amount: 1250.50,
+      date: 'Today',
+      time: formatTime(),
       status: 'completed',
-      description: 'Wallet top-up via MTN MoMo (+250 788000000)',
-      senderOrReceiver: 'Added money to your wallet',
-      subtitle: 'Received by you • Nov 14',
-      secondaryAmount: '$149.22',
+      description: 'Initial Wallet Balance',
+      senderOrReceiver: 'System Credit',
+      subtitle: 'Verified Account',
       direction: 'down',
-    },
-    {
-      id: 'TXN_NNEKA',
-      type: 'purchase',
-      amount: 950,
-      date: 'Nov 12',
-      time: '09:45 AM',
-      status: 'completed',
-      description: 'Purchase payment for premium song',
-      senderOrReceiver: 'Purchased',
-      subtitle: 'Sent by you • Nov 12',
-      secondaryAmount: '$129.45',
-      direction: 'up',
     },
   ],
 };
 
 const listeners = new Set<() => void>();
-
 const notify = () => listeners.forEach((l) => l());
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export const getWalletState = (): WalletState => ({ ...walletState });
-
 export const getWalletBalance = (): number => walletState.balance;
 export const getTotalToppedUp = (): number => walletState.totalToppedUp;
 export const getTotalSpent = (): number => walletState.totalSpent;
@@ -106,8 +78,23 @@ export const getTransactions = (): WalletTransaction[] => [...walletState.transa
 export const getTransactionById = (id: string): WalletTransaction | undefined =>
   walletState.transactions.find((t) => t.id === id);
 
+/** Sync wallet from backend */
+export const syncWalletFromBackend = async () => {
+  try {
+    const backendWallet = await walletService.getWallet();
+    if (backendWallet && typeof backendWallet.balance === 'number') {
+      walletState.balance = backendWallet.balance;
+      notify();
+    }
+  } catch (e) {
+    // Silent fallback to local store if not logged in
+  }
+};
+
 /** Add funds to the wallet after a successful top-up */
 export const topUpWallet = (amount: number, description?: string, cardLast4?: string): WalletTransaction => {
+  const desc = description ?? `Wallet top-up${cardLast4 ? ` via card ending ${cardLast4}` : ''}`;
+  
   const txn: WalletTransaction = {
     id: generateId(),
     type: 'top_up',
@@ -115,7 +102,7 @@ export const topUpWallet = (amount: number, description?: string, cardLast4?: st
     date: formatDate(),
     time: formatTime(),
     status: 'completed',
-    description: description ?? `Wallet top-up${cardLast4 ? ` via card ending ${cardLast4}` : ''}`,
+    description: desc,
   };
 
   walletState = {
@@ -126,6 +113,12 @@ export const topUpWallet = (amount: number, description?: string, cardLast4?: st
   };
 
   notify();
+
+  // Async sync with Spring Boot backend
+  walletService.topUp(amount, desc).catch(() => {
+    // Fallback handled locally
+  });
+
   return txn;
 };
 
@@ -207,6 +200,7 @@ export const useWallet = () => {
   const [state, setState] = useState<WalletState>(walletState);
 
   useEffect(() => {
+    syncWalletFromBackend();
     const handleUpdate = () => setState({ ...walletState });
     listeners.add(handleUpdate);
     return () => { listeners.delete(handleUpdate); };

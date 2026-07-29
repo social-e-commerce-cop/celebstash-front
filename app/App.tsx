@@ -56,6 +56,9 @@ import AddAddressForm from '@/pages/profile/AddAddressScreen';
 import NotificationScreen from '@/pages/profile/Notifications';
 import Security from '@/pages/profile/Security';
 import Wallet from '@/pages/profile/Wallet';
+import PrivacyScreen from '@/pages/profile/Privacy';
+import LanguageScreen from '@/pages/profile/Language';
+import BecomeArtist from '@/pages/profile/BecomeArtist';
 
 import CreatePostScreen from '@/pages/Artist/profile/AddPost';
 import ArtistHomeScreen from '@/pages/Artist/Home/HomeArtist';
@@ -145,6 +148,9 @@ type AppStackParamList = {
   NotificationSettings: undefined;
   Security: undefined;
   Wallet: undefined;
+  Privacy: undefined;
+  Language: undefined;
+  BecomeArtist: undefined;
   CreatePost: undefined;
   CreateTribe: undefined;
   ArtHome: undefined;
@@ -154,7 +160,13 @@ type AppStackParamList = {
   Available: undefined;
   Dashboard: undefined;
   MessagesScreen: undefined;
-  ChatScreen: undefined;
+  ChatScreen: { conversationId: string };
+  CreateGroupScreen: undefined;
+  ChatInfoScreen: { conversationId: string };
+  GroupSettingsScreen: { conversationId: string };
+  SharedMediaScreen: { conversationId: string; initialTab?: string };
+  VoiceCallScreen: { name: string; avatar: any };
+  VideoCallScreen: { name: string; avatar: any };
   AllReleases: undefined;
   Library: undefined;
 };
@@ -236,6 +248,9 @@ export default function App() {
         <Stack.Screen name="NotificationSettings" component={NotificationScreen} />
         <Stack.Screen name="Security" component={Security} />
         <Stack.Screen name="Wallet" component={Wallet} />
+        <Stack.Screen name="Privacy" component={PrivacyScreen} />
+        <Stack.Screen name="Language" component={LanguageScreen} />
+        <Stack.Screen name="BecomeArtist" component={BecomeArtist} />
         <Stack.Screen name="CreatePost" component={CreatePostScreen} />
         <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
         <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />
@@ -246,6 +261,13 @@ export default function App() {
         <Stack.Screen name="Dashboard" component={Dashboard} />
         <Stack.Screen name="MessagesScreen" component={MessagesScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
+        <Stack.Screen name="CreateGroupScreen" component={require('../pages/messages/CreateGroupScreen').default} />
+        <Stack.Screen name="ChatInfoScreen" component={require('../pages/messages/ChatInfoScreen').default} />
+        <Stack.Screen name="GroupSettingsScreen" component={require('../pages/messages/GroupSettingsScreen').default} />
+        <Stack.Screen name="SharedMediaScreen" component={require('../pages/messages/SharedMediaScreen').default} />
+        <Stack.Screen name="VoiceCallScreen" component={require('../pages/messages/VoiceCallScreen').default} />
+        <Stack.Screen name="VideoCallScreen" component={require('../pages/messages/VideoCallScreen').default} />
+
         <Stack.Screen name="AllReleases" component={AllReleasesScreen} />
         <Stack.Screen name="Library" component={LibraryScreen} />
       </Stack.Navigator>

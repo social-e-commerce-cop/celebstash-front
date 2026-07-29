@@ -16,6 +16,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 
 const { width, height } = Dimensions.get('window');
 const mapHeight = height * 0.3;
+const PURPLE = "#7126D0";
 
 const AddAddressForm: React.FC = () => {
   const [description, setDescription] = useState('');
@@ -43,23 +44,21 @@ const AddAddressForm: React.FC = () => {
     });
   };
 
-   const navigation = useNavigation<StackNavigationProp<any>>();
+  const navigation = useNavigation<StackNavigationProp<any>>();
 
   return (
-    <ScrollView style={styles.container}>
-         <StatusBar barStyle="dark-content" backgroundColor="#000" />
-         {/* Header */}
-          <View style={styles.headerOverlay}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-              <Ionicons name="arrow-back" size={width * 0.06} color="#000" />
-            </TouchableOpacity>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      
+      {/* Header */}
+      <View style={styles.headerOverlay}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Add Address</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
-            <Text style={[styles.headerTitle, { fontSize: width * 0.045 }]}>
-              Address
-            </Text>
-
-            <View style={styles.iconButton} />
-          </View>
       <Text style={styles.headerText}>
         Your address helps you discover new people and opportunities
       </Text>
@@ -69,9 +68,9 @@ const AddAddressForm: React.FC = () => {
         <TextInput
           style={styles.textArea}
           placeholder="Description"
-          placeholderTextColor="#000"
+          placeholderTextColor="#8A8A8A"
           multiline
-          numberOfLines={8}
+          numberOfLines={4}
           value={description}
           onChangeText={setDescription}
         />
@@ -82,7 +81,7 @@ const AddAddressForm: React.FC = () => {
         <TextInput
           style={styles.input}
           placeholder="Street Address"
-          placeholderTextColor="#000"
+          placeholderTextColor="#8A8A8A"
           value={streetAddress}
           onChangeText={setStreetAddress}
         />
@@ -92,8 +91,8 @@ const AddAddressForm: React.FC = () => {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Apt, etc (or leave blank)"
-          placeholderTextColor="#000"
+          placeholder="Apt, Suite, Unit, etc (or leave blank)"
+          placeholderTextColor="#8A8A8A"
           value={apt}
           onChangeText={setApt}
         />
@@ -104,7 +103,7 @@ const AddAddressForm: React.FC = () => {
         <TextInput
           style={styles.input}
           placeholder="City"
-          placeholderTextColor="#000"
+          placeholderTextColor="#8A8A8A"
           value={city}
           onChangeText={setCity}
         />
@@ -114,18 +113,18 @@ const AddAddressForm: React.FC = () => {
       <View style={styles.rowContainer}>
         <View style={styles.halfInputContainer}>
           <TextInput
-            style={styles.halfInput}
+            style={styles.input}
             placeholder="State"
-            placeholderTextColor="#000"
+            placeholderTextColor="#8A8A8A"
             value={state}
             onChangeText={setState}
           />
         </View>
         <View style={styles.halfInputContainer}>
           <TextInput
-            style={styles.halfInput}
+            style={styles.input}
             placeholder="Zip Code"
-            placeholderTextColor="#000"
+            placeholderTextColor="#8A8A8A"
             value={zipCode}
             onChangeText={setZipCode}
             keyboardType="numeric"
@@ -153,61 +152,87 @@ const AddAddressForm: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    container: { 
+  container: { 
     flex: 1, 
-    backgroundColor: "#f5f8faff",   
-    paddingHorizontal: width * 0.06,
-    paddingVertical: height * 0.04, 
-},
-    headerOverlay: {
+    backgroundColor: "#F5F8FA",   
+    paddingHorizontal: width * 0.05,
+    paddingVertical: height * 0.03, 
+  },
+  headerOverlay: {
     height: height * 0.07,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: height * 0.01,
+    marginBottom: height * 0.015,
+    paddingTop: height * 0.01,
   },
-  headerTitle: { color: "#000", fontWeight: "bold" },
-  iconButton: {},
-  headerText: { fontSize: 16, color: '#000', marginBottom: 20, textAlign: 'left', fontWeight: 'bold' },
-  inputContainer: { marginBottom: 15 },
-  label: { fontSize: 14, color: '#333', marginBottom: 5 },
+  headerTitle: { 
+    color: "#000", 
+    fontFamily: "Poppins-Bold",
+    fontSize: 18,
+  },
+  headerText: { 
+    fontSize: 14, 
+    color: '#4B5563', 
+    marginBottom: 20, 
+    textAlign: 'left', 
+    fontFamily: 'Poppins-Regular',
+    lineHeight: 20,
+  },
+  inputContainer: { 
+    marginBottom: 15 
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#8F959E57',
-    borderRadius: 5,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
     padding: 12,
-    fontSize: 16,
-    color: '#000'
+    fontSize: 14,
+    color: '#1F2937',
+    fontFamily: 'Poppins-Regular',
+    backgroundColor: '#FAFAFA',
   },
   textArea: {
     borderWidth: 1,
-    borderColor: '#8F959E57',
-    borderRadius: 5,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 14,
     textAlignVertical: 'top',
-    minHeight:100,
-    color: '#000',
+    minHeight: 80,
+    color: '#1F2937',
+    fontFamily: 'Poppins-Regular',
+    backgroundColor: '#FAFAFA',
   },
-  rowContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  halfInputContainer: { flex: 0.48 },
-  halfInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 12,
-    fontSize: 16,
+  rowContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginBottom: 15 
   },
-  mapContainer: { height: mapHeight, marginBottom: 20, borderRadius: 10, overflow: 'hidden' },
-  map: { flex: 1 },
+  halfInputContainer: { 
+    flex: 0.48 
+  },
+  mapContainer: { 
+    height: mapHeight, 
+    marginBottom: 25, 
+    borderRadius: 10, 
+    overflow: 'hidden' 
+  },
+  map: { 
+    flex: 1 
+  },
   addButton: {
-    backgroundColor: '#7126D0',
+    backgroundColor: PURPLE,
     padding: 15,
-    borderRadius: 5,
+    borderRadius: 10,
     alignItems: 'center',
     marginBottom: 100,
   },
-  addButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  addButtonText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontFamily: 'Poppins-Bold' 
+  },
 });
 
 export default AddAddressForm;

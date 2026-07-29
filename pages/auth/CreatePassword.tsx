@@ -6,6 +6,8 @@ import { ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import ZikiiiInput from '@/components/ZikiiiInput';
 
+import { authService } from '@/lib/authService';
+
 // Define the navigation stack param list
 type AppStackParamList = {
   Splash: undefined;
@@ -13,7 +15,7 @@ type AppStackParamList = {
   Signin: undefined;
   Signup: undefined;
   ForgotPassword: undefined;
-  CreatePassword: { email: string };
+  CreatePassword: { email: string; otp?: string };
   Home: undefined;
 };
 
@@ -23,15 +25,14 @@ type CreatePasswordScreenRouteProp = RouteProp<AppStackParamList, 'CreatePasswor
 const CreatePassword: React.FC = () => {
   const navigation = useNavigation<CreatePasswordScreenNavigationProp>();
   const route = useRoute<CreatePasswordScreenRouteProp>();
-  const { email } = route.params || { email: 'you@example.com' };
+  const { email, otp = '' } = (route.params as any) || {};
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
-    const [username, setUsername] = useState('');
-    const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   const handleCreatePassword = async () => {
     if (password !== confirmPassword) {
@@ -45,11 +46,17 @@ const CreatePassword: React.FC = () => {
     }
 
     setIsLoading(true);
+    setError('');
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await authService.completePasswordReset({
+        identifier: email,
+        otp: otp,
+        newPassword: password,
+        confirmPassword: confirmPassword,
+      });
       navigation.navigate('Signin');
-    } catch {
-      setError('Failed to reset password. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset password. Please try again.');
     } finally {
       setIsLoading(false);
     }

@@ -1,11 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 
-const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
+const RED_LIVE = '#EF4444';
 
-export type NotificationType = 'like' | 'comment' | 'follow' | 'purchase' | 'mention' | 'tag';
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'purchase'
+  | 'mention'
+  | 'tag'
+  | 'share'
+  | 'auction'
+  | 'live'
+  | 'price_drop';
+
+export type FollowMode = 'follow' | 'follow_back';
 
 export type NotificationItemProps = {
   id: string;
@@ -13,26 +24,42 @@ export type NotificationItemProps = {
   user: string;
   action: string;
   type?: NotificationType;
+  followMode?: FollowMode;
+  avatar?: any;
+  thumbnail?: any;
   comment?: string;
-  photos?: (string | number)[];
+  actionButtonLabel?: string;
   isRead?: boolean;
+  isFollowing?: boolean;
   onPress?: () => void;
-};
-
-const TYPE_CONFIG: Record<NotificationType, { icon: any; color: string; bg: string }> = {
-  like:     { icon: 'heart',              color: '#E11900', bg: '#FEE2E2' },
-  comment:  { icon: 'chatbubble',         color: '#2563EB', bg: '#DBEAFE' },
-  follow:   { icon: 'person-add',         color: PURPLE,    bg: '#EDE9FE' },
-  purchase: { icon: 'bag-check',          color: '#059669', bg: '#D1FAE5' },
-  mention:  { icon: 'at',                 color: '#D97706', bg: '#FEF3C7' },
-  tag:      { icon: 'pricetag',           color: '#0891B2', bg: '#CFFAFE' },
+  onActionButtonPress?: () => void;
 };
 
 const NotificationItem: React.FC<NotificationItemProps> = ({
-  time, user, action, type = 'like', comment, photos, isRead = true, onPress,
+  time,
+  user,
+  action,
+  type = 'like',
+  followMode = 'follow_back',
+  avatar,
+  thumbnail,
+  comment,
+  actionButtonLabel,
+  isRead = true,
+  isFollowing: initialFollowing = false,
+  onPress,
+  onActionButtonPress,
 }) => {
-  const cfg = TYPE_CONFIG[type];
-  const photoSize = width > 600 ? 72 : 56;
+  const [following, setFollowing] = useState(initialFollowing);
+  const showFollowBtn = type === 'follow';
+  const isLive = type === 'live';
+  const showCustomActionBtn = !!actionButtonLabel || isLive;
+  const showThumbnail = !!thumbnail && !showFollowBtn && !showCustomActionBtn;
+
+  const getFollowText = () => {
+    if (following) return 'Following';
+    return followMode === 'follow_back' ? 'Follow Back' : 'Follow';
+  };
 
   return (
     <TouchableOpacity
@@ -40,49 +67,65 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       onPress={onPress}
       activeOpacity={0.75}
     >
-      {/* Unread indicator */}
-      {!isRead && <View style={styles.unreadDot} />}
-
-      {/* Avatar + badge */}
+      {/* Avatar with optional Live ring badge */}
       <View style={styles.avatarWrapper}>
         <Image
-          source={require('../../assets/images/feed6.jpg')}
-          style={styles.avatar}
+          source={avatar ?? require('../../assets/images/feed6.jpg')}
+          style={[styles.avatar, isLive && styles.avatarLiveRing]}
         />
-        <View style={[styles.iconBadge, { backgroundColor: cfg.bg }]}>
-          <Ionicons name={cfg.icon} size={11} color={cfg.color} />
-        </View>
+        {isLive && (
+          <View style={styles.liveBadge}>
+            <Text style={styles.liveBadgeText}>LIVE</Text>
+          </View>
+        )}
       </View>
 
       {/* Content */}
       <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={styles.userName} numberOfLines={1}>{user}</Text>
+        <Text style={styles.textLine} numberOfLines={2}>
+          <Text style={styles.userName}>{user}</Text>
+          {'  '}
+          <Text style={styles.action}>{action}</Text>
+          {'  '}
           <Text style={styles.time}>{time}</Text>
-        </View>
-        <Text style={styles.action} numberOfLines={2}>{action}</Text>
+        </Text>
         {comment && (
-          <View style={styles.commentBox}>
-            <Text style={styles.commentText} numberOfLines={2}>{comment}</Text>
-          </View>
-        )}
-        {photos && photos.length > 0 && (
-          <View style={styles.photosRow}>
-            {photos.slice(0, 3).map((photo, i) => (
-              <Image
-                key={i}
-                source={typeof photo === 'string' ? { uri: photo } : photo}
-                style={[styles.photo, { width: photoSize, height: photoSize }]}
-              />
-            ))}
-            {photos.length > 3 && (
-              <View style={[styles.photo, styles.morePhotos, { width: photoSize, height: photoSize }]}>
-                <Text style={styles.moreText}>+{photos.length - 3}</Text>
-              </View>
-            )}
-          </View>
+          <Text style={styles.commentPreview} numberOfLines={1}>
+            "{comment}"
+          </Text>
         )}
       </View>
+
+      {/* Right Action: Follow / Follow Back */}
+      {showFollowBtn && (
+        <TouchableOpacity
+          style={[styles.followBtn, following && styles.followingBtn]}
+          onPress={() => setFollowing(f => !f)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+            {getFollowText()}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Right Action: Custom button (e.g. Join Live, Bid, View) */}
+      {showCustomActionBtn && (
+        <TouchableOpacity
+          style={[styles.actionBtn, isLive && styles.actionBtnLive]}
+          onPress={onActionButtonPress ?? onPress}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.actionBtnText, isLive && styles.actionBtnTextLive]}>
+            {actionButtonLabel ?? (isLive ? 'Watch' : 'View')}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Right Action: Media thumbnail */}
+      {showThumbnail && (
+        <Image source={thumbnail} style={styles.thumbnail} />
+      )}
     </TouchableOpacity>
   );
 };
@@ -90,25 +133,12 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginHorizontal: 0,
-    marginVertical: 3,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 0,
   },
   containerUnread: {
-    backgroundColor: '#F8F5FF',
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: PURPLE,
-    marginTop: 16,
-    marginRight: 8,
-    flexShrink: 0,
+    // Subtle highlight state if needed
   },
   avatarWrapper: {
     position: 'relative',
@@ -116,84 +146,101 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
-  iconBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarLiveRing: {
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: RED_LIVE,
+  },
+  liveBadge: {
+    position: 'absolute',
+    bottom: -3,
+    alignSelf: 'center',
+    backgroundColor: RED_LIVE,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  liveBadgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
   },
   content: {
     flex: 1,
+    marginRight: 10,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  userName: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    color: '#111',
-    flex: 1,
-    marginRight: 8,
-  },
-  time: {
-    fontSize: 11,
-    fontFamily: 'Poppins-Regular',
-    color: '#9CA3AF',
-    flexShrink: 0,
-  },
-  action: {
+  textLine: {
     fontSize: 13,
     fontFamily: 'Poppins-Regular',
-    color: '#4B5563',
+    color: '#262626',
     lineHeight: 18,
   },
-  commentBox: {
-    marginTop: 6,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderLeftWidth: 3,
-    borderLeftColor: PURPLE,
+  userName: {
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
   },
-  commentText: {
+  action: {
+    fontFamily: 'Poppins-Regular',
+    color: '#262626',
+  },
+  time: {
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+  },
+  commentPreview: {
     fontSize: 12,
     fontFamily: 'Poppins-Regular',
     color: '#6B7280',
-    lineHeight: 17,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
-  photosRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
-  },
-  photo: {
+  followBtn: {
+    backgroundColor: PURPLE,
     borderRadius: 8,
-    overflow: 'hidden',
-  },
-  morePhotos: {
-    backgroundColor: '#1F2937',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    flexShrink: 0,
+    minWidth: 92,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
   },
-  moreText: {
-    color: '#fff',
+  followingBtn: {
+    backgroundColor: '#F3F4F6',
+  },
+  followBtnText: {
     fontSize: 13,
     fontFamily: 'Poppins-Bold',
+    color: '#fff',
+  },
+  followingBtnText: {
+    color: '#111',
+  },
+  actionBtn: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    flexShrink: 0,
+  },
+  actionBtnLive: {
+    backgroundColor: RED_LIVE,
+  },
+  actionBtnText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+  },
+  actionBtnTextLive: {
+    color: '#fff',
+  },
+  thumbnail: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    flexShrink: 0,
   },
 });
 

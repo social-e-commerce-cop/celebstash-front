@@ -1,80 +1,93 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { ChatFilterTab } from '@/types/chatTypes';
 
-interface TabProps {
-  label: string;
-  badge?: string | number;
-  isActive?: boolean;
-  onPress?: () => void;
+const PURPLE = '#7126D0';
+
+interface FilterTabBarProps {
+  tabs: ChatFilterTab[];
+  activeTab: ChatFilterTab;
+  onTabChange: (tab: ChatFilterTab) => void;
+  badgeCounts?: Partial<Record<ChatFilterTab, number>>;
 }
 
-const Tab: React.FC<TabProps> = ({ label, badge, isActive, onPress }) => (
-  <TouchableOpacity onPress={onPress} style={[styles.tab, isActive && styles.activeTab]}>
-    <Text style={[styles.tabText, isActive && styles.activeText]}>{label}</Text>
-    {badge ? (
-      <View style={[styles.badge, isActive && styles.activeBadge]}>
-        <Text style={[styles.badgeText, isActive && styles.activeBadgeText]}>{badge}</Text>
-      </View>
-    ) : null}
-  </TouchableOpacity>
-);
-
-const TabBar: React.FC = () => (
+const FilterTabBar: React.FC<FilterTabBarProps> = ({ tabs, activeTab, onTabChange, badgeCounts = {} }) => (
   <ScrollView
     horizontal
     showsHorizontalScrollIndicator={false}
     contentContainerStyle={styles.container}
   >
-    <Tab label="All" isActive />
-    <Tab label="Unreads" badge="23" />
-    <Tab label="Groups" badge="2" />
-    <Tab label="Favorites" />
-     <Tab label="+" />
+    {tabs.map(tab => {
+      const isActive = tab === activeTab;
+      const badge = badgeCounts[tab];
+      return (
+        <TouchableOpacity
+          key={tab}
+          style={[styles.chip, isActive && styles.chipActive]}
+          onPress={() => onTabChange(tab)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{tab}</Text>
+          {badge != null && badge > 0 && (
+            <View style={[styles.badge, isActive && styles.badgeActive]}>
+              <Text style={[styles.badgeText, isActive && styles.badgeTextActive]}>
+                {badge > 99 ? '99+' : badge}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    })}
   </ScrollView>
 );
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    paddingVertical: 18, 
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 2,
   },
-  tab: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 2, // minimal padding
-    backgroundColor: "#E9EAEC",
-    borderRadius: 25,
-    height: 33, // fixed small height
-    justifyContent: "center",
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    gap: 6,
   },
-  activeTab: {
-    backgroundColor: "#ff6600",
+  chipActive: {
+    backgroundColor: PURPLE,
   },
-  tabText: {
-    color: "#30303080",
-    fontSize: 16,
-    fontWeight: "bold",
+  chipText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
   },
-  activeText: {
-    color: "#fff",
+  chipTextActive: {
+    color: '#fff',
+    fontFamily: 'Poppins-Bold',
   },
   badge: {
-    marginLeft: 5,
-    minWidth: 16,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
   },
-  activeBadge: {
-    backgroundColor: "#fff",
+  badgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   badgeText: {
-    color: "#30303080",
-    fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    color: '#6B7280',
   },
-  activeBadgeText: {
-    color: "#ff6600",
+  badgeTextActive: {
+    color: '#fff',
   },
 });
 
-export default TabBar;
+export default FilterTabBar;

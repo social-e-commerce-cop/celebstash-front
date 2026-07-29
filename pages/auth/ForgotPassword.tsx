@@ -5,6 +5,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, Mail } from 'lucide-react-native';
 import ZikiiiInput from '@/components/ZikiiiInput';
 
+import { authService } from '@/lib/authService';
+
 // Define the navigation stack param list
 type AppStackParamList = {
   Splash: undefined;
@@ -17,7 +19,7 @@ type AppStackParamList = {
   PhoneVerification: { phone: string };
   EmailVerification: { email: string };
   ForgotPassword: undefined; 
-  CreatePassword: { email: string};
+  CreatePassword: { email: string; otp?: string };
   Verification: { identifier: string; type: 'email' | 'phone'; flow?: 'signup' | 'forgot_password' };
 };
 
@@ -28,18 +30,19 @@ const ForgotPassword: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [errors, setErrors] = useState<Record<string, string | null>>({});
-  
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const handleSendEmail = async () => {
     if (!emailOrPhone) return;
 
     setIsLoading(true);
+    setApiError(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await authService.initiatePasswordReset(emailOrPhone);
       const type = emailOrPhone.includes('@') ? 'email' : 'phone';
       navigation.navigate('Verification', { identifier: emailOrPhone, type, flow: 'forgot_password' });
-    } catch (error) {
-      console.error('Error sending reset email:', error);
+    } catch (error: any) {
+      setApiError(error.message || 'Failed to send reset code. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +73,14 @@ const ForgotPassword: React.FC = () => {
             Enter your email address and we'll send you a code to reset your password.
           </Text>
         </View>
+
+        {apiError ? (
+          <View style={{ backgroundColor: '#FEE2E2', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+            <Text style={{ color: '#DC2626', fontSize: 13, textAlign: 'center', fontFamily: 'Poppins-Medium' }}>
+              {apiError}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.forgotForm}>
           <View style={styles.inputContainer}>
