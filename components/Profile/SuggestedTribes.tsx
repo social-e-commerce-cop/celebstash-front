@@ -9,8 +9,8 @@ interface SuggestedTribe {
 }
 
 const suggestions: SuggestedTribe[] = [
-  { id: "1", name: "Emelyne", mates: "2.4M Mates", img: require("../../assets/images/feed6.jpg") },
-  { id: "2", name: "Emelyne", mates: "15 Mates" }, // will use default image
+  { id: "1", name: "Emelyne", mates: "2.4M Followers", img: require("../../assets/images/feed6.jpg") },
+  { id: "2", name: "Emelyne", mates: "15 Followers" }, // will use default image
 ];
 
 const defaultImg = require("../../assets/images/profile.jpg");
@@ -29,7 +29,7 @@ export default function SuggestedTribes() {
             </View>
           </View>
           <TouchableOpacity style={styles.mateBtn}>
-            <Text style={styles.mateText}>Mate</Text>
+            <Text style={styles.mateText}>Follow</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   mateBtn: {
     width: 80,
     height: 35,
-    backgroundColor: "rgba(255, 101, 14, 0.1)",
+    backgroundColor: "rgba(113, 38, 208, 0.1)",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 6,

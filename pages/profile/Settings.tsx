@@ -97,6 +97,7 @@ const SettingsScreen: React.FC = () => {
   const settingsItems = [
     { key: "edit-profile", title: "Edit Profile", icon: <Profile />, action: () => handlePress("EditProfile") },
     { key: "become-artist", title: "Claim Artist Status", icon: <Ionicons name="sparkles-outline" size={22} color={PURPLE} />, action: () => handlePress("BecomeArtist") },
+    { key: "admin-artist", title: "Admin: Artist Applications", icon: <Ionicons name="shield-checkmark-outline" size={22} color={PURPLE} />, action: () => handlePress("AdminArtistApplications") },
     { key: "address", title: "Shipping Address", icon: <Addres />, action: () => handlePress("AddressSetting") },
     { key: "notifications", title: "Notifications", icon: <Notifications />, action: () => handlePress("NotificationSettings") },
     { key: "password", title: "Change Password", icon: <Security />, action: () => handlePress("Security") },

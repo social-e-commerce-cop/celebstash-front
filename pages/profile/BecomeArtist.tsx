@@ -10,6 +10,8 @@ import {
   Alert,
   StatusBar,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -36,7 +38,7 @@ const BecomeArtist: React.FC = () => {
   const [stageName, setStageName] = useState(sessionUser.fullName || '');
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [bio, setBio] = useState('');
-  const [socialProofLink, setSocialProofLink] = useState('');
+  const [socialLinks, setSocialLinks] = useState<string[]>(['']);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,15 +49,36 @@ const BecomeArtist: React.FC = () => {
     fetchApplicationStatus();
   }, []);
 
+  const handleAddLink = () => {
+    setSocialLinks([...socialLinks, '']);
+  };
+
+  const handleUpdateLink = (index: number, text: string) => {
+    const updated = [...socialLinks];
+    updated[index] = text;
+    setSocialLinks(updated);
+  };
+
+  const handleRemoveLink = (index: number) => {
+    if (socialLinks.length === 1) {
+      setSocialLinks(['']);
+    } else {
+      setSocialLinks(socialLinks.filter((_, i) => i !== index));
+    }
+  };
+
   const fetchApplicationStatus = async () => {
     setIsLoading(true);
     try {
       const status = await artistService.getMyApplicationStatus();
-      if (status) {
+      if (status && status.status) {
         setExistingApplication(status);
+      } else {
+        setExistingApplication(null);
       }
     } catch (err) {
       console.log('Error checking artist application status:', err);
+      setExistingApplication(null);
     } finally {
       setIsLoading(false);
     }
@@ -74,12 +97,15 @@ const BecomeArtist: React.FC = () => {
     setErrorMsg(null);
     setIsSubmitting(true);
 
+    const validLinks = socialLinks.map((l) => l.trim()).filter(Boolean);
+    const combinedSocialProof = validLinks.join(', ');
+
     try {
       const result = await artistService.submitApplication({
         stageName: stageName.trim(),
         category: selectedCategory,
         bio: bio.trim(),
-        socialProofLink: socialProofLink.trim(),
+        socialProofLink: combinedSocialProof,
       });
 
       setExistingApplication(result);
@@ -95,8 +121,12 @@ const BecomeArtist: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -112,7 +142,7 @@ const BecomeArtist: React.FC = () => {
           <ActivityIndicator size="large" color={PURPLE} />
           <Text style={styles.loadingText}>Checking application status...</Text>
         </View>
-      ) : existingApplication ? (
+      ) : existingApplication && existingApplication.status ? (
         /* Status Card View if Application Exists */
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.statusCard}>
@@ -130,7 +160,7 @@ const BecomeArtist: React.FC = () => {
                   existingApplication.status === 'APPROVED'
                     ? '#10B981'
                     : existingApplication.status === 'PENDING'
-                    ? '#F59E0B'
+                    ? '#7126D0'
                     : '#EF4444'
                 }
               />
@@ -142,7 +172,7 @@ const BecomeArtist: React.FC = () => {
                       existingApplication.status === 'APPROVED'
                         ? '#10B981'
                         : existingApplication.status === 'PENDING'
-                        ? '#F59E0B'
+                        ? '#7126D0'
                         : '#EF4444',
                   },
                 ]}
@@ -180,6 +210,18 @@ const BecomeArtist: React.FC = () => {
               </View>
             ) : null}
 
+            {existingApplication.status === 'APPROVED' && (
+              <TouchableOpacity
+                style={styles.reapplyBtn}
+                onPress={() => {
+                  setSessionUser({ role: 'ARTIST' });
+                  navigation.navigate('MyProfile', { role: 'artist' });
+                }}
+              >
+                <Text style={styles.reapplyBtnText}>Go to Verified Artist Profile</Text>
+              </TouchableOpacity>
+            )}
+
             {existingApplication.status === 'REJECTED' && (
               <TouchableOpacity
                 style={styles.reapplyBtn}
@@ -188,11 +230,70 @@ const BecomeArtist: React.FC = () => {
                 <Text style={styles.reapplyBtnText}>Submit New Application</Text>
               </TouchableOpacity>
             )}
+
+            {/* Admin Review Quick Actions (For Testing & Curation) */}
+            <View style={styles.adminBox}>
+              <View style={styles.adminHeader}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={PURPLE} />
+                <Text style={styles.adminTitle}>Admin Curation Portal</Text>
+              </View>
+
+              {existingApplication.status === 'PENDING' && (
+                <View style={styles.adminActions}>
+                  <TouchableOpacity
+                    style={[styles.adminBtn, styles.adminBtnApprove]}
+                    onPress={async () => {
+                      try {
+                        const updated = await artistService.reviewApplication(existingApplication.id, true);
+                        setExistingApplication(updated);
+                        setSessionUser({ role: 'ARTIST' });
+                        Alert.alert('Approved!', 'Application approved! User converted to Artist with Verified Badge & Artist Wallet.');
+                      } catch (err: any) {
+                        Alert.alert('Error', err.message || 'Failed to approve');
+                      }
+                    }}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color="#FFF" />
+                    <Text style={styles.adminBtnText}>Approve & Tag Artist</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.adminBtn, styles.adminBtnReject]}
+                    onPress={async () => {
+                      try {
+                        const updated = await artistService.reviewApplication(
+                          existingApplication.id,
+                          false,
+                          'Follower count proof threshold not met.'
+                        );
+                        setExistingApplication(updated);
+                        Alert.alert('Declined', 'Application declined.');
+                      } catch (err: any) {
+                        Alert.alert('Error', err.message || 'Failed to reject');
+                      }
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#DC2626" />
+                    <Text style={[styles.adminBtnText, { color: '#DC2626' }]}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.adminLinkBtn}
+                onPress={() => navigation.navigate('AdminArtistApplications')}
+              >
+                <Text style={styles.adminLinkText}>Open Full Admin Dashboard →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       ) : (
-        /* Application Form View */
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Banner */}
           <View style={styles.bannerCard}>
             <Ionicons name="sparkles" size={32} color={PURPLE} />
@@ -215,7 +316,7 @@ const BecomeArtist: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="e.g. Kenny K Shot"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#333"
               value={stageName}
               onChangeText={setStageName}
             />
@@ -255,14 +356,39 @@ const BecomeArtist: React.FC = () => {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Social Proof / Portfolio Link</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. instagram.com/artist handle or Spotify link"
-              placeholderTextColor="#9CA3AF"
-              value={socialProofLink}
-              onChangeText={setSocialProofLink}
-            />
+            <View style={styles.labelHeaderRow}>
+              <Text style={styles.label}>Social Proof & Portfolio Links</Text>
+              <TouchableOpacity onPress={handleAddLink} style={styles.addLinkHeaderBtn}>
+                <Ionicons name="add-circle-outline" size={18} color={PURPLE} />
+                <Text style={styles.addLinkHeaderText}>Add Another Link</Text>
+              </TouchableOpacity>
+            </View>
+
+            {socialLinks.map((link, idx) => (
+              <View key={idx} style={styles.linkInputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  placeholder={
+                    idx === 0
+                      ? 'e.g. instagram.com/artisthandle'
+                      : idx === 1
+                      ? 'e.g. spotify.com/artist/...'
+                      : 'e.g. tiktok.com/@artisthandle'
+                  }
+                  placeholderTextColor="#9CA3AF"
+                  value={link}
+                  onChangeText={(text) => handleUpdateLink(idx, text)}
+                />
+                {socialLinks.length > 1 && (
+                  <TouchableOpacity
+                    onPress={() => handleRemoveLink(idx)}
+                    style={styles.removeLinkBtn}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
           </View>
 
           <TouchableOpacity
@@ -279,6 +405,7 @@ const BecomeArtist: React.FC = () => {
         </ScrollView>
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -294,8 +421,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   backBtn: {
     padding: 4,
@@ -335,7 +460,7 @@ const styles = StyleSheet.create({
   },
   bannerSub: {
     fontSize: 13,
-    fontFamily: 'Poppins-Regular',
+    fontFamily: 'PoppinsMedium',
     color: '#6B21A8',
     textAlign: 'center',
     marginTop: 6,
@@ -360,20 +485,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: 'Poppins-Medium',
     color: '#374151',
     marginBottom: 8,
   },
   input: {
     backgroundColor: '#F9FAFB',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#E5E7EB',
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: 14,
     height: 48,
     fontSize: 14,
     fontFamily: 'Poppins-Regular',
-    color: '#1F2937',
+    color: '#333',
   },
   textArea: {
     height: 100,
@@ -387,7 +512,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
+    borderRadius: 8,
     marginRight: 10,
   },
   categoryPillActive: {
@@ -403,8 +528,8 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     backgroundColor: PURPLE,
-    height: 52,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
@@ -473,6 +598,86 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
+  },
+  adminBox: {
+    marginTop: 24,
+    backgroundColor: '#F3E8FF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+  },
+  adminHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  adminTitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: PURPLE,
+  },
+  adminActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  adminBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 4,
+  },
+  adminBtnApprove: {
+    backgroundColor: PURPLE,
+  },
+  adminBtnReject: {
+    backgroundColor: '#FEE2E2',
+  },
+  adminBtnText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+  },
+  adminLinkBtn: {
+    alignItems: 'center',
+    marginTop: 4,
+    paddingVertical: 4,
+  },
+  adminLinkText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-SemiBold',
+    color: PURPLE,
+    textDecorationLine: 'underline',
+  },
+  labelHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  addLinkHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addLinkHeaderText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: PURPLE,
+  },
+  linkInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  removeLinkBtn: {
+    padding: 8,
   },
 });
 

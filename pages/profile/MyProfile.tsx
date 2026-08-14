@@ -8,11 +8,14 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
+  Share,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import TabBar from '@/components/Tabbar';
+import { FollowListModal } from '@/components/Profile/FollowListModal';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -160,68 +163,100 @@ const MyProfile: React.FC = () => {
       artistService.getMyApplicationStatus().then((status) => {
         if (status) {
           setAppStatus(status.status);
-          if (status.status === 'APPROVED') {
+          if (status.status === 'APPROVED' || user.role === 'ARTIST') {
             setRole('artist');
+          } else {
+            setRole('user');
           }
+        } else if (user.role === 'ARTIST') {
+          setRole('artist');
+        } else {
+          setRole('user');
         }
       });
     }, [])
   );
 
-  // Determine role: can be passed via route params or toggled
-  const [role, setRole] = useState<UserRole>(route.params?.role || 'user');
-  const [isSelf, setIsSelf] = useState(true);
+  // Determine if viewing own profile or someone else's profile
+  const isOtherUser = !!(route.params?.isOtherUser || (route.params?.username && route.params.username !== sessionUser.username));
+  const isOwnProfile = !isOtherUser;
+
+  // Determine role based on session and route params
+  const targetRole = isOtherUser 
+    ? (route.params?.role || 'user') 
+    : (sessionUser.role === 'ARTIST' ? 'artist' : (route.params?.role || 'user'));
+
+  const [role, setRole] = useState<UserRole>(targetRole);
+
+  React.useEffect(() => {
+    if (!isOtherUser) {
+      setRole(sessionUser.role === 'ARTIST' ? 'artist' : 'user');
+    } else if (route.params?.role) {
+      setRole(route.params.role);
+    }
+  }, [sessionUser.role, route.params?.role, isOtherUser]);
 
   // Active Tab per role
-  const [artistTab, setArtistTab] = useState<'Feed' | 'Shop' | 'Music' | 'Event' | 'Auction'>('Feed');
-  const [userTab, setUserTab] = useState<'Feed' | 'Saved' | 'Orders' | 'Tribes'>('Feed');
+  const [artistTab, setArtistTab] = useState<'Feed' | 'Shop' | 'Music' | 'Concerts' | 'Analytics' | 'Reposts'>('Feed');
+  const [userTab, setUserTab] = useState<'Feed' | 'Saved' | 'Orders' | 'Tribes' | 'Reposts'>('Feed');
 
-  const [isMated, setIsMated] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
 
-  const displayName = role === 'artist' ? 'Kenny K Shot' : (sessionUser.fullName || 'User');
-  const displayHandle = role === 'artist'
-    ? '@Artist'
-    : `@${sessionUser.username || sessionUser.fullName?.toLowerCase().replace(/\s+/g, '') || 'user'}`;
+  // Followers & Following Instagram-style Modal State
+  const [followModalVisible, setFollowModalVisible] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<'Followers' | 'Following'>('Followers');
+
+  const openFollowModal = (tab: 'Followers' | 'Following') => {
+    setFollowModalTab(tab);
+    setFollowModalVisible(true);
+  };
+
+  const displayName = isOtherUser
+    ? (route.params?.name || 'Emelyne')
+    : (role === 'artist' ? (sessionUser.fullName || 'Kenny K Shot') : (sessionUser.fullName || 'User'));
+
+  const displayHandle = isOtherUser
+    ? `@${route.params?.username || 'emelyne'}`
+    : `@${sessionUser.username || 'user'}`;
+
+  const avatarSource = isOtherUser
+    ? (route.params?.avatar || require('../../assets/images/feed6.jpg'))
+    : (role === 'artist' ? require('../../assets/images/black-man.png') : require('../../assets/images/profile.jpg'));
+
+  const handleShareStash = async () => {
+    try {
+      const handle = isOtherUser ? (route.params?.username || 'emelyne') : (sessionUser.username || 'user');
+      const shareUrl = `https://celebstash.com/@${handle}`;
+      await Share.share({
+        title: `Check out ${displayName}'s CelebStash Profile!`,
+        message: `Hey! Check out @${handle}'s profile and Stash on CelebStash: ${shareUrl}`,
+        url: shareUrl,
+      });
+    } catch (error: any) {
+      Alert.alert('Share Error', error?.message || 'Unable to open share sheet.');
+    }
+  };
+
+  const artistTabList = isOwnProfile
+    ? (['Feed', 'Shop', 'Music', 'Concerts', 'Analytics'] as const)
+    : (['Feed', 'Shop', 'Music', 'Concerts', 'Reposts'] as const);
+
+  const userTabList = isOwnProfile
+    ? (['Feed', 'Saved', 'Orders', 'Tribes'] as const)
+    : (['Feed', 'Reposts', 'Tribes'] as const);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* ── Role Switcher Pill Bar (For Previewing Both Roles) ── */}
-        <View style={styles.roleToggleContainer}>
-          <TouchableOpacity
-            style={[styles.roleChip, role === 'user' && styles.roleChipActive]}
-            onPress={() => setRole('user')}
-          >
-            <Ionicons name="person-outline" size={14} color={role === 'user' ? '#FFF' : '#6B7280'} />
-            <Text style={[styles.roleChipText, role === 'user' && styles.roleChipTextActive]}>
-              Normal User View
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.roleChip, role === 'artist' && styles.roleChipActive]}
-            onPress={() => setRole('artist')}
-          >
-            <Ionicons name="color-palette-outline" size={14} color={role === 'artist' ? '#FFF' : '#6B7280'} />
-            <Text style={[styles.roleChipText, role === 'artist' && styles.roleChipTextActive]}>
-              Artist Profile View
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* ── Unified Profile Header ── */}
         <View style={styles.headerContainer}>
           {/* Top Row: Avatar + Info + Hamburger Menu */}
           <View style={styles.profileTopRow}>
             <Image
-              source={
-                role === 'artist'
-                  ? require('../../assets/images/black-man.png')
-                  : require('../../assets/images/profile.jpg')
-              }
+              source={avatarSource}
               style={styles.avatar}
             />
 
@@ -230,37 +265,103 @@ const MyProfile: React.FC = () => {
                 <Text style={styles.artistName}>
                   {displayName}
                 </Text>
-                <Ionicons name="checkmark-circle" size={16} color={PURPLE} style={styles.verifiedIcon} />
+                {role === 'artist' && (
+                  <Ionicons name="checkmark-circle" size={16} color={PURPLE} style={styles.verifiedIcon} />
+                )}
               </View>
               <Text style={styles.handle}>{displayHandle}</Text>
 
-              {/* Dynamic Stats Row based on Role */}
+              {/* Dynamic Clickable Stats Row (Single Row Layout) */}
               <View style={styles.statsRow}>
-                {role === 'artist' ? (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => openFollowModal('Followers')}
+                >
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>{role === 'artist' ? '12.4K' : '1.2K'}</Text> Followers
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => openFollowModal('Following')}
+                >
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>340</Text> Following
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => (role === 'artist' ? setArtistTab('Shop') : setUserTab(isOwnProfile ? 'Orders' : 'Tribes'))}
+                >
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>{role === 'artist' ? '40' : '5'}</Text> {role === 'artist' ? 'Drops' : 'Orders'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons Row: Own Profile (Edit/Share) vs Someone Else (Follow/Message) */}
+              <View style={styles.actionButtonsRow}>
+                {isOwnProfile ? (
                   <>
-                    <Text style={styles.statText}>
-                      <Text style={styles.statNumber}>12.4K</Text> Followers
-                    </Text>
-                    <Text style={styles.statDot}>•</Text>
-                    <Text style={styles.statText}>
-                      <Text style={styles.statNumber}>40</Text> Drops
-                    </Text>
+                    <TouchableOpacity
+                      style={styles.mateBtn}
+                      onPress={() => navigation.navigate('EditProfile')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.mateBtnText}>Edit Profile</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.messageBtn}
+                      onPress={handleShareStash}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.messageBtnText}>Share Stash</Text>
+                    </TouchableOpacity>
                   </>
                 ) : (
                   <>
-                    <Text style={styles.statText}>
-                      <Text style={styles.statNumber}>1.2K</Text> Mates
-                    </Text>
-                    <Text style={styles.statDot}>•</Text>
-                    <Text style={styles.statText}>
-                      <Text style={styles.statNumber}>18</Text> Saved
-                    </Text>
-                    <Text style={styles.statDot}>•</Text>
-                    <Text style={styles.statText}>
-                      <Text style={styles.statNumber}>5</Text> Orders
-                    </Text>
+                    <TouchableOpacity
+                      style={[styles.mateBtn, isFollowing && styles.matedBtn]}
+                      onPress={() => setIsFollowing(!isFollowing)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.mateBtnText, isFollowing && styles.matedBtnText]}>
+                        {isFollowing ? 'Following' : 'Follow'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.messageBtn}
+                      onPress={() => navigation.navigate('MessagesScreen')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.messageBtnText}>Message</Text>
+                    </TouchableOpacity>
                   </>
                 )}
+              </View>
+
+              {/* Bio Paragraph */}
+              <Text style={styles.bioText}>
+                {role === 'artist'
+                  ? 'Multi-instrumental ambient producer & digital designer. Crafting slow soundscapes for busy minds. Weekly vinyl & digital drops. 🌊'
+                  : 'Passionate music enthusiast, collector of rare vinyls & streetwear drops. Always exploring slow soundscapes! ✈️🍕'}
+              </Text>
+
+              {/* Community Badges (Placed Directly Under Bio) */}
+              <View style={styles.communityBadgesRow}>
+                <TouchableOpacity
+                  style={styles.communityBadgePill}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('MessagesScreen')}
+                >
+                  <Ionicons name="flash" size={13} color="#7126D0" />
+                  <Text style={styles.communityBadgeText}>Ibisumizi Tribe Member</Text>
+                  <Text style={styles.communityBadgeSub}>since 2025</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -269,117 +370,171 @@ const MyProfile: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Action Buttons Row: Role & Context Dependent */}
-          <View style={styles.actionButtonsRow}>
-            {isSelf ? (
-              <>
-                <TouchableOpacity
-                  style={styles.mateBtn}
-                  onPress={() => navigation.navigate('EditProfile')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.mateBtnText}>Edit Profile</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.messageBtn}
-                  onPress={() => {}}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.messageBtnText}>Share Stash</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.mateBtn, isMated && styles.matedBtn]}
-                  onPress={() => setIsMated(!isMated)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.mateBtnText, isMated && styles.matedBtnText]}>
-                    {isMated ? 'Mated' : 'Mate'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.messageBtn}
-                  onPress={() => navigation.navigate('MessagesScreen')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.messageBtnText}>Message</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-
-          {/* Pending Artist Application Banner */}
-          {appStatus === 'PENDING' && (
-            <TouchableOpacity 
-              style={styles.pendingBanner}
-              onPress={() => navigation.navigate('BecomeArtist')}
+          {/* Artist Exclusive Tribe Broadcast Channel */}
+          {role === 'artist' && (
+            <TouchableOpacity
+              style={styles.tribeChannelCard}
               activeOpacity={0.85}
+              onPress={() => navigation.navigate('MessagesScreen')}
             >
-              <Ionicons name="time-outline" size={22} color="#D97706" />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.pendingBannerTitle}>Artist Application Under Review</Text>
-                <Text style={styles.pendingBannerSub}>Tap to view your submission & social proof status.</Text>
+              <View style={styles.tribeIconContainer}>
+                <Ionicons name="people" size={20} color="#7126D0" />
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#D97706" />
+              <View style={styles.tribeInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.tribeTitle}>Ibisumizi Tribe Channel</Text>
+                  <View style={styles.officialBadge}>
+                    <Text style={styles.officialBadgeText}>Official</Text>
+                  </View>
+                </View>
+                <Text style={styles.tribeSub}>14.2K members • Exclusive fan chatter & drops</Text>
+              </View>
+              <View style={styles.joinTribeBtn}>
+                <Text style={styles.joinTribeText}>Join</Text>
+              </View>
             </TouchableOpacity>
           )}
-
-          {/* Bio Paragraph */}
-          <Text style={styles.bioText}>
-            {role === 'artist'
-              ? 'Multi-instrumental ambient producer & digital designer. Crafting slow soundscapes for busy minds. Weekly vinyl & digital drops. 🌊'
-              : 'Passionate music enthusiast, collector of rare vinyls & streetwear drops. Always exploring slow soundscapes! ✈️🍕'}
-          </Text>
-
-          {/* Premium Access / Upgrade Banner */}
-          <View style={styles.premiumBanner}>
-            <View style={styles.premiumTextWrap}>
-              <View style={styles.premiumTagRow}>
-                <View style={styles.purpleDot} />
-                <Text style={styles.premiumTag}>
-                  {role === 'artist' ? 'PREMIUM ACCESS' : 'BECOME AN ARTIST'}
-                </Text>
-              </View>
-              <Text style={styles.premiumTitle}>
-                {role === 'artist'
-                  ? 'Are you an artist who wants to sell your merch?'
-                  : 'Start your Stash store & sell merch to your fans'}
-              </Text>
-              <Text style={styles.premiumSubtitle}>Restart Pro for only $0.89</Text>
+https://dwbe02.downloadwella.com/d/viwy4fddbwatc4c5e3yr2x7it35ifcn2ldkymzda2jxr4dtrin3idgh3irfugnguz7673s5g/Bon.Appetit.Your.Majesty.E03.(NKIRI.COM).mkv
+          {/* Story Highlights & Archive Row */}
+          <View style={styles.highlightsContainer}>
+            <View style={styles.highlightsHeader}>
+              <Text style={styles.highlightsTitle}>Story Highlights</Text>
+              {isOwnProfile && (
+                <TouchableOpacity
+                  style={styles.archiveLink}
+                  onPress={() => Alert.alert('Story Archive', 'Showing your 24h expired stories archive.')}
+                >
+                  <Ionicons name="time-outline" size={14} color="#7126D0" />
+                  <Text style={styles.archiveLinkText}>Archive</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            <TouchableOpacity style={styles.claimBtn} activeOpacity={0.85}>
-              <Text style={styles.claimBtnText}>Claim Now</Text>
-            </TouchableOpacity>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightsScroll}>
+              {/* Add New Highlight Button */}
+              {isOwnProfile && (
+                <TouchableOpacity
+                  style={styles.highlightItem}
+                  onPress={() => Alert.alert('New Highlight', 'Create a highlight collection from archived stories!')}
+                >
+                  <View style={styles.newHighlightCircle}>
+                    <Ionicons name="add" size={24} color="#7126D0" />
+                  </View>
+                  <Text style={styles.highlightLabel}>New</Text>
+                </TouchableOpacity>
+              )}
+
+              {[
+                { title: 'Concerts 🎸', image: require('../../assets/images/feed7.png') },
+                { title: 'Studio 🎧', image: require('../../assets/images/storyItem.jpg') },
+                { title: 'Merch 🛍️', image: require('../../assets/images/drop1.jpg') },
+              ].map((h, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.highlightItem}
+                  onPress={() => navigation.navigate('ProfileDetails', { story: { id: 80 + i, username: h.title, image: h.image } })}
+                >
+                  <View style={styles.highlightCircle}>
+                    <Image source={h.image} style={styles.highlightImage} />
+                  </View>
+                  <Text style={styles.highlightLabel} numberOfLines={1}>{h.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
+
+          {/* Banners: ONLY DISPLAYED ON YOUR OWN PROFILE */}
+          {isOwnProfile && (
+            <>
+              {role === 'artist' ? (
+                /* 1. APPROVED ARTIST -> Professional Dashboard Banner */
+                <TouchableOpacity
+                  style={styles.premiumBanner}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('Dashboard')}
+                >
+                  <View style={styles.premiumTextWrap}>
+                    <View style={styles.premiumTagRow}>
+                      <View style={styles.purpleDot} />
+                      <Text style={styles.premiumTag}>PROFESSIONAL DASHBOARD</Text>
+                    </View>
+                    <Text style={styles.premiumTitle}>14.2K accounts reached in the last 30 days</Text>
+                    <Text style={styles.premiumSubtitle}>View insights & manage your Stash store</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.claimBtn}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('Dashboard')}
+                  >
+                    <Text style={styles.claimBtnText}>Dashboard</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ) : appStatus === 'PENDING' ? (
+                /* 2. PENDING APPLICATION -> Application Under Review Banner */
+                <TouchableOpacity 
+                  style={styles.pendingBanner}
+                  onPress={() => navigation.navigate('BecomeArtist')}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="time-outline" size={22} color="#D97706" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.pendingBannerTitle}>Artist Application Under Review</Text>
+                    <Text style={styles.pendingBannerSub}>Tap to view your submission & social proof status.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#D97706" />
+                </TouchableOpacity>
+              ) : (
+                /* 3. DEFAULT OR REJECTED -> Become an Artist (Claim Now) Banner */
+                <TouchableOpacity
+                  style={styles.premiumBanner}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('BecomeArtist')}
+                >
+                  <View style={styles.premiumTextWrap}>
+                    <View style={styles.premiumTagRow}>
+                      <View style={styles.purpleDot} />
+                      <Text style={styles.premiumTag}>BECOME AN ARTIST</Text>
+                    </View>
+                    <Text style={styles.premiumTitle}>Start your Stash store & sell merch to your fans</Text>
+                    <Text style={styles.premiumSubtitle}>Claim your artist badge & unlock seller tools</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.claimBtn}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('BecomeArtist')}
+                  >
+                    <Text style={styles.claimBtnText}>Claim Now</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
 
         {/* ── Role-based Sub-Tabs Bar ── */}
         <View style={styles.tabsBar}>
           {role === 'artist'
-            ? (['Feed', 'Shop', 'Music', 'Event', 'Auction'] as const).map(tab => {
+            ? artistTabList.map(tab => {
                 const isActive = artistTab === tab;
                 return (
                   <TouchableOpacity
                     key={tab}
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
-                    onPress={() => setArtistTab(tab)}
+                    onPress={() => setArtistTab(tab as any)}
                   >
                     <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab}</Text>
                   </TouchableOpacity>
                 );
               })
-            : (['Feed', 'Saved', 'Orders', 'Tribes'] as const).map(tab => {
+            : userTabList.map(tab => {
                 const isActive = userTab === tab;
                 return (
                   <TouchableOpacity
                     key={tab}
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
-                    onPress={() => setUserTab(tab)}
+                    onPress={() => setUserTab(tab as any)}
                   >
                     <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab}</Text>
                   </TouchableOpacity>
@@ -651,27 +806,90 @@ const MyProfile: React.FC = () => {
           </View>
         )}
 
-        {/* 7. Event & Auction Tabs (Artist) */}
-        {role === 'artist' && (artistTab === 'Event' || artistTab === 'Auction') && (
+        {/* 7. Concerts Tab (Artist) */}
+        {role === 'artist' && artistTab === 'Concerts' && (
           <View style={styles.tabContent}>
-            <View style={styles.orderCard}>
-              <View style={styles.orderInfo}>
-                <Text style={styles.orderTitle}>
-                  {artistTab === 'Event' ? 'Vortex Neon World Tour' : 'Signed Ethereal Vinyl #001'}
-                </Text>
-                <Text style={styles.orderPrice}>
-                  {artistTab === 'Event' ? 'AUG 12 • Los Angeles, CA' : 'Current Bid: $340'}
-                </Text>
+            {[
+              { title: 'Vortex Neon World Tour', date: 'AUG 12, 2026', venue: 'Crypto.com Arena • Los Angeles, CA', price: '$85.00' },
+              { title: 'Ethereal Acoustic Sessions', date: 'SEP 04, 2026', venue: 'Radio City Music Hall • New York, NY', price: '$65.00' },
+              { title: 'Slow Soundscapes Live', date: 'OCT 18, 2026', venue: 'O2 Academy Brixton • London, UK', price: '£45.00' },
+            ].map((concert, idx) => (
+              <View key={idx} style={styles.orderCard}>
+                <View style={styles.orderInfo}>
+                  <Text style={styles.orderTitle}>{concert.title}</Text>
+                  <Text style={styles.orderNo}>{concert.venue}</Text>
+                  <Text style={styles.orderPrice}>{concert.date} • From {concert.price}</Text>
+                </View>
+                <TouchableOpacity style={styles.streamBtn}>
+                  <Text style={styles.streamBtnText}>Tickets</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.streamBtn}>
-                <Text style={styles.streamBtnText}>
-                  {artistTab === 'Event' ? 'Tickets' : 'Place Bid'}
-                </Text>
+            ))}
+          </View>
+        )}
+
+        {/* 8. Analytics & Artist Wallet Tab (Artist) */}
+        {role === 'artist' && artistTab === 'Analytics' && (
+          <View style={styles.tabContent}>
+            {/* Artist Wallet Summary Card */}
+            <View style={styles.artistWalletCard}>
+              <View style={styles.walletHeaderRow}>
+                <View>
+                  <Text style={styles.walletLabel}>ARTIST WALLET BALANCE</Text>
+                  <Text style={styles.walletAmount}>$4,820.50</Text>
+                </View>
+                <View style={styles.walletBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                  <Text style={styles.walletBadgeText}>Verified</Text>
+                </View>
+              </View>
+              <Text style={styles.walletSub}>+ $640.00 pending payout from merch & ticket sales this week.</Text>
+              <TouchableOpacity
+                style={styles.payoutBtn}
+                onPress={() => navigation.navigate('Ewallet')}
+              >
+                <Ionicons name="wallet-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.payoutBtnText}>Manage Wallet & Payouts</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Performance Analytics Grid */}
+            <Text style={styles.sectionHeading}>CREATOR PERFORMANCE</Text>
+            <View style={styles.analyticsGrid}>
+              <View style={styles.metricItem}>
+                <Text style={styles.metricNumber}>142.8K</Text>
+                <Text style={styles.metricLabel}>Monthly Listeners</Text>
+                <Text style={styles.metricGrowth}>+18.4% this month</Text>
+              </View>
+
+              <View style={styles.metricItem}>
+                <Text style={styles.metricNumber}>$12.4K</Text>
+                <Text style={styles.metricLabel}>Total Merch Sales</Text>
+                <Text style={styles.metricGrowth}>+24.1% vs last month</Text>
+              </View>
+
+              <View style={styles.metricItem}>
+                <Text style={styles.metricNumber}>18.9K</Text>
+                <Text style={styles.metricLabel}>Track Streams</Text>
+                <Text style={styles.metricGrowth}>+12.0% this week</Text>
+              </View>
+
+              <View style={styles.metricItem}>
+                <Text style={styles.metricNumber}>94.2%</Text>
+                <Text style={styles.metricLabel}>Fan Engagement</Text>
+                <Text style={styles.metricGrowth}>Top 5% Creators</Text>
+              </View>
             </View>
           </View>
         )}
       </ScrollView>
+
+      {/* Followers / Following List Modal */}
+      <FollowListModal
+        visible={followModalVisible}
+        initialTab={followModalTab}
+        onClose={() => setFollowModalVisible(false)}
+      />
 
       {/* Footer Navigation */}
       <View style={styles.tabBarContainer}>
@@ -726,18 +944,17 @@ const styles = StyleSheet.create({
 
   // ── Header ──
   headerContainer: {
-    paddingTop: 14,
+    paddingTop: 48,
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
   },
   profileTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 14,
   },
   avatar: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderRadius: 32,
     marginRight: 14,
   },
@@ -751,30 +968,32 @@ const styles = StyleSheet.create({
   artistName: {
     fontSize: 18,
     fontFamily: 'Poppins-Bold',
-    color: '#111',
+    color: '#111827',
   },
   verifiedIcon: {
     marginLeft: 4,
   },
   handle: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Regular',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
     color: '#6B7280',
     marginTop: -2,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
+    gap: 14,
   },
   statText: {
-    fontSize: 11,
-    fontFamily: 'Poppins-Regular',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
     color: '#6B7280',
   },
   statNumber: {
+    fontSize: 14,
     fontFamily: 'Poppins-Bold',
-    color: '#111',
+    color: '#111827',
   },
   statDot: {
     marginHorizontal: 5,
@@ -784,17 +1003,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     alignItems: 'flex-end',
-    justifyContent: 'center',
   },
   actionButtonsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 12,
+    paddingVertical: 14,
   },
   mateBtn: {
     flex: 1,
     backgroundColor: PURPLE,
-    borderRadius: 20,
+    borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
@@ -803,7 +1021,7 @@ const styles = StyleSheet.create({
   },
   mateBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Poppins-Bold',
   },
   matedBtnText: {
@@ -812,7 +1030,7 @@ const styles = StyleSheet.create({
   messageBtn: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
+    borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
@@ -1291,6 +1509,245 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Poppins-Regular',
     color: '#B45309',
+  },
+
+  // Artist Wallet & Analytics Styles
+  artistWalletCard: {
+    backgroundColor: '#7126D0',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+  },
+  walletHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  walletLabel: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    color: '#D8B4FE',
+    letterSpacing: 1,
+  },
+  walletAmount: {
+    fontSize: 28,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    marginTop: 2,
+  },
+  walletBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  walletBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+  },
+  walletSub: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#F3E8FF',
+    marginTop: 8,
+    lineHeight: 16,
+  },
+  payoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 14,
+    gap: 8,
+  },
+  payoutBtnText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  metricItem: {
+    width: (width - 44) / 2,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 14,
+  },
+  metricNumber: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  metricGrowth: {
+    fontSize: 11,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#10B981',
+    marginTop: 6,
+  },
+  communityBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  communityBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F0FD',
+    borderWidth: 1,
+    borderColor: 'rgba(113, 38, 208, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 5,
+  },
+  communityBadgeText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: '#7126D0',
+  },
+  communityBadgeSub: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#666',
+  },
+  tribeChannelCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1,
+    borderColor: 'rgba(113, 38, 208, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  tribeIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EAE0F8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  tribeInfo: {
+    flex: 1,
+  },
+  tribeTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+  },
+  officialBadge: {
+    backgroundColor: '#7126D0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  officialBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontFamily: 'Poppins-Bold',
+  },
+  tribeSub: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#666',
+    marginTop: 1,
+  },
+  joinTribeBtn: {
+    backgroundColor: '#7126D0',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  joinTribeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+  },
+  highlightsContainer: {
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  highlightsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  highlightsTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+  },
+  archiveLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  archiveLinkText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: '#7126D0',
+  },
+  highlightsScroll: {
+    paddingRight: 10,
+    gap: 14,
+  },
+  highlightItem: {
+    alignItems: 'center',
+    width: 62,
+  },
+  newHighlightCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 1.5,
+    borderColor: '#7126D0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F0FD',
+  },
+  highlightCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    padding: 2,
+  },
+  highlightImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 25,
+  },
+  highlightLabel: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Medium',
+    color: '#333',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
 

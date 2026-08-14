@@ -8,10 +8,14 @@ import {
   Dimensions,
   StatusBar,
   ScrollView,
+  TextInput,
+  Alert,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Svg, { Path } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
+import { storiesService } from "@/lib/storiesService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -22,34 +26,26 @@ type AppStackParamList = {
 type ProfileDetailsScreenRouteProp = RouteProp<AppStackParamList, "ProfileDetails">;
 
 // Stories list for each artist to display multiple stories at the top
-const artistStoriesMap: Record<string, { image: any; likes: string; bookmarks: string }[]> = {
+const artistStoriesMap: Record<string, { id?: number; image: any; likes: string; bookmarks: string }[]> = {
   "blue_boy": [
-    { image: require("../../assets/images/storyItem.jpg"), likes: "12.2k", bookmarks: "346.8k" },
-    { image: require("../../assets/images/products/product1.jpg"), likes: "8.4k", bookmarks: "120.5k" },
-    { image: require("../../assets/images/drop1.jpg"), likes: "15.1k", bookmarks: "412.3k" },
+    { id: 201, image: require("../../assets/images/storyItem.jpg"), likes: "12.2k", bookmarks: "346.8k" },
+    { id: 202, image: require("../../assets/images/products/product1.jpg"), likes: "8.4k", bookmarks: "120.5k" },
+    { id: 203, image: require("../../assets/images/drop1.jpg"), likes: "15.1k", bookmarks: "412.3k" },
   ],
   "steve.loves": [
-    { image: require("../../assets/images/story2.png"), likes: "10.2k", bookmarks: "220.1k" },
-    { image: require("../../assets/images/products/product3.jpg"), likes: "6.7k", bookmarks: "98.4k" },
-    { image: require("../../assets/images/products/product2.jpg"), likes: "11.5k", bookmarks: "310.2k" },
+    { id: 204, image: require("../../assets/images/story2.png"), likes: "10.2k", bookmarks: "220.1k" },
   ],
   "waggles": [
-    { image: require("../../assets/images/story3.png"), likes: "14.5k", bookmarks: "512.0k" },
-    { image: require("../../assets/images/products/product4.jpg"), likes: "9.2k", bookmarks: "143.6k" },
-    { image: require("../../assets/images/products/product5.jpg"), likes: "18.3k", bookmarks: "621.9k" },
+    { id: 205, image: require("../../assets/images/story3.png"), likes: "14.5k", bookmarks: "512.0k" },
   ],
   "sabanok...": [
-    { image: require("../../assets/images/story1.png"), likes: "15.4k", bookmarks: "480.2k" },
-    { image: require("../../assets/images/products/product6.jpg"), likes: "11.2k", bookmarks: "180.5k" },
-    { image: require("../../assets/images/products/product7.jpg"), likes: "22.1k", bookmarks: "540.9k" },
+    { id: 206, image: require("../../assets/images/story1.png"), likes: "15.4k", bookmarks: "480.2k" },
   ],
 };
 
 const getStoriesForArtist = (username: string) => {
   return artistStoriesMap[username] || [
-    { image: require("../../assets/images/story1.png"), likes: "5.2k", bookmarks: "88.1k" },
-    { image: require("../../assets/images/products/product6.jpg"), likes: "7.1k", bookmarks: "115.4k" },
-    { image: require("../../assets/images/products/product7.jpg"), likes: "12.3k", bookmarks: "245.8k" },
+    { id: 207, image: require("../../assets/images/story1.png"), likes: "5.2k", bookmarks: "88.1k" },
   ];
 };
 
@@ -70,10 +66,25 @@ const ProfileDetails: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
 
+  const [showAnalyticsDrawer, setShowAnalyticsDrawer] = useState(false);
+  const [replyText, setReplyText] = useState('');
+
   const pressStartTime = useRef(0);
   const hasNavigatedAway = useRef(false);
   const stories = getStoriesForArtist(currentArtist.username);
   const currentStory = stories[currentStoryIndex];
+
+  const handleSendReaction = (emoji: string) => {
+    storiesService.reactToStory(currentStory.id || 1, emoji);
+    Alert.alert('Quick Reaction', `Sent ${emoji} to ${currentArtist.username}!`);
+  };
+
+  const handleSendReply = () => {
+    if (!replyText.trim()) return;
+    storiesService.replyToStory(currentStory.id || 1, replyText.trim());
+    setReplyText('');
+    Alert.alert('Reply Sent', `Your message was sent to ${currentArtist.username}`);
+  };
 
   // Story ticking timer effect
   useEffect(() => {
@@ -249,6 +260,33 @@ const ProfileDetails: React.FC = () => {
         />
       </View>
 
+      {/* Interactive Shoppable Sticker for Artists */}
+      {((currentArtist as any).hasSticker || currentArtist.username === 'Kenny K Shot' || currentArtist.username === 'sabanok...') && (
+        <TouchableOpacity
+          style={styles.storySticker}
+          activeOpacity={0.85}
+          onPress={() => {
+            navigation.navigate('ProductDetails', {
+              name: 'Eras Tour Crystal Jacket',
+              price: '$250',
+              image: require('../../assets/images/feed6.jpg'),
+              description: 'Official Limited Edition Merch as seen on story.',
+              artistName: currentArtist.username,
+              verified: true,
+            });
+          }}
+        >
+          <View style={styles.stickerIconBadge}>
+            <Ionicons name="bag-handle" size={16} color="#FFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stickerTitle}>Tap to Shop Merch</Text>
+            <Text style={styles.stickerSub}>Eras Tour Crystal Jacket • $250</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#7126D0" />
+        </TouchableOpacity>
+      )}
+
       {/* Floating Vertical Actions on the Right */}
       <View style={styles.rightActionsPanel}>
         <TouchableOpacity
@@ -273,12 +311,97 @@ const ProfileDetails: React.FC = () => {
         </TouchableOpacity>
         <Text style={styles.actionText}>{currentStory.bookmarks}</Text>
 
-        <TouchableOpacity style={styles.actionCircle} activeOpacity={0.8}>
-          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-            <Path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
+        {/* Analytics Drawer Trigger Button */}
+        <TouchableOpacity
+          style={styles.actionCircle}
+          onPress={() => setShowAnalyticsDrawer(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="bar-chart-outline" size={22} color="#FFF" />
         </TouchableOpacity>
+        <Text style={styles.actionText}>Stats</Text>
       </View>
+
+      {/* Quick Emoji Reaction Bar & DM Reply Input */}
+      <View style={styles.interactiveBottomBar}>
+        <View style={styles.emojiQuickRow}>
+          {['❤️', '🔥', '👏', '😂', '😮', '🎉'].map((emoji) => (
+            <TouchableOpacity
+              key={emoji}
+              style={styles.emojiBubble}
+              onPress={() => handleSendReaction(emoji)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.emojiText}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.replyInputRow}>
+          <TextInput
+            style={styles.replyInput}
+            placeholder={`Send message to ${currentArtist.username}...`}
+            placeholderTextColor="rgba(255,255,255,0.7)"
+            value={replyText}
+            onChangeText={setReplyText}
+          />
+          {replyText.trim().length > 0 && (
+            <TouchableOpacity style={styles.sendReplyBtn} onPress={handleSendReply}>
+              <Ionicons name="send" size={16} color="#7126D0" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Owner Analytics & Viewer Drawer */}
+      {showAnalyticsDrawer && (
+        <View style={styles.analyticsDrawerOverlay}>
+          <View style={styles.analyticsDrawerContent}>
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>Story Analytics & Viewers</Text>
+              <TouchableOpacity onPress={() => setShowAnalyticsDrawer(false)}>
+                <Ionicons name="close" size={22} color="#111" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.analyticsStatsGrid}>
+              <View style={styles.analyticsStatBox}>
+                <Text style={styles.analyticsStatNumber}>1.4K</Text>
+                <Text style={styles.analyticsStatLabel}>Total Views</Text>
+              </View>
+              <View style={styles.analyticsStatBox}>
+                <Text style={styles.analyticsStatNumber}>94%</Text>
+                <Text style={styles.analyticsStatLabel}>Completion Rate</Text>
+              </View>
+              <View style={styles.analyticsStatBox}>
+                <Text style={styles.analyticsStatNumber}>4.8s</Text>
+                <Text style={styles.analyticsStatLabel}>Avg Watch Time</Text>
+              </View>
+            </View>
+
+            <Text style={styles.viewersSectionTitle}>Recent Viewers ({currentStory.likes})</Text>
+            <ScrollView style={styles.viewersList} showsVerticalScrollIndicator={false}>
+              {[
+                { name: 'Alex Johnson', time: '10m ago', reaction: '🔥' },
+                { name: 'Sarah Connor', time: '25m ago', reaction: '❤️' },
+                { name: 'Michael Scott', time: '1h ago', reaction: '👏' },
+                { name: 'Dwight Schrute', time: '2h ago', reaction: '😂' },
+              ].map((item, idx) => (
+                <View key={idx} style={styles.viewerRow}>
+                  <View style={styles.viewerAvatarPlaceholder}>
+                    <Text style={styles.viewerAvatarChar}>{item.name[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.viewerName}>{item.name}</Text>
+                    <Text style={styles.viewerTime}>{item.time}</Text>
+                  </View>
+                  <Text style={{ fontSize: 16 }}>{item.reaction}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
 
       {/* Bottom Row containing horizontal list of stories & close X */}
       <View style={styles.bottomSection}>
@@ -511,5 +634,180 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
+  },
+  storySticker: {
+    position: "absolute",
+    bottom: height * 0.2,
+    left: width * 0.08,
+    right: width * 0.22,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 24,
+    zIndex: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  stickerIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#7126D0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  stickerTitle: {
+    color: "#111",
+    fontSize: 12,
+    fontFamily: "Poppins-Bold",
+  },
+  stickerSub: {
+    color: "#666",
+    fontSize: 10,
+    fontFamily: "Poppins-Medium",
+  },
+  interactiveBottomBar: {
+    position: "absolute",
+    bottom: height * 0.14,
+    left: 16,
+    right: 76,
+    zIndex: 15,
+  },
+  emojiQuickRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  emojiBubble: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  emojiText: {
+    fontSize: 20,
+  },
+  replyInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    height: 42,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  replyInput: {
+    flex: 1,
+    color: "#FFF",
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    paddingVertical: 0,
+  },
+  sendReplyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 6,
+  },
+  analyticsDrawerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "flex-end",
+    zIndex: 30,
+  },
+  analyticsDrawerContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: height * 0.6,
+  },
+  drawerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  drawerTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: "#111",
+  },
+  analyticsStatsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  analyticsStatBox: {
+    flex: 1,
+    backgroundColor: "#F5F0FD",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(113, 38, 208, 0.15)",
+  },
+  analyticsStatNumber: {
+    fontSize: 16,
+    fontFamily: "Poppins-Bold",
+    color: "#7126D0",
+  },
+  analyticsStatLabel: {
+    fontSize: 10,
+    fontFamily: "Poppins-Medium",
+    color: "#666",
+    marginTop: 2,
+  },
+  viewersSectionTitle: {
+    fontSize: 13,
+    fontFamily: "Poppins-Bold",
+    color: "#333",
+    marginBottom: 8,
+  },
+  viewersList: {
+    maxHeight: 200,
+  },
+  viewerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  viewerAvatarPlaceholder: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#7126D0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  viewerAvatarChar: {
+    color: "#FFF",
+    fontSize: 14,
+    fontFamily: "Poppins-Bold",
+  },
+  viewerName: {
+    fontSize: 13,
+    fontFamily: "Poppins-Bold",
+    color: "#111",
+  },
+  viewerTime: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
+    color: "#888",
   },
 });

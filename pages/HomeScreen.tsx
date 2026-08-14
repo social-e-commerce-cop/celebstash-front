@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
 import Svg, { Circle, Path } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 
 import TabBar from '@/components/Tabbar';
 import ProfileSection from '@/components/home/ProfileSection';
@@ -10,25 +11,32 @@ import LatestDrops from '@/components/home/LatestDrops';
 import AuctionGrid from '@/components/home/AuctionGrid';
 import Post from '@/components/home/Post';
 import LiveAuctionBanner from '@/components/home/LiveAuctionBanner';
+import { AddPostModal } from '@/components/home/AddPostModal';
 import { getSessionUser } from '@/lib/session';
-import postsData from '@/lib/postsData';
+import { default as initialPostsData, PostData } from '@/lib/postsData';
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
   const [user, setUser] = useState(getSessionUser());
+  const [postsList, setPostsList] = useState<PostData[]>(initialPostsData);
+  const [addPostVisible, setAddPostVisible] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter posts by username or caption text
   const filteredPosts = searchQuery.trim()
-    ? postsData.filter(
+    ? postsList.filter(
         p =>
           p.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.postText.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : postsData;
+    : postsList;
+
+  const handleAddPost = (newPost: PostData) => {
+    setPostsList([newPost, ...postsList]);
+  };
 
   // Define state for active auctions. If this array is empty [], the Auction Grid hides completely!
   const [auctions, setAuctions] = useState<any[]>([
@@ -51,8 +59,6 @@ const HomeScreen = () => {
       timeAgo: '1h ago',
     },
   ]);
-
-  // Dynamically fetch username when the screen gains focus
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       setUser(getSessionUser());
@@ -145,6 +151,25 @@ const HomeScreen = () => {
         {/* Section 7: Feed posts list */}
         <Post posts={filteredPosts} />
       </ScrollView>
+
+      {/* Floating Create Post Button (Exclusively for ARTIST accounts) */}
+      {user.role === 'ARTIST' && (
+        <TouchableOpacity
+          style={styles.floatingCreatePostBtn}
+          activeOpacity={0.85}
+          onPress={() => setAddPostVisible(true)}
+        >
+          <Ionicons name="add" size={28} color="#FFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* Add Post Modal for Artists */}
+      <AddPostModal
+        visible={addPostVisible}
+        onClose={() => setAddPostVisible(false)}
+        onAddPost={handleAddPost}
+        artistName={user.fullName || 'Kenny K Shot'}
+      />
 
       {/* Floating TabBar at the bottom */}
       <View style={styles.tabBarContainer}>
@@ -247,5 +272,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'transparent',
+  },
+  floatingCreatePostBtn: {
+    position: 'absolute',
+    bottom: 80,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#7126D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#7126D0',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    zIndex: 99,
   },
 });

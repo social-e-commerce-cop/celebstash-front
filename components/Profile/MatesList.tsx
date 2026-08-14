@@ -20,7 +20,7 @@ export default function MatesList() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mates</Text>
+        <Text style={styles.title}>Following</Text>
         <TouchableOpacity>
           <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>

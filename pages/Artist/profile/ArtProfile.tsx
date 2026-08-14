@@ -143,13 +143,23 @@ const ArtProfile: React.FC = () => {
               <Text style={styles.handle}>@Artist</Text>
 
               <View style={styles.statsRow}>
-                <Text style={styles.statText}>
-                  <Text style={styles.statNumber}>12.4K</Text> Followers
-                </Text>
+                <TouchableOpacity onPress={() => alert('12,400 Followers')}>
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>12.4K</Text> Followers
+                  </Text>
+                </TouchableOpacity>
                 <Text style={styles.statDot}>•</Text>
-                <Text style={styles.statText}>
-                  <Text style={styles.statNumber}>40</Text> Drops
-                </Text>
+                <TouchableOpacity onPress={() => alert('Following 340 creators')}>
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>340</Text> Following
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.statDot}>•</Text>
+                <TouchableOpacity onPress={() => setActiveTab('Shop')}>
+                  <Text style={styles.statText}>
+                    <Text style={styles.statNumber}>40</Text> Drops
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -158,7 +168,7 @@ const ArtProfile: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Action Buttons Row: Mate + Message */}
+          {/* Action Buttons Row: Follow + Message */}
           <View style={styles.actionButtonsRow}>
             <TouchableOpacity
               style={[styles.mateBtn, isMated && styles.matedBtn]}
@@ -166,7 +176,7 @@ const ArtProfile: React.FC = () => {
               activeOpacity={0.8}
             >
               <Text style={[styles.mateBtnText, isMated && styles.matedBtnText]}>
-                {isMated ? 'Mated' : 'Mate'}
+                {isMated ? 'Following' : 'Follow'}
               </Text>
             </TouchableOpacity>
 

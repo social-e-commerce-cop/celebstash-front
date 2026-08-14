@@ -1,3 +1,11 @@
+export interface ShoppableItem {
+  type: 'product' | 'song' | 'concert';
+  title: string;
+  subtitle?: string;
+  price?: string;
+  image?: any;
+}
+
 export interface PostData {
   id: number;
   userName: string;
@@ -12,6 +20,7 @@ export interface PostData {
   comments: number;
   shares: number;
   trending: string;
+  attachedItem?: ShoppableItem;
 }
 
 const postsData: PostData[] = [
@@ -29,6 +38,13 @@ const postsData: PostData[] = [
     comments: 142,
     shares: 89,
     trending: '',
+    attachedItem: {
+      type: 'product',
+      title: 'Eras Tour Crystal Jacket',
+      subtitle: 'Official Limited Edition Merch',
+      price: '$250',
+      image: require('../assets/images/feed6.jpg'),
+    },
   },
   {
     id: 2,
@@ -36,14 +52,21 @@ const postsData: PostData[] = [
     userImage: require('../assets/images/storyItem.jpg'),
     timeAgo: '1h',
     verified: true,
-    postText: 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals...',
-    mainImage: require('../assets/images/feed6.jpg'),
-    price: '$250',
+    postText: 'My new single "Ethereal Echoes" is out now! Stream it on Zikii Music or grab the vinyl drop.',
+    mainImage: require('../assets/images/drop1.jpg'),
+    price: '$18',
     likes: 15200,
     likedByMe: false,
     comments: 142,
     shares: 89,
     trending: '#1 Trending',
+    attachedItem: {
+      type: 'song',
+      title: 'Ethereal Echoes (Single)',
+      subtitle: 'Stream / Download • 3:45',
+      price: '$18',
+      image: require('../assets/images/drop1.jpg'),
+    },
   },
   {
     id: 3,
@@ -51,14 +74,21 @@ const postsData: PostData[] = [
     userImage: require('../assets/images/story2.png'),
     timeAgo: '3h',
     verified: true,
-    postText: 'Check out my new collection drop — limited edition pieces available now. Grab yours before they sell out!',
+    postText: 'Kigali World Tour live concert tickets are officially on sale! Tap below to lock in VIP front row access.',
     mainImage: require('../assets/images/feed7.png'),
-    price: '$320',
+    price: '$45',
     likes: 9800,
     likedByMe: false,
     comments: 94,
     shares: 41,
     trending: '#2 Trending',
+    attachedItem: {
+      type: 'concert',
+      title: 'Kigali World Tour Live',
+      subtitle: 'BK Arena • Aug 18, 2026',
+      price: '$45 VIP',
+      image: require('../assets/images/feed7.png'),
+    },
   },
   {
     id: 4,

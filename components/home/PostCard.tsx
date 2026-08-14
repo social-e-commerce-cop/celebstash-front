@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polyline, Line, Circle } from 'react-native-svg';
 import CommentsModal from './CommentsModal';
 import ShareModal from './ShareModal';
@@ -130,7 +131,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               <CheckIcon />
             ) : (
               <>
-                <Text style={styles.mateText}>Mate</Text>
+                <Text style={styles.mateText}>Follow</Text>
               </>
             )}
           </View>
@@ -171,6 +172,65 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       >
         <Image source={post.mainImage} style={styles.postImage} />
       </TouchableOpacity>
+
+      {/* Attached Shoppable Card (Product / Song / Concert) */}
+      {post.attachedItem && (
+        <TouchableOpacity
+          style={styles.attachedCard}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (post.attachedItem?.type === 'product') {
+              navigation.navigate('ProductDetails', {
+                name: post.attachedItem.title,
+                price: post.attachedItem.price || post.price,
+                image: post.attachedItem.image || post.mainImage,
+                description: post.postText,
+                artistName: post.userName,
+                verified: post.verified,
+              });
+            } else if (post.attachedItem?.type === 'song') {
+              navigation.navigate('MusicScreen');
+            } else if (post.attachedItem?.type === 'concert') {
+              navigation.navigate('ConcertsScreen');
+            }
+          }}
+        >
+          <View style={styles.attachedLeft}>
+            <View style={styles.attachedIconBadge}>
+              <Ionicons
+                name={
+                  post.attachedItem.type === 'product'
+                    ? 'bag-handle-outline'
+                    : post.attachedItem.type === 'song'
+                    ? 'musical-notes-outline'
+                    : 'ticket-outline'
+                }
+                size={18}
+                color="#7126D0"
+              />
+            </View>
+            <View style={styles.attachedInfo}>
+              <Text style={styles.attachedTitle} numberOfLines={1}>
+                {post.attachedItem.title}
+              </Text>
+              <Text style={styles.attachedSubtitle} numberOfLines={1}>
+                {post.attachedItem.subtitle || 'Shoppable Item'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.attachedActionBtn}>
+            <Text style={styles.attachedActionText}>
+              {post.attachedItem.type === 'product'
+                ? 'Shop'
+                : post.attachedItem.type === 'song'
+                ? 'Listen'
+                : 'Get Tickets'}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Footer: like, comment, share + repost */}
       <View style={styles.footer}>
@@ -342,5 +402,58 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Poppins-Bold',
+  },
+  attachedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F7F2FC',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(113, 38, 208, 0.15)',
+  },
+  attachedLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  attachedIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EAE0F8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  attachedInfo: {
+    flex: 1,
+  },
+  attachedTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+  },
+  attachedSubtitle: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Medium',
+    color: '#666',
+  },
+  attachedActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#7126D0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  attachedActionText: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFF',
   },
 });

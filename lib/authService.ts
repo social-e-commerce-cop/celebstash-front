@@ -8,6 +8,7 @@ export interface LoginParams {
 
 export interface InitiateSignupParams {
   fullName: string;
+  username?: string;
   email?: string;
   phoneNumber?: string;
   password?: string;
@@ -26,9 +27,11 @@ export interface AuthResponseData {
   accessToken?: string;
   refreshToken?: string;
   tokenType?: string;
+  username?: string;
   user?: {
     id: number;
     fullName: string;
+    username?: string;
     email: string;
     phoneNumber?: string;
     role?: string;
@@ -42,6 +45,7 @@ export const authService = {
     const identifier = params.email || params.phoneNumber || '';
     return apiClient.post('/api/v1/auth/signup/initiate', {
       fullName: params.fullName,
+      username: params.username,
       identifier: identifier,
       password: params.password,
       confirmPassword: params.password,
@@ -55,7 +59,7 @@ export const authService = {
       const userFullName = response.fullName || response.user?.fullName || '';
       const userEmail = response.email || response.user?.email || params.identifier;
       const userPhone = response.phoneNumber || response.user?.phoneNumber;
-      const userHandle = params.username || response.username || (userFullName || userEmail).split('@')[0].toLowerCase().replace(/\s+/g, '');
+      const userHandle = response.username || response.user?.username || params.username || (userEmail ? userEmail.split('@')[0] : 'user');
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },
@@ -81,7 +85,7 @@ export const authService = {
       const userFullName = response.fullName || response.user?.fullName || params.emailOrPhone.split('@')[0];
       const userEmail = response.email || response.user?.email || params.emailOrPhone;
       const userPhone = response.phoneNumber || response.user?.phoneNumber;
-      const userHandle = (userFullName || userEmail).split('@')[0].toLowerCase().replace(/\s+/g, '');
+      const userHandle = response.username || response.user?.username || params.emailOrPhone.split('@')[0];
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },

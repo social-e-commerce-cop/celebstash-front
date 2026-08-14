@@ -59,6 +59,7 @@ import Wallet from '@/pages/profile/Wallet';
 import PrivacyScreen from '@/pages/profile/Privacy';
 import LanguageScreen from '@/pages/profile/Language';
 import BecomeArtist from '@/pages/profile/BecomeArtist';
+import AdminArtistApplications from '@/pages/admin/AdminArtistApplications';
 
 import CreatePostScreen from '@/pages/Artist/profile/AddPost';
 import ArtistHomeScreen from '@/pages/Artist/Home/HomeArtist';
@@ -151,6 +152,7 @@ type AppStackParamList = {
   Privacy: undefined;
   Language: undefined;
   BecomeArtist: undefined;
+  AdminArtistApplications: undefined;
   CreatePost: undefined;
   CreateTribe: undefined;
   ArtHome: undefined;
@@ -251,6 +253,7 @@ export default function App() {
         <Stack.Screen name="Privacy" component={PrivacyScreen} />
         <Stack.Screen name="Language" component={LanguageScreen} />
         <Stack.Screen name="BecomeArtist" component={BecomeArtist} />
+        <Stack.Screen name="AdminArtistApplications" component={AdminArtistApplications} />
         <Stack.Screen name="CreatePost" component={CreatePostScreen} />
         <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
         <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />

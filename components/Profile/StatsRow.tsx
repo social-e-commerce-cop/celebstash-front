@@ -6,7 +6,7 @@ export default function StatsRow() {
     <View style={styles.container}>
       <View style={styles.stat}>
         <Text style={styles.value}>1.53k</Text>
-        <Text style={styles.label}>Mates</Text>
+        <Text style={styles.label}>Followers</Text>
       </View>
 
       <View style={styles.separator} />

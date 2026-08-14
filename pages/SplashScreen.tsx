@@ -106,9 +106,6 @@ export default function SplashScreen() {
 
         <View style={styles.splashContent}>
           <View style={styles.logoContainer}>
-            {/* <Animated.View style={[styles.logoIcon, { transform: [{ scale: pulseAnim }] }]}>
-              <LogoIcon />
-            </Animated.View> */}
             <View style={styles.logoRow}>
               <Text style={styles.logoText}>ZIKII</Text>
               <Text style={styles.logoDot}>.</Text>
