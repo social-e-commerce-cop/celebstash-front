@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import Svg, { Path, Circle, Polygon } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
 
-// â”€â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Data ────────────────────────────────────────────────────────────────────
 const FILTERS = ['All', 'Single', 'Album', 'EP', 'Live'];
 
 interface Release {
@@ -49,7 +49,7 @@ const ALL_RELEASES: Release[] = [
   },
   {
     id: '2',
-    title: "Mama â€“ Acoustic Sessions",
+    title: "Mama – Acoustic Sessions",
     artist: 'Chris Brown',
     type: 'Album',
     price: 14.99,
@@ -104,7 +104,7 @@ const ALL_RELEASES: Release[] = [
   },
 ];
 
-// â”€â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Icons ───────────────────────────────────────────────────────────────────
 const BackIcon = () => (
   <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
     <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
@@ -130,7 +130,7 @@ const ClockIcon = () => (
   </Svg>
 );
 
-// â”€â”€â”€ Featured Hero Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Featured Hero Card ───────────────────────────────────────────────────────
 const FeaturedCard = ({ item, onPress }: { item: Release; onPress: () => void }) => (
   <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={styles.featuredCard}>
     <ImageBackground source={item.image} style={styles.featuredBg} imageStyle={styles.featuredImageStyle}>
@@ -164,7 +164,7 @@ const FeaturedCard = ({ item, onPress }: { item: Release; onPress: () => void })
         <View style={styles.featuredFooter}>
           <View style={styles.featuredMeta}>
             <ClockIcon />
-            <Text style={styles.featuredMetaText}>{item.daysLeft}d left â€¢ {item.accesses} accesses</Text>
+            <Text style={styles.featuredMetaText}>{item.daysLeft}d left • {item.accesses} accesses</Text>
           </View>
           <TouchableOpacity style={styles.featuredAccessBtn} onPress={onPress} activeOpacity={0.85}>
             <PlayIcon />
@@ -176,7 +176,7 @@ const FeaturedCard = ({ item, onPress }: { item: Release; onPress: () => void })
   </TouchableOpacity>
 );
 
-// â”€â”€â”€ Regular Release Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Regular Release Card ─────────────────────────────────────────────────────
 const ReleaseCard = ({ item, onPress }: { item: Release; onPress: () => void }) => (
   <TouchableOpacity style={styles.releaseCard} activeOpacity={0.88} onPress={onPress}>
     <ImageBackground source={item.image} style={styles.releaseCardBg} imageStyle={styles.releaseCardImage}>
@@ -218,7 +218,7 @@ const ReleaseCard = ({ item, onPress }: { item: Release; onPress: () => void }) 
   </TouchableOpacity>
 );
 
-// â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function AllReleasesScreen() {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [activeFilter, setActiveFilter] = useState('All');
@@ -316,7 +316,7 @@ export default function AllReleasesScreen() {
   );
 }
 
-// â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const CARD_W = (width - 48) / 2;
 
 const styles = StyleSheet.create({
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  // â”€â”€ Hero â”€â”€
+  // ── Hero ──
   heroArea: {
     paddingTop: height * 0.14,
     paddingHorizontal: 20,
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // â”€â”€ Featured â”€â”€
+  // ── Featured ──
   featuredSection: {
     paddingHorizontal: 20,
     marginBottom: 28,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
 
-  // â”€â”€ Filters â”€â”€
+  // ── Filters ──
   filterList: {
     paddingHorizontal: 20,
     gap: 10,
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
 
-  // â”€â”€ Release cards grid â”€â”€
+  // ── Release cards grid ──
   releasesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   releaseCardOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   releaseTypeBadge: {

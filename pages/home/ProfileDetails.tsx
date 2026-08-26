@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
   },
   tapContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     zIndex: 1,
   },
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   analyticsDrawerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "flex-end",
     zIndex: 30,

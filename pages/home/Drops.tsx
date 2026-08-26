@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -93,21 +93,21 @@ const Drops = () => {
       id: "1",
       title: "Indorerwamo Collection",
       image: require("@/assets/images/drop1.jpg"),
-      dateText: "May 25, 2026 â€¢ 8:00 PM",
+      dateText: "May 25, 2026 • 8:00 PM",
       targetDate: new Date("2026-06-25T20:00:00"),
     },
     {
       id: "2",
       title: "Indorerwamo Collection 2",
       image: require("@/assets/images/drop1.jpg"),
-      dateText: "May 27, 2026 â€¢ 8:00 PM",
+      dateText: "May 27, 2026 • 8:00 PM",
       targetDate: new Date("2026-07-27T20:00:00"),
     },
     {
       id: "3",
       title: "Indorerwamo Collection 3",
       image: require("@/assets/images/drop1.jpg"),
-      dateText: "May 29, 2026 â€¢ 8:00 PM",
+      dateText: "May 29, 2026 • 8:00 PM",
       targetDate: new Date("2026-08-29T20:00:00"),
     },
   ];
@@ -231,7 +231,7 @@ const Drops = () => {
                     activeOpacity={0.8}
                   >
                     <Text style={styles.notifyButtonText}>
-                      {isNotified ? "Notified âœ“" : "Notify Me"}
+                      {isNotified ? "Notified ✓" : "Notify Me"}
                     </Text>
                   </TouchableOpacity>
                 </ImageBackground>
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   badgeRow: {

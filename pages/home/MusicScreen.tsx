@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   },
   bannerOverlay: {
     backgroundColor: 'rgba(0,0,0,0.4)',
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',

@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   keyText: { fontSize: 22, fontFamily: "Poppins-Medium", color: "#111" },
 
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(255,255,255,0.85)",
     alignItems: "center", justifyContent: "center", gap: 12,
   },

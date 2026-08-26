@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -266,7 +266,7 @@ const TopupConfirmation: React.FC = () => {
               </View>
             ) : (
               <Text style={styles.confirmBtnText}>
-                {submitted ? 'Processingâ€¦' : `Confirm & Add $${amount}`}
+                {submitted ? 'Processing…' : `Confirm & Add $${amount}`}
               </Text>
             )}
           </TouchableOpacity>
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
 
-  // â”€â”€ Summary card â”€â”€
+  // ── Summary card ──
   summaryCard: {
     borderRadius: 8,
     padding: 20,
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // â”€â”€ CVV / PIN â”€â”€
+  // ── CVV / PIN ──
   sectionLabel: {
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // â”€â”€ PIN Inputs â”€â”€
+  // ── PIN Inputs ──
   pinContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // â”€â”€ Confirm button â”€â”€
+  // ── Confirm button ──
   confirmBtn: {
     height: 45,
     borderRadius: 8,
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  // â”€â”€ MoMo Loading Overlay â”€â”€
+  // ── MoMo Loading Overlay ──
   loadingContainer: {
     marginTop: 10,
     alignItems: 'center',
