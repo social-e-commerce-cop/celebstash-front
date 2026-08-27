@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   playIconOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.25)',

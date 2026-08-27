@@ -895,7 +895,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   lpOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'space-between',
     padding: 16,

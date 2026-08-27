@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   heroWrapper: { borderRadius: 5, overflow: 'hidden', marginBottom: 20 },
   heroBg: { width: '100%', height: 160, justifyContent: 'flex-end', paddingVertical: 10 },
   heroImage: { borderRadius: 5, resizeMode: 'cover' },
-  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.32)', borderRadius: 14 },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)', borderRadius: 14 },
   heroBadge: {
     position: 'absolute', top: 16, left: 16,
     backgroundColor: '#7126D0', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   dropCard: { borderRadius: 14, overflow: 'hidden', marginBottom: 14 },
   dropCardBg: { width: '100%', minHeight: 190, paddingVertical: 16,  },
   dropCardImage: { borderRadius: 14, resizeMode: 'cover' },
-  dropCardOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 14, paddingHorizontal: 16 },
+  dropCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.42)', borderRadius: 14, paddingHorizontal: 16 },
   dropBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#7126D0', paddingHorizontal: 10, paddingVertical: 4,

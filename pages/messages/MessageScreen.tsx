@@ -1,4 +1,8 @@
-import React, { useState, useMemo, useCallback } from 'react';
+/**
+ * MessageScreen.tsx — Conversations list.
+ * Fetches real conversations from the API, falls back to mock data on failure.
+ */
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +11,9 @@ import {
   Dimensions,
   StatusBar,
   FlatList,
-  Image,
-  ScrollView,
   Modal,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,20 +22,88 @@ import SearchBar from '@/components/messages/SearchBar';
 import FilterTabBar from '@/components/messages/TabBar';
 import ConversationItem from '@/components/messages/Conversations';
 import { ChatFilterTab, Conversation } from '@/types/chatTypes';
-import { MOCK_CONVERSATIONS, MOCK_STORIES, getConversationName } from '@/data/mockChatData';
+import { MOCK_CONVERSATIONS, getConversationName } from '@/data/mockChatData';
+import { chatService, ConversationDto } from '@/lib/chatService';
+import { getSessionToken } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
-
 const FILTER_TABS: ChatFilterTab[] = ['All', 'Unread', 'Favorites', 'Groups', 'Archived'];
+
+// ── Map backend DTO → local Conversation type ─────────────────────────────────
+function toLocalConversation(dto: ConversationDto, myId: number): Conversation {
+  const otherParticipants = dto.participants.filter(p => p.id !== myId);
+  const participants = dto.participants.map(p => ({
+    id: String(p.id),
+    name: p.fullName,
+    avatar: p.profilePicture ? { uri: p.profilePicture } : require('../../assets/images/storyItem.jpg'),
+    isOnline: false,
+  }));
+
+  return {
+    id: String(dto.id),
+    type: dto.type === 'GROUP' ? 'group' : 'direct',
+    participants,
+    lastMessage: dto.lastMessage
+      ? {
+          text: dto.lastMessage.text ?? '',
+          timestamp: dto.lastMessage.sentAt,
+          senderId: String(dto.lastMessage.senderId),
+          type: (dto.lastMessage.type?.toLowerCase() as any) ?? 'text',
+        }
+      : undefined,
+    unreadCount: dto.unreadCount,
+    isPinned: dto.isPinned,
+    isMuted: dto.isMuted,
+    isArchived: dto.isArchived,
+    isFavorite: dto.isFavorite,
+    hasStory: false,
+    isTyping: false,
+    groupInfo: dto.type === 'GROUP'
+      ? {
+          name: dto.groupName ?? 'Group',
+          avatar: dto.groupAvatar ? { uri: dto.groupAvatar } : undefined,
+          description: dto.groupDescription ?? '',
+          adminIds: dto.participants.filter(p => p.isAdmin).map(p => String(p.id)),
+          createdAt: dto.updatedAt,
+          createdBy: String(dto.createdById ?? ''),
+        }
+      : undefined,
+  };
+}
 
 const MessagesScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<ChatFilterTab>('All');
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; conv: Conversation | null }>({ visible: false, conv: null });
   const [showSearch, setShowSearch] = useState(false);
+
+  // Fetch conversations from API
+  const fetchConversations = useCallback(async (isRefresh = false) => {
+    const token = getSessionToken();
+    if (!token) return; // not logged in yet, keep mock
+
+    try {
+      isRefresh ? setRefreshing(true) : setLoading(true);
+      const dtos = await chatService.getConversations();
+      // We don't have the current user id easily here, use 0 as placeholder
+      // In a real app you'd read it from auth context
+      const mapped = dtos.map(d => toLocalConversation(d, 0));
+      if (mapped.length > 0) setConversations(mapped);
+    } catch (e) {
+      // Keep mock data on failure (offline / backend down)
+      console.warn('[MessagesScreen] Failed to load conversations:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchConversations(); }, [fetchConversations]);
 
   // ── Badge counts ──
   const badgeCounts = useMemo(() => ({
@@ -45,20 +117,11 @@ const MessagesScreen = () => {
   const filtered = useMemo(() => {
     let list = conversations;
     switch (activeTab) {
-      case 'Unread':
-        list = list.filter(c => c.unreadCount > 0 && !c.isArchived);
-        break;
-      case 'Favorites':
-        list = list.filter(c => c.isFavorite && !c.isArchived);
-        break;
-      case 'Groups':
-        list = list.filter(c => c.type === 'group' && !c.isArchived);
-        break;
-      case 'Archived':
-        list = list.filter(c => c.isArchived);
-        break;
-      default:
-        list = list.filter(c => !c.isArchived);
+      case 'Unread': list = list.filter(c => c.unreadCount > 0 && !c.isArchived); break;
+      case 'Favorites': list = list.filter(c => c.isFavorite && !c.isArchived); break;
+      case 'Groups': list = list.filter(c => c.type === 'group' && !c.isArchived); break;
+      case 'Archived': list = list.filter(c => c.isArchived); break;
+      default: list = list.filter(c => !c.isArchived);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -70,7 +133,6 @@ const MessagesScreen = () => {
     return list;
   }, [conversations, activeTab, searchQuery]);
 
-  // Sort pinned to top, then by timestamp (mock data is mostly pre-sorted, but let's ensure pinned are at top if needed, or just leave as is)
   const displayList = useMemo(() => {
     return [...filtered].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -79,26 +141,34 @@ const MessagesScreen = () => {
     });
   }, [filtered]);
 
-  // ── Context menu actions ──
+  // ── Context menu actions (optimistic, then sync to API) ──
+  const callApi = useCallback((fn: () => Promise<void>) => {
+    fn().catch(e => console.warn('[Chat] API error:', e));
+  }, []);
+
   const togglePin = useCallback((convId: string) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, isPinned: !c.isPinned } : c));
+    callApi(() => chatService.togglePin(Number(convId)));
     setContextMenu({ visible: false, conv: null });
-  }, []);
+  }, [callApi]);
 
   const toggleMute = useCallback((convId: string) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, isMuted: !c.isMuted } : c));
+    callApi(() => chatService.toggleMute(Number(convId)));
     setContextMenu({ visible: false, conv: null });
-  }, []);
+  }, [callApi]);
 
   const toggleFavorite = useCallback((convId: string) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, isFavorite: !c.isFavorite } : c));
+    callApi(() => chatService.toggleFavorite(Number(convId)));
     setContextMenu({ visible: false, conv: null });
-  }, []);
+  }, [callApi]);
 
   const archiveConversation = useCallback((convId: string) => {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, isArchived: !c.isArchived } : c));
+    callApi(() => chatService.toggleArchive(Number(convId)));
     setContextMenu({ visible: false, conv: null });
-  }, []);
+  }, [callApi]);
 
   const deleteConversation = useCallback((convId: string) => {
     setConversations(prev => prev.filter(c => c.id !== convId));
@@ -113,12 +183,10 @@ const MessagesScreen = () => {
     setContextMenu({ visible: false, conv: null });
   }, []);
 
-  // ── Navigate to chat ──
   const openChat = (conv: Conversation) => {
     navigation.navigate('ChatScreen', { conversationId: conv.id });
   };
 
-  // ── Render ──
   const renderConversation = ({ item }: { item: Conversation }) => (
     <ConversationItem
       conversation={item}
@@ -170,28 +238,42 @@ const MessagesScreen = () => {
         </View>
       </View>
 
-      <FlatList
-        data={displayList}
-        keyExtractor={item => item.id}
-        renderItem={renderConversation}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="chatbubbles-outline" size={52} color={PURPLE} />
+      {loading ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={PURPLE} />
+        </View>
+      ) : (
+        <FlatList
+          data={displayList}
+          keyExtractor={item => item.id}
+          renderItem={renderConversation}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchConversations(true)}
+              colors={[PURPLE]}
+              tintColor={PURPLE}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="chatbubbles-outline" size={52} color={PURPLE} />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'Archived' ? 'No archived chats' : 'No conversations yet'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {activeTab === 'Archived'
+                  ? 'Archived conversations will appear here'
+                  : 'Tap the pencil icon to start a new conversation'}
+              </Text>
             </View>
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'Archived' ? 'No archived chats' : 'No conversations yet'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {activeTab === 'Archived'
-                ? 'Archived conversations will appear here'
-                : 'Start a new conversation to get started'}
-            </Text>
-          </View>
-        }
-      />
+          }
+        />
+      )}
 
       {/* ── FAB — New Chat ── */}
       <TouchableOpacity
@@ -217,39 +299,13 @@ const MessagesScreen = () => {
 
             {contextMenu.conv && (
               <>
-                <MenuItem
-                  icon={contextMenu.conv.isPinned ? 'pin-outline' : 'pin'}
-                  label={contextMenu.conv.isPinned ? 'Unpin' : 'Pin'}
-                  onPress={() => togglePin(contextMenu.conv!.id)}
-                />
-                <MenuItem
-                  icon={contextMenu.conv.isFavorite ? 'star' : 'star-outline'}
-                  label={contextMenu.conv.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-                  onPress={() => toggleFavorite(contextMenu.conv!.id)}
-                  iconColor={contextMenu.conv.isFavorite ? '#F59E0B' : undefined}
-                />
-                <MenuItem
-                  icon={contextMenu.conv.isMuted ? 'volume-high-outline' : 'volume-mute-outline'}
-                  label={contextMenu.conv.isMuted ? 'Unmute' : 'Mute'}
-                  onPress={() => toggleMute(contextMenu.conv!.id)}
-                />
-                <MenuItem
-                  icon="archive-outline"
-                  label={contextMenu.conv.isArchived ? 'Unarchive' : 'Archive'}
-                  onPress={() => archiveConversation(contextMenu.conv!.id)}
-                />
-                <MenuItem
-                  icon={contextMenu.conv.unreadCount > 0 ? 'checkmark-done-outline' : 'mail-unread-outline'}
-                  label={contextMenu.conv.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'}
-                  onPress={() => markReadUnread(contextMenu.conv!.id)}
-                />
+                <MenuItem icon={contextMenu.conv.isPinned ? 'pin-outline' : 'pin'} label={contextMenu.conv.isPinned ? 'Unpin' : 'Pin'} onPress={() => togglePin(contextMenu.conv!.id)} />
+                <MenuItem icon={contextMenu.conv.isFavorite ? 'star' : 'star-outline'} label={contextMenu.conv.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'} onPress={() => toggleFavorite(contextMenu.conv!.id)} iconColor={contextMenu.conv.isFavorite ? '#F59E0B' : undefined} />
+                <MenuItem icon={contextMenu.conv.isMuted ? 'volume-high-outline' : 'volume-mute-outline'} label={contextMenu.conv.isMuted ? 'Unmute' : 'Mute'} onPress={() => toggleMute(contextMenu.conv!.id)} />
+                <MenuItem icon="archive-outline" label={contextMenu.conv.isArchived ? 'Unarchive' : 'Archive'} onPress={() => archiveConversation(contextMenu.conv!.id)} />
+                <MenuItem icon={contextMenu.conv.unreadCount > 0 ? 'checkmark-done-outline' : 'mail-unread-outline'} label={contextMenu.conv.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'} onPress={() => markReadUnread(contextMenu.conv!.id)} />
                 <View style={styles.menuDivider} />
-                <MenuItem
-                  icon="trash-outline"
-                  label="Delete Chat"
-                  onPress={() => deleteConversation(contextMenu.conv!.id)}
-                  danger
-                />
+                <MenuItem icon="trash-outline" label="Delete Chat" onPress={() => deleteConversation(contextMenu.conv!.id)} danger />
               </>
             )}
           </View>
@@ -259,14 +315,7 @@ const MessagesScreen = () => {
   );
 };
 
-// ── Menu Item Sub-component ──
-const MenuItem: React.FC<{
-  icon: any;
-  label: string;
-  onPress: () => void;
-  danger?: boolean;
-  iconColor?: string;
-}> = ({ icon, label, onPress, danger, iconColor }) => (
+const MenuItem: React.FC<{ icon: any; label: string; onPress: () => void; danger?: boolean; iconColor?: string }> = ({ icon, label, onPress, danger, iconColor }) => (
   <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
     <Ionicons name={icon} size={20} color={danger ? '#EF4444' : iconColor ?? '#374151'} />
     <Text style={[styles.menuItemText, danger && { color: '#EF4444' }]}>{label}</Text>
@@ -275,137 +324,25 @@ const MenuItem: React.FC<{
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-
-  // ── Header ──
-  fixedTop: {
-    paddingTop: height * 0.05,
-    paddingHorizontal: width * 0.05,
-    paddingBottom: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-    color: '#111',
-  },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabsWrap: {
-    marginTop: 10,
-  },
-
-  // ── List ──
-  listContent: {
-    paddingHorizontal: width * 0.05,
-    paddingBottom: height * 0.12,
-  },
-
-  // ── Empty ──
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: 10,
-  },
-  emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F8F5FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    color: '#374151',
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    fontFamily: 'Poppins-Regular',
-    color: '#9CA3AF',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-
-  // ── FAB ──
-  fab: { 
-    position: 'absolute',
-    bottom: 28,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: PURPLE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  // ── Context Menu ──
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  menuSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 40,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-  },
-  menuHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D1D5DB',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  menuTitle: {
-    fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    color: '#111',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 14,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontFamily: 'Poppins-Medium',
-    color: '#374151',
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginVertical: 4,
-  },
+  fixedTop: { paddingTop: height * 0.05, paddingHorizontal: width * 0.05, paddingBottom: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  headerTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#111' },
+  headerActions: { flexDirection: 'row' },
+  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  tabsWrap: { marginTop: 10 },
+  listContent: { paddingHorizontal: width * 0.05, paddingBottom: height * 0.12 },
+  emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
+  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F8F5FF', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#374151' },
+  emptySubtitle: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 40 },
+  fab: { position: 'absolute', bottom: 28, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', shadowColor: PURPLE, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  menuSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, paddingTop: 12, paddingHorizontal: 20 },
+  menuHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginBottom: 16 },
+  menuTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111', marginBottom: 16, textAlign: 'center' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 14 },
+  menuItemText: { fontSize: 15, fontFamily: 'Poppins-Medium', color: '#374151' },
+  menuDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 4 },
 });
 
 export default MessagesScreen;

@@ -8,7 +8,7 @@ import {
   StatusBar,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useNavigation } from 'expo-router/react-navigation';
+import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 type AppStackParamList = {

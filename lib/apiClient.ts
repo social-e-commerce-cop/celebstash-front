@@ -9,8 +9,12 @@ import { getSessionToken } from './session';
  * - Physical Phone via Expo: http://<DEVELOPER_COMPUTER_IP>:8080
  */
 const getBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
   if (Platform.OS === 'web') {
-    return 'http://localhost:8082';
+    return 'http://localhost:8080';
   }
 
   // Extract host IP when running via Expo CLI on physical device
@@ -18,16 +22,16 @@ const getBaseUrl = (): string => {
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:8082`;
+      return `http://${ip}:8080`;
     }
   }
 
   // Default fallback for Android Emulator
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8082';
+    return 'http://10.0.2.2:8080';
   }
 
-  return 'http://localhost:8082';
+  return 'http://localhost:8080';
 };
 
 export const API_BASE_URL = getBaseUrl();

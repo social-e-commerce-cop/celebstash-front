@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   releaseCardOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   releaseTypeBadge: {

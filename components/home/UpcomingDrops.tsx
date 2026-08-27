@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   cardOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   badgeRow: {

@@ -1,18 +1,6 @@
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-// Polyfill codegenNativeComponent for web/SSR to avoid crashes in packages like react-native-screens
-if (Platform.OS === 'web' || typeof window === 'undefined') {
-  try {
-    const RN = require('react-native');
-    if (RN && !RN.codegenNativeComponent) {
-      RN.codegenNativeComponent = () => () => null;
-    }
-  } catch (e) {
-    // Ignore
-  }
-}
-
 import * as NavigationBar from 'expo-navigation-bar';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 
