@@ -394,20 +394,11 @@ const MyProfile: React.FC = () => {
               </View>
             </TouchableOpacity>
           )}
-https://dwbe02.downloadwella.com/d/viwy4fddbwatc4c5e3yr2x7it35ifcn2ldkymzda2jxr4dtrin3idgh3irfugnguz7673s5g/Bon.Appetit.Your.Majesty.E03.(NKIRI.COM).mkv
-          {/* Story Highlights & Archive Row */}
+
+          {/* Story Highlights Row */}
           <View style={styles.highlightsContainer}>
             <View style={styles.highlightsHeader}>
               <Text style={styles.highlightsTitle}>Story Highlights</Text>
-              {isOwnProfile && (
-                <TouchableOpacity
-                  style={styles.archiveLink}
-                  onPress={() => Alert.alert('Story Archive', 'Showing your 24h expired stories archive.')}
-                >
-                  <Ionicons name="time-outline" size={14} color="#7126D0" />
-                  <Text style={styles.archiveLinkText}>Archive</Text>
-                </TouchableOpacity>
-              )}
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightsScroll}>
