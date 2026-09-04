@@ -12,20 +12,31 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { formatPrice } from '@/lib/currency';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 
 type AppStackParamList = {
   ProductDetails: {
+    id?: number;
     name?: string;
     price?: string | number;
     image?: any;
+    imageUrls?: string[];
     description?: string;
     artistName?: string;
     verified?: boolean;
     category?: string;
     artistImage?: any;
+    stockQuantity?: number;
+    sizeStock?: Record<string, number>;
+    availableColors?: string[];
+    status?: string;
+    adminNotes?: string;
+    isSeller?: boolean;
   };
 };
 
@@ -39,7 +50,7 @@ const defaultImages = [
   require('@/assets/images/products/product5.jpg'),
 ];
 
-const sizes = ['S', 'M', 'L', 'XL'];
+const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 const colors = [
   { id: 'dark', value: '#333333' },
@@ -63,11 +74,27 @@ const ProductDetails = () => {
   const paramArtistImage = route.params?.artistImage;
 
   const isMusic = paramCategory === 'Music';
+  const isSeller = route.params?.isSeller === true;
 
-  // Build a custom image gallery list
-  const galleryImages = [paramImage, ...defaultImages.filter(img => img !== paramImage)].slice(0, 5);
+  // Build exact image gallery list from uploaded images
+  const rawImageUrls = (route.params as any)?.imageUrls;
+  const uploadedGallery = Array.isArray(rawImageUrls) && rawImageUrls.length > 0
+    ? rawImageUrls.map((img: any) => {
+        if (typeof img === 'string') return { uri: resolveImageUrl(img) };
+        if (img && typeof img.uri === 'string') return { uri: resolveImageUrl(img.uri) };
+        return img;
+      })
+    : null;
 
-  const [activeImage, setActiveImage] = useState(paramImage);
+  const resolvedParamImage = typeof paramImage === 'string'
+    ? { uri: resolveImageUrl(paramImage) }
+    : (paramImage && typeof paramImage.uri === 'string' ? { uri: resolveImageUrl(paramImage.uri) } : paramImage);
+
+  const galleryImages = uploadedGallery && uploadedGallery.length > 0
+    ? uploadedGallery
+    : [resolvedParamImage];
+
+  const [activeImage, setActiveImage] = useState(galleryImages[0]);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(false);
@@ -116,8 +143,8 @@ const ProductDetails = () => {
     );
   };
 
-  // Clean numeric representation for the price text
-  const displayPrice = typeof paramPrice === 'number' ? `$${paramPrice}` : (paramPrice.startsWith('$') ? paramPrice : `$${paramPrice}`);
+  // Clean numeric representation with dual currency (USD + FRW)
+  const displayPrice = formatPrice(paramPrice);
 
   return (
     <View style={styles.container}>
@@ -180,7 +207,7 @@ const ProductDetails = () => {
           <View style={styles.thumbnailSection}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailList}>
               {galleryImages.map((img, idx) => {
-                const isActive = activeImage === img;
+                const isActive = (activeImage?.uri && img?.uri) ? activeImage.uri === img.uri : activeImage === img;
                 return (
                   <TouchableOpacity
                     key={idx}
@@ -205,9 +232,10 @@ const ProductDetails = () => {
 
           {/* Artist subheader */}
           <View style={styles.artistRow}>
-            <Text style={styles.artistLabel}>By </Text>
-            <Text style={styles.artistName}>{paramArtistName}</Text>
-            {paramVerified && (
+            <Text style={styles.artistLabel}>
+              By <Text style={styles.artistName}>{paramArtistName}</Text>
+            </Text>
+            {Boolean(paramVerified) && (
               <View style={styles.verifiedBadge}>
                 <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0">
                   <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
@@ -216,16 +244,215 @@ const ProductDetails = () => {
             )}
           </View>
 
-          {/* Product Description */}
+          {/* Product Description / Story */}
           <Text style={styles.descriptionText}>{paramDesc}</Text>
 
+          {/* Creator Inventory & Monitoring Dashboard (ONLY VISIBLE TO PRODUCT SELLER / OWNER) */}
+          {Boolean(isSeller) && (
+            <View style={{
+              backgroundColor: '#F9FAFB',
+              borderRadius: 14,
+              padding: 16,
+              marginVertical: 14,
+              borderWidth: 1,
+              borderColor: '#E5E7EB'
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#7126D0', letterSpacing: 0.8 }}>
+                  CREATOR LISTING DASHBOARD
+                </Text>
+                <View style={{
+                  backgroundColor: route.params?.status === 'APPROVED' ? '#DCFCE7' : route.params?.status === 'REJECTED' ? '#FEE2E2' : '#FEF3C7',
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}>
+                  <Text style={{
+                    fontSize: 11,
+                    fontFamily: 'Poppins-Bold',
+                    color: route.params?.status === 'APPROVED' ? '#166534' : route.params?.status === 'REJECTED' ? '#991B1B' : '#92400E'
+                  }}>
+                    {route.params?.status || 'PENDING'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Performance Metrics Grid */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Poppins-Regular', color: '#6B7280' }}>Stock Available</Text>
+                  <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111827', marginTop: 2 }}>
+                    {route.params?.stockQuantity ?? 0} items
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Poppins-Regular', color: '#6B7280' }}>Items Sold</Text>
+                  <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#10B981', marginTop: 2 }}>
+                    0 sold
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Poppins-Regular', color: '#6B7280' }}>Item Price</Text>
+                  <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111827', marginTop: 2 }}>
+                    ${paramPrice}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Poppins-Regular', color: '#6B7280' }}>Potential Value</Text>
+                  <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0', marginTop: 2 }}>
+                    ${(Number(paramPrice) * (Number(route.params?.stockQuantity) || 0)).toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Size & Items Available Breakdown for Artist/Seller */}
+              {Boolean(route.params?.sizeStock && Object.keys(route.params.sizeStock).length > 0) && (
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+                  <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#111827', marginBottom: 8 }}>
+                    Size & Stock Breakdown:
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {Object.entries(route.params?.sizeStock || {}).map(([sz, qty]) => (
+                      <View
+                        key={sz}
+                        style={{
+                          backgroundColor: '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: '#E5E7EB',
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#7126D0' }}>
+                          Size {sz}:
+                        </Text>
+                        <Text style={{ fontSize: 12, fontFamily: 'Poppins-Medium', color: '#374151' }}>
+                          {String(qty)} items
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Status Note & Rejection Reason */}
+              {route.params?.status === 'REJECTED' && (
+                <View style={{ marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5' }}>
+                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: '#991B1B', marginBottom: 4 }}>
+                    ✕ Submission Rejected
+                  </Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#7F1D1D', lineHeight: 18 }}>
+                    {route.params?.adminNotes
+                      ? `Reason: "${route.params.adminNotes}"`
+                      : 'Your product submission was rejected by Admin. Please update details below and resubmit.'}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 12,
+                      backgroundColor: '#7126D0',
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                    }}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      navigation.navigate('CreateProduct', {
+                        editProduct: {
+                          id: route.params?.id,
+                          name: paramName,
+                          description: paramDesc,
+                          price: paramPrice,
+                          category: paramCategory,
+                          stockQuantity: route.params?.stockQuantity,
+                          sizeStock: route.params?.sizeStock,
+                          availableColors: route.params?.availableColors,
+                          imageUrls: route.params?.imageUrls,
+                          imageUrl: paramImage?.uri || paramImage,
+                        },
+                      })
+                    }
+                  >
+                    <Ionicons name="create-outline" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: '#FFF' }}>
+                      Edit & Resubmit Drop
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {route.params?.status === 'APPROVED' && (
+                <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#059669', lineHeight: 18, marginTop: 10 }}>
+                  ✓ Live / Public: Approved by admin, visible in shop and purchasable by fans.
+                </Text>
+              )}
+
+              {(route.params?.status === 'SOLD_OUT' || (route.params?.stockQuantity !== undefined && route.params.stockQuantity <= 0)) && (
+                <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#DC2626', lineHeight: 18, marginTop: 10 }}>
+                  🔥 Sold Out: Quantity/edition exhausted.
+                </Text>
+              )}
+
+              {route.params?.status !== 'APPROVED' && route.params?.status !== 'REJECTED' && route.params?.status !== 'SOLD_OUT' && (
+                <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#D97706', lineHeight: 18, marginTop: 10 }}>
+                  ⏳ Pending Admin Review: Submitted by artist, awaiting admin review (not visible to public users).
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Buyer Stock Availability Badge */}
+          {Boolean(!isSeller && route.params?.stockQuantity !== undefined) && (
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: 14,
+              backgroundColor: (route.params?.stockQuantity ?? 0) > 0 ? '#F0FDF4' : '#FEF2F2',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: (route.params?.stockQuantity ?? 0) > 0 ? '#BBF7D0' : '#FECACA',
+              alignSelf: 'flex-start'
+            }}>
+              <Ionicons
+                name={(route.params?.stockQuantity ?? 0) > 0 ? "checkmark-circle" : "alert-circle"}
+                size={16}
+                color={(route.params?.stockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={{
+                fontSize: 12,
+                fontFamily: 'Poppins-Bold',
+                color: (route.params?.stockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"
+              }}>
+                {(route.params?.stockQuantity ?? 0) > 0
+                  ? `In Stock (${route.params?.stockQuantity} available)`
+                  : 'Sold Out'}
+              </Text>
+            </View>
+          )}
+
           {/* Size Options */}
-          {!isMusic && (
+          {Boolean(!isMusic) && (
             <>
-              <Text style={styles.sectionHeader}>Sizes:</Text>
+              <Text style={styles.sectionHeader}>Sizes & Stock per Size:</Text>
               <View style={styles.sizeContainer}>
-                {sizes.map(size => {
+                {(route.params?.sizeStock && Object.keys(route.params.sizeStock).length > 0
+                  ? Object.keys(route.params.sizeStock)
+                  : sizes
+                ).map(size => {
                   const isSelected = selectedSize === size;
+                  const itemQty = route.params?.sizeStock ? route.params.sizeStock[size] : undefined;
                   return (
                     <TouchableOpacity
                       key={size}
@@ -233,6 +460,7 @@ const ProductDetails = () => {
                         styles.sizeBox,
                         isSelected && styles.sizeBoxSelected,
                         !isSelected && styles.sizeBoxUnselected,
+                        { height: 48, minWidth: 60, paddingHorizontal: 8 }
                       ]}
                       onPress={() => setSelectedSize(size)}
                       activeOpacity={0.8}
@@ -240,25 +468,71 @@ const ProductDetails = () => {
                       <Text style={[styles.sizeText, isSelected && styles.sizeTextSelected]}>
                         {size}
                       </Text>
+                      {itemQty !== undefined && (
+                        <Text style={{ fontSize: 10, fontFamily: 'Poppins-Medium', color: isSelected ? '#FFF' : '#6B7280' }}>
+                          {itemQty} items
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
-              {/* Color Options */}
-              <Text style={styles.sectionHeader}>Color:</Text>
+              {/* Color Options - ONLY COLOR SWATCHES (NO WORDS) */}
+              <Text style={styles.sectionHeader}>Available Colors:</Text>
               <View style={styles.colorContainer}>
-                {colors.map(color => {
-                  const isSelected = selectedColor === color.id;
-                  const colorBg = color.value;
+                {(Array.isArray(route.params?.availableColors) && route.params.availableColors.length > 0
+                  ? route.params.availableColors
+                  : ['Black', 'White', 'Purple', 'Blue']
+                ).map((colStr, idx) => {
+                  const rawVal = (colStr || '').trim();
+                  const upper = rawVal.toUpperCase();
+                  const colorHex = upper.startsWith('#')
+                    ? upper
+                    : upper === 'BLACK' ? '#000000'
+                    : upper === 'WHITE' ? '#FFFFFF'
+                    : upper === 'RED' || upper === 'CRIMSON' ? '#EF4444'
+                    : upper === 'BLUE' || upper === 'NAVY' ? '#3B82F6'
+                    : upper === 'GREEN' || upper === 'EMERALD' ? '#10B981'
+                    : upper === 'PURPLE' || upper === 'VIOLET' ? '#7126D0'
+                    : upper === 'GOLD' || upper === 'YELLOW' ? '#F59E0B'
+                    : upper === 'SILVER' || upper === 'GRAY' || upper === 'GREY' ? '#9CA3AF'
+                    : upper === 'PINK' ? '#EC4899'
+                    : upper === 'ORANGE' ? '#FF6600'
+                    : upper === 'BROWN' ? '#8B4513'
+                    : '#333333';
+
+                  const isSelected = selectedColor === colStr || (!selectedColor && idx === 0);
+                  const isLightColor = colorHex === '#FFFFFF' || colorHex === '#F5F5DC' || colorHex === '#FFFF00';
+
                   return (
                     <TouchableOpacity
-                      key={color.id}
-                      style={[styles.colorRing, isSelected && styles.colorRingSelected]}
-                      onPress={() => setSelectedColor(color.id)}
+                      key={colStr + idx}
+                      style={[
+                        styles.colorSwatchWrapper,
+                        isSelected && styles.colorSwatchSelected,
+                      ]}
+                      onPress={() => setSelectedColor(colStr)}
                       activeOpacity={0.8}
                     >
-                      <View style={[styles.colorCircle, { backgroundColor: colorBg }]} />
+                      <View
+                        style={[
+                          styles.colorSwatchCircle,
+                          {
+                            backgroundColor: colorHex,
+                            borderWidth: isLightColor ? 1 : 0,
+                            borderColor: '#D1D5DB',
+                          },
+                        ]}
+                      >
+                        {isSelected && (
+                          <Ionicons
+                            name="checkmark"
+                            size={16}
+                            color={isLightColor ? '#000000' : '#FFFFFF'}
+                          />
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -268,9 +542,11 @@ const ProductDetails = () => {
 
           {isMusic && (
             <View style={styles.musicDetailsSection}>
-              <TouchableOpacity style={styles.accessNowBigBtn} onPress={handleBuyNow}>
-                <Text style={styles.accessNowBigText}>Access Now</Text>
-              </TouchableOpacity>
+              {!isSeller && (
+                <TouchableOpacity style={styles.accessNowBigBtn} onPress={handleBuyNow}>
+                  <Text style={styles.accessNowBigText}>Access Now</Text>
+                </TouchableOpacity>
+              )}
 
               <Text style={styles.tracksTitle}>Tracks</Text>
               <View style={styles.tracksDivider} />
@@ -292,17 +568,19 @@ const ProductDetails = () => {
                 </Svg>
               </View>
 
-              <View style={styles.premiumCard}>
-                <View style={styles.premiumCardInner}>
-                  <View>
-                    <Text style={styles.premiumCardTitle}>Get Premium Access for 3 days</Text>
-                    <Text style={styles.premiumCardPrice}>$2.56</Text>
+              {!isSeller && (
+                <View style={styles.premiumCard}>
+                  <View style={styles.premiumCardInner}>
+                    <View>
+                      <Text style={styles.premiumCardTitle}>Get Premium Access for 3 days</Text>
+                      <Text style={styles.premiumCardPrice}>$2.56</Text>
+                    </View>
+                    <TouchableOpacity style={styles.premiumAccessBtn} onPress={handleBuyNow}>
+                      <Text style={styles.premiumAccessBtnText}>Get Access</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={styles.premiumAccessBtn} onPress={handleBuyNow}>
-                    <Text style={styles.premiumAccessBtnText}>Get Access</Text>
-                  </TouchableOpacity>
                 </View>
-              </View>
+              )}
 
               <View style={styles.musicFeatures}>
                 <View style={styles.featureRow}>
@@ -321,20 +599,32 @@ const ProductDetails = () => {
       </ScrollView>
 
       {/* Sticky Bottom Actions Row */}
-      {!isMusic && (
+      {isSeller ? (
         <View style={styles.bottomActionBar}>
-          <TouchableOpacity style={styles.buyButton} activeOpacity={0.8} onPress={handleBuyNow}>
-            <Text style={styles.buyButtonText}>Buy Now</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.cartButton} activeOpacity={0.8} onPress={handleAddToCart}>
-            <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-              <Circle cx="9" cy="21" r="1" />
-              <Circle cx="20" cy="21" r="1" />
-              <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-            </Svg>
+          <TouchableOpacity
+            style={[styles.buyButton, { backgroundColor: '#7126D0', width: '100%' }]}
+            activeOpacity={0.8}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buyButtonText}>Back to My Profile</Text>
           </TouchableOpacity>
         </View>
+      ) : (
+        !isMusic && (
+          <View style={styles.bottomActionBar}>
+            <TouchableOpacity style={styles.buyButton} activeOpacity={0.8} onPress={handleBuyNow}>
+              <Text style={styles.buyButtonText}>Buy Now</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cartButton} activeOpacity={0.8} onPress={handleAddToCart}>
+              <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+                <Circle cx="9" cy="21" r="1" />
+                <Circle cx="20" cy="21" r="1" />
+                <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </Svg>
+            </TouchableOpacity>
+          </View>
+        )
       )}
     </View>
   );
@@ -514,6 +804,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  colorSwatchWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorSwatchSelected: {
+    borderColor: '#7126D0',
+  },
+  colorSwatchCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   colorRing: {
     width: 38,

@@ -62,22 +62,29 @@ const Signup: React.FC = () => {
     setIsLoading(true);
 
     try {
-      setSessionUser({ fullName, username, email: emailOrPhone });
+      const isEmail = isEmailValid(emailOrPhone);
+      setSessionUser({
+        fullName,
+        username: username.trim(),
+        email: isEmail ? emailOrPhone : undefined,
+        phoneNumber: !isEmail ? emailOrPhone : undefined,
+      });
 
       const res: any = await authService.initiateSignup({
         fullName,
-        email: emailOrPhone,
+        username: username.trim(),
+        email: isEmail ? emailOrPhone : undefined,
+        phoneNumber: !isEmail ? emailOrPhone : undefined,
         password,
       });
 
-      const isEmail = isEmailValid(emailOrPhone);
       const methodType = isEmail ? 'email' : 'phone';
       
       navigation.navigate('Verification', { 
         identifier: emailOrPhone, 
         type: methodType,
         fullName,
-        username,
+        username: username.trim(),
         password
       });
     } catch (err: any) {

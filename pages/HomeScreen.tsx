@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar, RefreshControl, Platform } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -13,68 +13,63 @@ import Post from '@/components/home/Post';
 import LiveAuctionBanner from '@/components/home/LiveAuctionBanner';
 import { AddPostModal } from '@/components/home/AddPostModal';
 import { getSessionUser } from '@/lib/session';
-import { default as initialPostsData, PostData } from '@/lib/postsData';
+import { fetchHomeFeed, BackendPost } from '@/lib/postService';
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
   const [user, setUser] = useState(getSessionUser());
-  const [postsList, setPostsList] = useState<PostData[]>(initialPostsData);
+  const [postsList, setPostsList] = useState<BackendPost[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [addPostVisible, setAddPostVisible] = useState(false);
-
   const [searchQuery, setSearchQuery] = useState('');
+
+  const loadFeedPosts = useCallback(async () => {
+    try {
+      const res = await fetchHomeFeed(0, 20);
+      if (res && res.content) {
+        setPostsList(res.content);
+      }
+    } catch (err) {
+      console.error('Error fetching home feed:', err);
+    }
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFeedPosts();
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setUser(getSessionUser());
+      loadFeedPosts();
+    });
+    loadFeedPosts();
+    return unsubscribe;
+  }, [navigation, loadFeedPosts]);
 
   // Filter posts by username or caption text
   const filteredPosts = searchQuery.trim()
     ? postsList.filter(
         p =>
-          p.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.postText.toLowerCase().includes(searchQuery.toLowerCase())
+          (p.userName && p.userName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : postsList;
 
-  const handleAddPost = (newPost: PostData) => {
-    setPostsList([newPost, ...postsList]);
-  };
-
-  // Define state for active auctions. If this array is empty [], the Auction Grid hides completely!
-  const [auctions, setAuctions] = useState<any[]>([
-    {
-      id: 1,
-      image: require('../assets/images/smiling-black.png'),
-      title: 'This is the jacket i wore during the opening ...',
-      viewerCount: '3.4K',
-      artistName: 'Kenny K Shot',
-      artistAvatar: require('../assets/images/storyItem.jpg'),
-      timeAgo: '1h ago',
-    },
-    {
-      id: 2,
-      image: require('../assets/images/feed7.png'),
-      title: 'This is the jacket i wore during the opening ...',
-      viewerCount: '3.4K',
-      artistName: 'Kenny K Shot',
-      artistAvatar: require('../assets/images/storyItem.jpg'),
-      timeAgo: '1h ago',
-    },
-  ]);
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      setUser(getSessionUser());
-    });
-    return unsubscribe;
-  }, [navigation]);
-
   const handleChatPress = () => {
     navigation.navigate('MessagesScreen');
-    console.log('Navigating to chat');
   };
 
   const handleNotificationPress = () => {
     navigation.navigate('Notifications');
-    console.log('Navigating to notifications');
   };
+
+  const isArtistOrAdmin = user?.role === 'ARTIST' || user?.role === 'ADMIN';
 
   return (
     <View style={styles.screen}>
@@ -83,6 +78,9 @@ const HomeScreen = () => {
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7126D0']} />
+        }
       >
         {/* Header: Logo & Purple Badged Icons */}
         <View style={styles.header}>
@@ -92,7 +90,7 @@ const HomeScreen = () => {
           </View>
 
           <View style={styles.iconContainer}>
-            {/* Notification bell button with purple badge '1' */}
+            {/* Notification bell button */}
             <TouchableOpacity style={styles.iconButton} onPress={handleNotificationPress} activeOpacity={0.8}>
               <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -103,7 +101,7 @@ const HomeScreen = () => {
               </View>
             </TouchableOpacity>
 
-            {/* Messaging bubble button with purple badge '3' */}
+            {/* Messaging bubble button */}
             <TouchableOpacity style={styles.iconButton} onPress={handleChatPress} activeOpacity={0.8}>
               <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -116,62 +114,61 @@ const HomeScreen = () => {
         </View>
 
         {/* Search Bar pill */}
-        <TouchableOpacity
-          style={styles.searchBar}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('Browse', { initialQuery: searchQuery })}
-        >
-          <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" style={styles.searchIcon}>
-            <Circle cx="11" cy="11" r="8" />
-            <Path d="m21 21-4.3-4.3" />
-          </Svg>
+        <View style={styles.searchBar}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Browse', { initialQuery: searchQuery })}
+            activeOpacity={0.7}
+          >
+            <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2.5" style={styles.searchIcon}>
+              <Circle cx="11" cy="11" r="8" />
+              <Path d="m21 21-4.3-4.3" />
+            </Svg>
+          </TouchableOpacity>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search for merch, artist..."
-            placeholderTextColor="#333"
+            placeholder="Search for merch, artist, drops..."
+            placeholderTextColor="#666"
             value={searchQuery}
-            editable={false}
-            pointerEvents="none"
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            onSubmitEditing={() => navigation.navigate('Browse', { initialQuery: searchQuery })}
           />
-        </TouchableOpacity>
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => navigation.navigate('Browse', { initialQuery: searchQuery })}>
+              <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#7126D0' }}>Search</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* Section 5: ProfileSection (Featured Artists Horizontal list) */}
+        {/* Featured Artists Horizontal list */}
         <ProfileSection />
 
-        {/* Live Auction Banner â€” shown right below stories */}
+        {/* Live Auction Banner */}
         <LiveAuctionBanner />
 
+        {/* Quick Shop Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+          <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111' }}>Shop & Drops</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Shop')}
+            activeOpacity={0.8}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: '#7126D0' }}>Shop All Products</Text>
+            <Ionicons name="arrow-forward" size={14} color="#7126D0" />
+          </TouchableOpacity>
+        </View>
 
-        {/* Section 4: Latest Drops (Drop Banner) */}
+        {/* Latest Drops */}
         <LatestDrops />
 
-        {/* Section 6: AuctionGrid (Side-by-side double cards) */}
-        <AuctionGrid auctions={auctions} />
+        {/* AuctionGrid */}
+        <AuctionGrid auctions={[]} />
 
-        {/* Section 7: Feed posts list */}
+        {/* Real Feed posts list */}
         <Post posts={filteredPosts} />
       </ScrollView>
 
-      {/* Floating Create Post Button (Exclusively for ARTIST accounts) */}
-      {user.role === 'ARTIST' && (
-        <TouchableOpacity
-          style={styles.floatingCreatePostBtn}
-          activeOpacity={0.85}
-          onPress={() => setAddPostVisible(true)}
-        >
-          <Ionicons name="add" size={28} color="#FFF" />
-        </TouchableOpacity>
-      )}
-
-      {/* Add Post Modal for Artists */}
-      <AddPostModal
-        visible={addPostVisible}
-        onClose={() => setAddPostVisible(false)}
-        onAddPost={handleAddPost}
-        artistName={user.fullName || 'Kenny K Shot'}
-      />
-
-      {/* Floating TabBar at the bottom */}
       <View style={styles.tabBarContainer}>
         <TabBar />
       </View>
@@ -187,91 +184,80 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   scrollContent: {
-    paddingHorizontal: width * 0.06,
-    paddingVertical: height * 0.05,
-    // paddingBottom: height * 0.1, // Space for floating bottom TabBar
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight ? StatusBar.currentHeight + 28 : 52),
+    paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    marginTop: 12,
+    marginBottom: 14,
   },
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
   },
   logoText: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Poppins-Bold',
     color: '#000',
+    letterSpacing: 1,
   },
   logoDot: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Poppins-Bold',
     color: '#7126D0',
   },
   iconContainer: {
     flexDirection: 'row',
-    gap: 6,
+    alignItems: 'center',
+    gap: 12,
   },
   iconButton: {
-    position: 'relative',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#fff',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: 2,
-    right: 3,
-    backgroundColor: '#7126D0', // Orange badge background
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -2,
+    right: -2,
+    backgroundColor: '#7126D0',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
     justifyContent: 'center',
-    display: 'flex',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fff',
+    paddingHorizontal: 4,
   },
   badgeText: {
-    color: 'white',
+    color: '#FFF',
     fontSize: 10,
     fontFamily: 'Poppins-Bold',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F3F3', // Muted grey backdrop
-    borderRadius: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginTop: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    height: 42,
     marginBottom: 16,
   },
   searchIcon: {
-    marginRight: 10,
-    marginBottom: 3
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    color: '#000',
     fontSize: 16,
-    fontFamily: 'Poppins-Medium',
-    padding: 0, // Remove default TextInput padding
-  },
-
-  tabBarContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
+    fontFamily: 'Poppins-Regular',
+    color: '#000',
   },
   floatingCreatePostBtn: {
     position: 'absolute',
@@ -283,11 +269,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#7126D0',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6,
     shadowColor: '#7126D0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 6,
-    zIndex: 99,
+    elevation: 8,
+    zIndex: 999,
+  },
+  tabBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });

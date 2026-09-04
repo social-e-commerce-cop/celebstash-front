@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,14 @@ import {
   StyleSheet,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Circle } from 'react-native-svg';
 import TabBar from '@/components/Tabbar';
+import { productsService, ProductItem as RealProductItem } from '@/lib/productsService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,24 +27,11 @@ type AppStackParamList = {
 
 type BrowseScreenRouteProp = RouteProp<AppStackParamList, 'Browse'>;
 
-interface ProductItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  quantity: number;
-  image: any;
-}
-
-const collectionsData: ProductItem[] = [
-  { id: '1', name: 'Ink Art Tee', category: 'Clothing', price: 34, quantity: 15, image: require('@/assets/images/products/product1.jpg') },
-  { id: '2', name: 'Ink Art Tee', category: 'Clothing', price: 34, quantity: 8, image: require('@/assets/images/products/product2.jpg') },
-  { id: '3', name: 'Classic Cap', category: 'Accessories', price: 28, quantity: 24, image: require('@/assets/images/products/product3.jpg') },
-  { id: '4', name: 'Artistic Print', category: 'Art', price: 45, quantity: 3, image: require('@/assets/images/products/product4.jpg') },
-  { id: '5', name: 'Celeb Mug', category: 'Utilities', price: 19, quantity: 12, image: require('@/assets/images/products/product5.jpg') },
-  { id: '6', name: 'Ink Art Tee Special', category: 'Clothing', price: 39, quantity: 6, image: require('@/assets/images/products/product6.jpg') },
-  { id: '7', name: 'Stash Backpack', category: 'Accessories', price: 65, quantity: 9, image: require('@/assets/images/products/product7.jpg') },
-  { id: '8', name: 'Minimal Tee', category: 'Clothing', price: 34, quantity: 18, image: require('@/assets/images/products/product1.jpg') },
+const fallbackCollections: RealProductItem[] = [
+  { id: 101, name: 'Ink Art Tee', category: 'Clothing', price: 34, stockQuantity: 15, productType: 'REGULAR', status: 'APPROVED', sellerId: 1, sellerName: 'Anelia', imageUrl: undefined },
+  { id: 102, name: 'Classic Cap', category: 'Accessories', price: 28, stockQuantity: 24, productType: 'REGULAR', status: 'APPROVED', sellerId: 2, sellerName: 'Kenny K Shot', imageUrl: undefined },
+  { id: 103, name: 'Artistic Print', category: 'Art', price: 45, stockQuantity: 3, productType: 'REGULAR', status: 'APPROVED', sellerId: 1, sellerName: 'Anelia', imageUrl: undefined },
+  { id: 104, name: 'Celeb Mug', category: 'Utilities', price: 19, stockQuantity: 12, productType: 'REGULAR', status: 'APPROVED', sellerId: 2, sellerName: 'Kenny K Shot', imageUrl: undefined },
 ];
 
 const categories = ['All', 'Clothing', 'Accessories', 'Art', 'Utilities'];
@@ -52,44 +42,88 @@ const BrowseScreen = () => {
 
   const [searchQuery, setSearchQuery] = useState(route.params?.initialQuery || '');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [realProducts, setRealProducts] = useState<RealProductItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    productsService.getAllProducts()
+      .then(prods => {
+        if (Array.isArray(prods) && prods.length > 0) {
+          // Sort by ID descending (newest / recently added first)
+          const sorted = [...prods].sort((a, b) => b.id - a.id);
+          setRealProducts(sorted);
+        } else {
+          setRealProducts(fallbackCollections);
+        }
+      })
+      .catch(() => {
+        setRealProducts(fallbackCollections);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   // Filter items based on category and search query
-  const filteredData = collectionsData.filter(item => {
-    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredData = useMemo(() => {
+    let list = realProducts;
+    if (activeCategory !== 'All') {
+      list = list.filter(item => (item.category || 'Clothing').toLowerCase() === activeCategory.toLowerCase());
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(item =>
+        item.name.toLowerCase().includes(q) ||
+        (item.sellerName && item.sellerName.toLowerCase().includes(q)) ||
+        (item.description && item.description.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [realProducts, activeCategory, searchQuery]);
 
-  const renderProductItem = ({ item }: { item: ProductItem }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.9}
-      onPress={() =>
-        navigation.navigate('ProductDetails', {
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          description:
-            item.name.toLowerCase().includes('ink art')
-              ? 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals'
-              : undefined,
-          artistName: 'Kenny K Shot',
-          verified: true,
-        })
-      }
-    >
-      <Image source={item.image} style={styles.image} />
-      <View style={styles.infoContainer}>
-        <Text style={styles.productName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.productPrice}>${item.price}</Text>
-          <Text style={styles.productQuantity}>Qty: {item.quantity}</Text>
+  const renderProductItem = ({ item }: { item: RealProductItem }) => {
+    const rawMainImg = item.imageUrls && item.imageUrls.length > 0 ? item.imageUrls[0] : item.imageUrl;
+    const mainImg = rawMainImg ? resolveImageUrl(rawMainImg) : null;
+    const resolvedImageUrls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+      ? item.imageUrls.map(u => resolveImageUrl(u))
+      : (mainImg ? [mainImg] : []);
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.9}
+        onPress={() =>
+          navigation.navigate('ProductDetails', {
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            image: mainImg ? { uri: mainImg } : require('@/assets/images/products/product1.jpg'),
+            imageUrls: resolvedImageUrls,
+            description: item.description || 'Exclusive merchandise product.',
+            artistName: item.sellerName || 'Kenny K Shot',
+            verified: true,
+            stockQuantity: item.stockQuantity,
+            sizeStock: item.sizeStock,
+            availableColors: item.availableColors,
+            category: item.category,
+            isSeller: false, // Ensure buyer view!
+          })
+        }
+      >
+        <Image
+          source={mainImg ? { uri: mainImg } : require('@/assets/images/products/product1.jpg')}
+          style={styles.image}
+        />
+        <View style={styles.infoContainer}>
+          <Text style={styles.productName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.productPrice}>${item.price}</Text>
+            <Text style={styles.productQuantity}>Qty: {item.stockQuantity ?? 0}</Text>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -162,7 +196,7 @@ const BrowseScreen = () => {
       {/* Grid of collections */}
       <FlatList
         data={filteredData}
-        keyExtractor={item => item.id}
+        keyExtractor={item => String(item.id)}
         numColumns={2}
         columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.gridContent}

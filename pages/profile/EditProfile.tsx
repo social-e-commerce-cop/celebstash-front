@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -9,13 +9,15 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 
-import { getSessionUser, setSessionUser } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
+import { profileService } from "@/lib/profileService";
 
 const { width, height } = Dimensions.get("window");
 const PURPLE = "#7126D0";
@@ -25,14 +27,19 @@ const EditProfile = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const sessionUser = getSessionUser();
 
-  // Profile Details State
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Profile fields
   const [fullName, setFullName] = useState(sessionUser.fullName || "");
   const [username, setUsername] = useState(sessionUser.username || "");
   const [email, setEmail] = useState(sessionUser.email || "");
-  const [phone, setPhone] = useState(sessionUser.phoneNumber || "");
-  const [avatar, setAvatar] = useState("https://cdn-icons-png.flaticon.com/512/149/149071.png");
+  const [bio, setBio] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [pendingAvatarUri, setPendingAvatarUri] = useState<string | null>(null);
 
-  // Custom Toast State
+  // Toast state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -45,35 +52,99 @@ const EditProfile = () => {
     }, 2000);
   };
 
-  // Avatar Picker Flow
+  // Load real profile from backend on mount
+  useEffect(() => {
+    profileService
+      .getMyProfile()
+      .then((profile) => {
+        if (profile) {
+          setFullName(profile.fullName || "");
+          setUsername(profile.username || "");
+          if (profile.email) setEmail(profile.email);
+          setBio(profile.bio || "");
+          if (profile.profilePicture) {
+            setAvatar(profile.profilePicture);
+          }
+        }
+      })
+      .catch(() => {
+        // Session data is already pre-filled as fallback
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Pick avatar and stage it locally (don't upload yet, upload on save)
   const pickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      showToast("We need photo permissions to edit avatar.", "error");
+      showToast("We need photo permissions to edit your avatar.", "error");
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images || 'images' as any,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setAvatar(result.assets[0].uri);
+      // Stage the local URI for preview; actual upload happens on save
+      setPendingAvatarUri(result.assets[0].uri);
     }
   };
 
-  // Profile Save Flow
-  const handleSaveProfile = () => {
-    if (!fullName || !username || !email) {
-      showToast("Please fill in required fields.", "error");
+  const handleSaveProfile = async () => {
+    if (!fullName.trim()) {
+      showToast("Full name is required.", "error");
       return;
     }
-    setSessionUser({ fullName, username, email, phoneNumber: phone });
-    showToast("Profile details updated successfully!", "success");
+
+    setSaving(true);
+    try {
+      let profilePictureUrl = avatar;
+
+      // If user picked a new avatar, upload it first
+      if (pendingAvatarUri) {
+        setUploadingAvatar(true);
+        try {
+          profilePictureUrl = await profileService.uploadProfilePicture(pendingAvatarUri);
+          setAvatar(profilePictureUrl);
+          setPendingAvatarUri(null);
+        } catch {
+          showToast("Avatar upload failed. Please try again.", "error");
+          setSaving(false);
+          setUploadingAvatar(false);
+          return;
+        }
+        setUploadingAvatar(false);
+      }
+
+      // Save profile data to backend
+      await profileService.updateMyProfile({
+        fullName: fullName.trim(),
+        username: username.trim() || undefined,
+        bio: bio.trim() || undefined,
+        profilePicture: profilePictureUrl || undefined,
+      });
+
+      showToast("Profile updated successfully!", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Could not save profile. Please try again.", "error");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={PURPLE} />
+      </View>
+    );
+  }
+
+  const displayedAvatar = pendingAvatarUri || avatar;
 
   return (
     <View style={styles.container}>
@@ -96,9 +167,13 @@ const EditProfile = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Account Info</Text>
-        <TouchableOpacity onPress={handleSaveProfile} style={styles.doneBtn}>
-          <Text style={styles.doneBtnText}>Save</Text>
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <TouchableOpacity onPress={handleSaveProfile} style={styles.doneBtn} disabled={saving}>
+          {saving ? (
+            <ActivityIndicator size="small" color={PURPLE} />
+          ) : (
+            <Text style={styles.doneBtnText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -106,9 +181,19 @@ const EditProfile = () => {
         {/* Avatar Picker */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatarWrapper}>
-            <Image source={{ uri: avatar }} style={styles.avatarImage} />
-            <TouchableOpacity style={styles.avatarEditBtn} onPress={pickAvatar}>
-              <Ionicons name="camera" size={16} color="#FFF" />
+            {displayedAvatar ? (
+              <Image source={{ uri: displayedAvatar }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatarImage, { backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" }]}>
+                <Ionicons name="person" size={40} color="#9CA3AF" />
+              </View>
+            )}
+            <TouchableOpacity style={styles.avatarEditBtn} onPress={pickAvatar} disabled={uploadingAvatar}>
+              {uploadingAvatar ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#FFF" />
+              )}
             </TouchableOpacity>
           </View>
           <Text style={styles.avatarTip}>Tap camera to change profile photo</Text>
@@ -117,7 +202,7 @@ const EditProfile = () => {
         {/* Input Fields Card */}
         <View style={styles.card}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Full Name</Text>
+            <Text style={styles.inputLabel}>Full Name *</Text>
             <TextInput
               style={styles.textInput}
               value={fullName}
@@ -127,7 +212,7 @@ const EditProfile = () => {
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Username</Text>
+            <Text style={styles.inputLabel}>Username *</Text>
             <TextInput
               style={styles.textInput}
               value={username}
@@ -140,30 +225,29 @@ const EditProfile = () => {
           <View style={styles.fieldGroup}>
             <Text style={styles.inputLabel}>Email Address</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: "#F3F4F6", color: "#6B7280" }]}
               value={email}
-              onChangeText={setEmail}
-              placeholder="Enter email address"
-              keyboardType="email-address"
-              autoCapitalize="none"
+              editable={false}
+              placeholder="Email address"
             />
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Phone Number</Text>
+            <Text style={styles.inputLabel}>Bio</Text>
             <TextInput
-              style={styles.textInput}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter phone number"
-              keyboardType="phone-pad"
+              style={[styles.textInput, { height: 80, textAlignVertical: "top", paddingTop: 10 }]}
+              value={bio}
+              onChangeText={setBio}
+              placeholder="Tell the world about yourself..."
+              multiline
+              maxLength={300}
             />
+            <Text style={{ fontSize: 11, color: "#9CA3AF", textAlign: "right", marginTop: 2 }}>
+              {bio.length}/300
+            </Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-          <Text style={styles.saveBtnText}>Save Changes</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -185,9 +269,7 @@ const styles = StyleSheet.create({
     paddingTop: height * 0.04,
     paddingBottom: height * 0.015,
   },
-  backBtn: {
-    padding: 4,
-  },
+  backBtn: { padding: 4 },
   headerTitle: {
     color: "#000",
     fontFamily: "Poppins-Bold",
@@ -196,6 +278,8 @@ const styles = StyleSheet.create({
   doneBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
+    minWidth: 50,
+    alignItems: "center",
   },
   doneBtnText: {
     color: PURPLE,
@@ -246,34 +330,32 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 15,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 6,
     marginBottom: 20,
   },
-  fieldGroup: {
-    marginBottom: 16,
-  },
+  fieldGroup: { marginBottom: 20 },
   inputLabel: {
     fontSize: 13,
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
     color: "#374151",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 46,
-    fontSize: 14,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    fontSize: 15,
     color: "#1F2937",
     fontFamily: "Poppins-Regular",
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#F9FAFB",
   },
   saveBtn: {
     backgroundColor: PURPLE,
@@ -311,12 +393,8 @@ const styles = StyleSheet.create({
     zIndex: 999,
     borderLeftWidth: 4,
   },
-  toastSuccess: {
-    borderLeftColor: "#16A34A",
-  },
-  toastError: {
-    borderLeftColor: "#E63636",
-  },
+  toastSuccess: { borderLeftColor: "#16A34A" },
+  toastError: { borderLeftColor: "#E63636" },
   toastText: {
     marginLeft: 10,
     fontSize: 14,

@@ -57,9 +57,9 @@ export const authService = {
     const response: any = await apiClient.post('/api/v1/auth/signup/verify', params);
     if (response.success && response.accessToken) {
       const userFullName = response.fullName || response.user?.fullName || '';
-      const userEmail = response.email || response.user?.email || params.identifier;
-      const userPhone = response.phoneNumber || response.user?.phoneNumber;
-      const userHandle = response.username || response.user?.username || params.username || (userEmail ? userEmail.split('@')[0] : 'user');
+      const userEmail = response.email || response.user?.email || (params.identifier.includes('@') ? params.identifier : '');
+      const userPhone = response.phoneNumber || response.user?.phoneNumber || (!params.identifier.includes('@') ? params.identifier : '');
+      const userHandle = response.username || response.user?.username || params.username || '';
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },
@@ -82,10 +82,10 @@ export const authService = {
       password: params.password,
     });
     if (response.success && response.accessToken) {
-      const userFullName = response.fullName || response.user?.fullName || params.emailOrPhone.split('@')[0];
-      const userEmail = response.email || response.user?.email || params.emailOrPhone;
+      const userFullName = response.fullName || response.user?.fullName || '';
+      const userEmail = response.email || response.user?.email || (params.emailOrPhone.includes('@') ? params.emailOrPhone : '');
       const userPhone = response.phoneNumber || response.user?.phoneNumber;
-      const userHandle = response.username || response.user?.username || params.emailOrPhone.split('@')[0];
+      const userHandle = response.username || response.user?.username || '';
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },

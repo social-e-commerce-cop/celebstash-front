@@ -24,6 +24,7 @@ import {
   Profile,
   Security,
 } from "@/assets/icons/Settings";
+import { clearSession } from "@/lib/session";
 
 const { width, height } = Dimensions.get("window");
 const LIGHT_BG = "#F5F8FA";
@@ -53,9 +54,10 @@ const SettingsScreen: React.FC = () => {
         style: "destructive",
         onPress: () => {
           console.log("Logged out");
+          clearSession();
           navigation.reset({
             index: 0,
-            routes: [{ name: "OnBoarding" }],
+            routes: [{ name: "Signin" }],
           });
         },
       },
@@ -97,7 +99,6 @@ const SettingsScreen: React.FC = () => {
   const settingsItems = [
     { key: "edit-profile", title: "Edit Profile", icon: <Profile />, action: () => handlePress("EditProfile") },
     { key: "become-artist", title: "Claim Artist Status", icon: <Ionicons name="sparkles-outline" size={22} color={PURPLE} />, action: () => handlePress("BecomeArtist") },
-    { key: "admin-artist", title: "Admin: Artist Applications", icon: <Ionicons name="shield-checkmark-outline" size={22} color={PURPLE} />, action: () => handlePress("AdminArtistApplications") },
     { key: "address", title: "Shipping Address", icon: <Addres />, action: () => handlePress("AddressSetting") },
     { key: "notifications", title: "Notifications", icon: <Notifications />, action: () => handlePress("NotificationSettings") },
     { key: "password", title: "Change Password", icon: <Security />, action: () => handlePress("Security") },
@@ -215,20 +216,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
     marginHorizontal: width * 0.05,
     marginTop: 15,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Poppins-Regular",
     color: "#1F2937",
+    paddingTop: 3,
   },
   scrollContent: {
     paddingVertical: height * 0.02,

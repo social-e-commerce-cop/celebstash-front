@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, LogBox } from 'react-native';
+
+// Ignore the harmless Expo keep-awake warning in development/web
+LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 import * as NavigationBar from 'expo-navigation-bar';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
@@ -20,11 +23,15 @@ import CreatePassword from '@/pages/auth/CreatePassword';
 import HomeScreen from '@/pages/HomeScreen';
 import BrowseScreen from '@/pages/home/BrowseScreen';
 import MusicScreen from '@/pages/home/MusicScreen';
+import MusicDetailScreen from '@/pages/music/MusicDetailScreen';
+import UploadMusicScreen from '@/pages/Artist/UploadMusicScreen';
+import MyMusicScreen from '@/pages/profile/MyMusicScreen';
 import ProfileDetails from '@/pages/home/ProfileDetails';
 import Drops from '@/pages/home/Drops';
 import ShopScreen from '@/pages/home/ShopScreen';
 
 import ProductDetails from '@/pages/product/ProductDetails';
+import CreateProduct from '@/pages/product/CreateProduct';
 import ProductReviews from '@/pages/product/ProductReviews';
 import TrackOrder from '@/pages/product/TrackOrder';
 
@@ -91,6 +98,10 @@ type AppStackParamList = {
   Home: undefined;
   Browse: { initialQuery?: string };
   Music: { initialQuery?: string };
+  MusicScreen: { initialQuery?: string } | undefined;
+  MusicDetail: { id?: number; releaseId?: number } | undefined;
+  UploadMusic: undefined;
+  MyMusic: undefined;
   Drops: undefined;
   Shop: undefined;
   ProfileDetails: { story: { username: string; time: string; image: any } };
@@ -102,6 +113,7 @@ type AppStackParamList = {
     artistName?: string;
     verified?: boolean;
   };
+  CreateProduct: undefined;
   ProductReviews: undefined;
   CartScreen: undefined;
   ActivePage: undefined;
@@ -218,10 +230,15 @@ export default function App() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Browse" component={BrowseScreen} />
         <Stack.Screen name="Music" component={MusicScreen} />
+        <Stack.Screen name="MusicScreen" component={MusicScreen} />
+        <Stack.Screen name="MusicDetail" component={MusicDetailScreen} />
+        <Stack.Screen name="UploadMusic" component={UploadMusicScreen} />
+        <Stack.Screen name="MyMusic" component={MyMusicScreen} />
         <Stack.Screen name="Drops" component={Drops} />
         <Stack.Screen name="Shop" component={ShopScreen} />
         <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
         <Stack.Screen name="ProductDetails" component={ProductDetails} />
+        <Stack.Screen name="CreateProduct" component={CreateProduct} />
         <Stack.Screen name="ProductReviews" component={ProductReviews} />
         <Stack.Screen name="CartScreen" component={Cart} />
         <Stack.Screen name="ActivePage" component={ActivePage} />

@@ -17,6 +17,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Circle } from 'react-native-svg';
 import TabBar from '@/components/Tabbar';
 import { Ionicons } from '@expo/vector-icons';
+import { musicService, MusicReleaseItem } from '@/lib/musicService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -39,81 +41,117 @@ const featuredArtists = [
   { id: '4', name: 'Chris Brown', image: require('@/assets/images/prof.jpg') },
 ];
 
+const renderArtist = ({ item }: { item: typeof featuredArtists[0] }) => (
+  <TouchableOpacity style={styles.artistAvatarContainer}>
+    <Image source={item.image} style={styles.artistAvatar} />
+    <Text style={styles.artistNameText}>{item.name}</Text>
+  </TouchableOpacity>
+);
+
 const MusicScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
+  const [realReleases, setRealReleases] = useState<MusicReleaseItem[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Filter songs by title or artist based on search query
-  const filteredSongs = searchQuery.trim()
-    ? songsData.filter(
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchMusicData();
+    });
+    fetchMusicData();
+    return unsubscribe;
+  }, [navigation]);
+
+  const fetchMusicData = async () => {
+    setLoading(true);
+    try {
+      const data = await musicService.getReleases();
+      setRealReleases(data || []);
+    } catch (e) {
+      console.warn('Failed to fetch releases:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredReleases = searchQuery.trim()
+    ? realReleases.filter(
         item =>
-          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.artist.toLowerCase().includes(searchQuery.toLowerCase())
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (item.artist?.username || item.artist?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : songsData;
+    : realReleases;
 
-  const renderUpcoming = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.upcomingCard} activeOpacity={0.9} onPress={() => {}}>
-      <ImageBackground source={item.image} style={styles.upcomingBg} imageStyle={styles.upcomingImageStyle}>
-        <View style={styles.upcomingPriceBadge}>
-          <Text style={styles.upcomingPriceText}>${item.price}</Text>
-        </View>
-        <View style={styles.upcomingGradient}>
-          <View style={styles.upcomingInfo}>
-            <Text style={styles.upcomingTitle} numberOfLines={3}>{item.title}</Text>
-            <View style={styles.upcomingArtistRow}>
-              <Text style={styles.upcomingArtist}>{item.artist}</Text>
-              <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
-                <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-              </Svg>
-            </View>
-            <View style={styles.upcomingFooter}>
-              <Text style={styles.upcomingDropType}>Single Drop</Text>
-              <Text style={styles.upcomingAccesses}>{item.accesses} Accesses</Text>
+  const renderUpcoming = ({ item }: { item: MusicReleaseItem }) => {
+    const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
+    const artistName = item.artist?.username || item.artist?.fullName || 'Artist';
+
+    return (
+      <TouchableOpacity
+        style={styles.upcomingCard}
+        activeOpacity={0.9}
+        onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+      >
+        <ImageBackground
+          source={coverUri ? { uri: coverUri } : require('@/assets/images/drop1.jpg')}
+          style={styles.upcomingBg}
+          imageStyle={styles.upcomingImageStyle}
+        >
+          <View style={styles.upcomingPriceBadge}>
+            <Text style={styles.upcomingPriceText}>${item.albumPrice?.toFixed(2) || '9.99'}</Text>
+          </View>
+          <View style={{ position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, zIndex: 10 }}>
+            <Text style={{ color: '#FF6B00', fontSize: 10, fontFamily: 'Poppins-Bold' }}>
+              {item.availabilityStatus === 'EXCLUSIVE' ? '💎 EXCLUSIVE' : item.availabilityStatus === 'PRE_RELEASE' ? '⏳ PRE-RELEASE' : item.availabilityStatus === 'PUBLICLY_RELEASED' ? '🌐 PUBLIC' : '🔥 UNRELEASED'}
+            </Text>
+          </View>
+          <View style={styles.upcomingGradient}>
+            <View style={styles.upcomingInfo}>
+              <Text style={styles.upcomingTitle} numberOfLines={2}>{item.title}</Text>
+              <View style={styles.upcomingArtistRow}>
+                <Text style={styles.upcomingArtist}>{artistName}</Text>
+                <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
+                  <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </Svg>
+              </View>
+              <View style={styles.upcomingFooter}>
+                <Text style={styles.upcomingDropType}>{item.releaseType || 'Single'}</Text>
+                <Text style={styles.upcomingAccesses}>{item.defaultPlayLimit || 10} Plays</Text>
+              </View>
             </View>
           </View>
-        </View>
-      </ImageBackground>
-    </TouchableOpacity>
-  );
+        </ImageBackground>
+      </TouchableOpacity>
+    );
+  };
 
-  const renderSong = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.songRow}
-      activeOpacity={0.8}
-      onPress={() =>
-        navigation.navigate('ProductDetails', {
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          description: 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals',
-          artistName: item.artist,
-          verified: true,
-          category: 'Music',
-          artistImage: item.artistImage,
-        })
-      }
-    >
-      <Image source={item.image} style={styles.songImage} />
-      <View style={styles.songInfo}>
-        <Text style={styles.songName} numberOfLines={2}>{item.name}</Text>
-        <View style={styles.songArtistRow}>
-          <Text style={styles.songArtist}>{item.artist}</Text>
-          <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
-            <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-          </Svg>
-        </View>
-      </View>
-      <Text style={styles.songPrice}>${item.price.toFixed(1)}</Text>
-    </TouchableOpacity>
-  );
+  const renderSong = ({ item }: { item: MusicReleaseItem }) => {
+    const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
+    const artistName = item.artist?.username || item.artist?.fullName || 'Artist';
 
-  const renderArtist = ({ item }: { item: any }) => (
-    <View style={styles.artistAvatarContainer}>
-      <Image source={item.image} style={styles.artistAvatar} />
-      <Text style={styles.artistNameText}>{item.name}</Text>
-    </View>
-  );
+    return (
+      <TouchableOpacity
+        style={styles.songRow}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+      >
+        <Image
+          source={coverUri ? { uri: coverUri } : require('@/assets/images/products/product1.jpg')}
+          style={styles.songImage}
+        />
+        <View style={styles.songInfo}>
+          <Text style={styles.songName} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.songArtistRow}>
+            <Text style={styles.songArtist}>{artistName}</Text>
+            <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
+              <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </Svg>
+          </View>
+        </View>
+        <Text style={styles.songPrice}>${item.albumPrice?.toFixed(2) || '1.99'}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -121,17 +159,13 @@ const MusicScreen = () => {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Music</Text>
+        <Text style={styles.headerTitle}>Unreleased Music</Text>
         <View style={styles.headerRightActions}>
-          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('Library')}>
-            <Ionicons name="library" size={22} color="#000" />
+          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('UploadMusic')}>
+            <Ionicons name="cloud-upload" size={22} color="#7126D0" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon}>
-            <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2">
-              <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </Svg>
-            <View style={styles.badge}><Text style={styles.badgeText}>1</Text></View>
+          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('MyMusic')}>
+            <Ionicons name="library" size={22} color="#000" />
           </TouchableOpacity>
         </View>
       </View>
@@ -160,41 +194,60 @@ const MusicScreen = () => {
         </View>
 
         {/* Featured Banner */}
-        <View style={styles.bannerContainer}>
-          <ImageBackground source={require('@/assets/images/drop1.jpg')} style={styles.bannerBg} imageStyle={{borderRadius: 12}}>
-            <View style={styles.bannerOverlay}>
-              <View style={styles.bannerArtistRow}>
-                <Text style={styles.bannerArtist}>Justin Timberlake</Text>
-                <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
-                  <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                </Svg>
-              </View>
-              <Text style={styles.bannerTitle}>IF THE WORLD WAS ENDING FT TAYE P</Text>
-            </View>
-          </ImageBackground>
-        </View>
+        {(() => {
+          const featured = filteredReleases.length > 0 ? filteredReleases[0] : null;
+          const bannerImg = featured && featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
+          const bannerArtistName = featured?.artist?.username || featured?.artist?.fullName || 'Featured Artist';
+          const bannerReleaseTitle = featured?.title || 'EXCLUSIVE UNRELEASED DROPS';
+
+          return (
+            <TouchableOpacity
+              style={styles.bannerContainer}
+              activeOpacity={0.9}
+              onPress={() => featured && navigation.navigate('MusicDetail' as any, { id: featured.id })}
+            >
+              <ImageBackground
+                source={bannerImg ? { uri: bannerImg } : require('@/assets/images/drop1.jpg')}
+                style={styles.bannerBg}
+                imageStyle={{ borderRadius: 12 }}
+              >
+                <View style={styles.bannerOverlay}>
+                  <View style={styles.bannerArtistRow}>
+                    <Text style={styles.bannerArtist}>{bannerArtistName}</Text>
+                    <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" style={{ marginLeft: 4 }}>
+                      <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </Svg>
+                  </View>
+                  <Text style={styles.bannerTitle}>{bannerReleaseTitle}</Text>
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          );
+        })()}
 
         {/* Upcoming Release */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Upcoming Release</Text>
+          <Text style={styles.sectionTitle}>Unreleased Exclusive Drops</Text>
           <TouchableOpacity onPress={() => navigation.navigate('AllReleases' as any)}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
         </View>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={upcomingReleases}
-          keyExtractor={item => item.id}
+          data={filteredReleases}
+          keyExtractor={item => String(item.id)}
           renderItem={renderUpcoming}
           contentContainerStyle={styles.upcomingList}
         />
 
         {/* Songs List */}
         <View style={styles.songsList}>
-          {filteredSongs.length > 0 ? (
-            filteredSongs.map((item) => <React.Fragment key={item.id}>{renderSong({ item })}</React.Fragment>)
+          {filteredReleases.length > 0 ? (
+            filteredReleases.map((item) => <React.Fragment key={item.id}>{renderSong({ item })}</React.Fragment>)
           ) : (
             <View style={styles.emptySearch}>
-              <Text style={styles.emptySearchText}>No songs found for "{searchQuery}"</Text>
+              <Text style={styles.emptySearchText}>
+                {loading ? 'Loading releases...' : `No unreleased drops found ${searchQuery ? `for "${searchQuery}"` : ''}`}
+              </Text>
             </View>
           )}
         </View>

@@ -36,35 +36,35 @@ const Dashboard: React.FC = () => {
         <MetricCard
           icon={Visitor}
           trendIcon={Trending}
-          number="855"
+          number="0"
           label="Total Visitor"
-          change="+2.8%"
+          change="0%"
         />
           <MetricCard
           icon={Orders}
           trendIcon={Trending}
-          number="786"
+          number="0"
           label="Total Orders"
-          change="+2.8%"
+          change="0%"
         />
       </View>
       <View style={styles.cardRow}>
         <MetricCard
           icon={Views}
           trendIcon={Flopping}
-          number="788"
+          number="0"
           label="Total Views"
-          change="-1.8%"
+          change="0%"
         />
           <MetricCard
           icon={Conversations}
           trendIcon={Trending}
-          number="82%"
+          number="0"
           label="Conversations"
-          change="+2.8%"
+          change="0%"
         />
       </View>
-      <ProgressCircle current={1250} total={1800} unit=" kcal" />
+      <ProgressCircle current={0} total={0} unit=" kcal" />
       <BalanceCard />
     </View>
   );

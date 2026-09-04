@@ -16,10 +16,11 @@ import {
 
 type RootStackParamList = {
   Home: undefined;
-  CartScreen: undefined;
+  Shop: undefined;
   Music: { initialQuery?: string } | undefined;
   Ewallet: undefined;
   MyProfile: undefined;
+  CartScreen: undefined;
 };
 
 type TabBarNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -47,12 +48,17 @@ export default function TabBar() {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => handlePress("CartScreen")}>
-        <View style={[styles.tab, activeTab === "CartScreen" && styles.activeTab]}>
+      {/* Second Tab: Shop (All Products) */}
+      <TouchableOpacity onPress={() => handlePress("Shop")}>
+        <View style={[styles.tab, (activeTab as string) === "Shop" && styles.activeTab]}>
           <View style={styles.iconContainer}>
-            {activeTab === "CartScreen" ? <ActiveCart /> : <CartIcon size={25} />}
+            {(activeTab as string) === "Shop" ? (
+              <Ionicons name="bag-handle" size={24} color="#fff" />
+            ) : (
+              <Ionicons name="bag-handle-outline" size={24} color="#1D1E20" />
+            )}
           </View>
-          {activeTab === "CartScreen" && <Text style={styles.tabText}>Cart</Text>}
+          {(activeTab as string) === "Shop" && <Text style={styles.tabText}>Shop</Text>}
         </View>
       </TouchableOpacity>
 
@@ -114,7 +120,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: "#fff",
-    fontWeight: "600",
+    fontFamily: "Poppins-Bold",
     fontSize: 14,
   },
 });

@@ -1,21 +1,63 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { productsService, ProductItem } from '@/lib/productsService';
 
 const { width } = Dimensions.get('window');
 
 const LatestDrops = () => {
   const navigation = useNavigation<any>();
+  const [latestDrop, setLatestDrop] = useState<ProductItem | null>(null);
+
+  useEffect(() => {
+    productsService
+      .getNewDrops()
+      .then((drops) => {
+        if (Array.isArray(drops) && drops.length > 0) {
+          setLatestDrop(drops[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const bannerImg =
+    latestDrop?.imageUrls && latestDrop.imageUrls.length > 0
+      ? { uri: latestDrop.imageUrls[0] }
+      : latestDrop?.imageUrl
+      ? { uri: latestDrop.imageUrl }
+      : require('../../assets/images/drop1.jpg');
+
+  const titleText = latestDrop?.name || 'Indorerwamo\nCollection';
+
+  const handlePress = () => {
+    if (latestDrop) {
+      const mainImg = latestDrop.imageUrls && latestDrop.imageUrls.length > 0 ? latestDrop.imageUrls[0] : latestDrop.imageUrl;
+      navigation.navigate('ProductDetails', {
+        name: latestDrop.name,
+        price: latestDrop.price,
+        image: mainImg ? { uri: mainImg } : require('../../assets/images/products/product1.jpg'),
+        imageUrls: Array.isArray(latestDrop.imageUrls) && latestDrop.imageUrls.length > 0 ? latestDrop.imageUrls : (mainImg ? [mainImg] : []),
+        description: latestDrop.description || 'Exclusive limited merchandise.',
+        artistName: latestDrop.sellerName || 'Artist',
+        verified: true,
+        stockQuantity: latestDrop.stockQuantity,
+        sizeStock: latestDrop.sizeStock,
+        availableColors: latestDrop.availableColors,
+      });
+    } else {
+      navigation.navigate('Shop');
+    }
+  };
 
   return (
     <View style={styles.container}>
       <TouchableOpacity
         activeOpacity={0.9}
         style={styles.bannerWrapper}
-        onPress={() => navigation.navigate('Shop')}
+        onPress={handlePress}
       >
         <ImageBackground
-          source={require('../../assets/images/drop1.jpg')}
+          source={bannerImg}
           style={styles.bannerBackground}
           imageStyle={styles.imageStyle}
         >
@@ -30,7 +72,7 @@ const LatestDrops = () => {
           </View>
 
           {/* Banner Title */}
-          <Text style={styles.title}>Indorerwamo{"\n"}Collection</Text>
+          <Text style={styles.title} numberOfLines={2}>{titleText}</Text>
 
           {/* Button: Shop Now */}
           <TouchableOpacity
@@ -38,7 +80,7 @@ const LatestDrops = () => {
             activeOpacity={0.8}
             onPress={(e) => {
               e.stopPropagation();
-              navigation.navigate('Shop');
+              handlePress();
             }}
           >
             <View style={styles.shopButton}>

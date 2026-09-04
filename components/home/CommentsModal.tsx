@@ -1,36 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, Modal, StyleSheet, TouchableOpacity, Image,
-  FlatList, TextInput, Dimensions, KeyboardAvoidingView, Platform,
+  FlatList, TextInput, Dimensions, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { fetchPostComments, addPostComment, BackendComment } from '@/lib/postService';
 
 const { height } = Dimensions.get('window');
-
-interface Reply {
-  id: number;
-  userName: string;
-  userImage: any;
-  text: string;
-  likes: number;
-  likedByMe: boolean;
-}
-
-interface Comment {
-  id: number;
-  userName: string;
-  userImage: any;
-  text: string;
-  likes: number;
-  likedByMe: boolean;
-  replies: Reply[];
-}
 
 interface CommentsModalProps {
   visible: boolean;
   onClose: () => void;
   currentUserImage: any;
+  postId?: number;
   onCommentAdded?: () => void;
 }
 
@@ -40,133 +23,83 @@ const HeartIcon = ({ filled, size = 16 }: { filled: boolean; size?: number }) =>
   </Svg>
 );
 
-const initialComments: Comment[] = [
-  {
-    id: 1,
-    userName: 'Ange Nadette',
-    userImage: require('../../assets/images/story1.png'),
-    text: 'Lorem ipsum dolor sit, amet consectetur adipisicing elit. Unde obcaecati ducimus,',
-    likes: 2,
-    likedByMe: true,
-    replies: [],
-  },
-  {
-    id: 2,
-    userName: 'Ange Nadette',
-    userImage: require('../../assets/images/story2.png'),
-    text: 'Lorem ipsum dolor sit, amet consectetur adipisicing elit. Unde obcaecati ducimus,',
-    likes: 0,
-    likedByMe: false,
-    replies: [],
-  },
-  {
-    id: 3,
-    userName: 'Ange Nadette',
-    userImage: require('../../assets/images/story3.png'),
-    text: 'Lorem ipsum dolor sit, amet consectetur adipisicing elit. Unde obcaecati ducimus,',
-    likes: 2,
-    likedByMe: true,
-    replies: [],
-  },
-  {
-    id: 4,
-    userName: 'Ange Nadette',
-    userImage: require('../../assets/images/story4.png'),
-    text: 'Lorem ipsum dolor sit, amet consectetur adipisicing elit. Unde obcaecati ducimus,',
-    likes: 2,
-    likedByMe: true,
-    replies: [],
-  },
-  {
-    id: 5,
-    userName: 'Ange Nadette',
-    userImage: require('../../assets/images/story1.png'),
-    text: 'Lorem ipsum dolor sit, amet consectetur adipisicing elit. Unde obcaecati ducimus,',
-    likes: 2,
-    likedByMe: true,
-    replies: [],
-  },
-];
-
-const CommentsModal: React.FC<CommentsModalProps> = ({ visible, onClose, currentUserImage, onCommentAdded }) => {
-  const [comments, setComments] = useState<Comment[]>(initialComments);
+export const CommentsModal: React.FC<CommentsModalProps> = ({ visible, onClose, currentUserImage, postId, onCommentAdded }) => {
+  const [comments, setComments] = useState<BackendComment[]>([]);
+  const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLikeComment = (commentId: number) => {
-    setComments(prev =>
-      prev.map(c =>
-        c.id === commentId
-          ? { ...c, likedByMe: !c.likedByMe, likes: c.likedByMe ? c.likes - 1 : c.likes + 1 }
-          : c
-      )
-    );
+  useEffect(() => {
+    if (visible && postId) {
+      loadComments();
+    }
+  }, [visible, postId]);
+
+  const loadComments = async () => {
+    if (!postId) return;
+    setLoading(true);
+    try {
+      const res = await fetchPostComments(postId);
+      setComments(res.content || []);
+    } catch (err) {
+      console.error('Failed to load comments:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLikeReply = (commentId: number, replyId: number) => {
-    setComments(prev =>
-      prev.map(c =>
-        c.id === commentId
-          ? {
-              ...c,
-              replies: c.replies.map(r =>
-                r.id === replyId
-                  ? { ...r, likedByMe: !r.likedByMe, likes: r.likedByMe ? r.likes - 1 : r.likes + 1 }
-                  : r
-              ),
-            }
-          : c
-      )
-    );
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !postId || submitting) return;
+    setSubmitting(true);
+    try {
+      const created = await addPostComment(postId, newComment.trim());
+      setComments(prev => [created, ...prev]);
+      setNewComment('');
+      onCommentAdded?.();
+    } catch (err) {
+      console.error('Failed to add comment:', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    setComments(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        userName: 'You',
-        userImage: currentUserImage,
-        text: newComment.trim(),
-        likes: 0,
-        likedByMe: false,
-        replies: [],
-      },
-    ]);
-    setNewComment('');
-    onCommentAdded?.();
-  };
-
-  const handleAddReply = (commentId: number) => {
-    if (!replyText.trim()) return;
-    setComments(prev =>
-      prev.map(c =>
-        c.id === commentId
-          ? {
-              ...c,
-              replies: [
-                ...c.replies,
-                {
-                  id: Date.now(),
-                  userName: 'You',
-                  userImage: currentUserImage,
-                  text: replyText.trim(),
-                  likes: 0,
-                  likedByMe: false,
-                },
-              ],
-            }
-          : c
-      )
-    );
-    setReplyText('');
-    setReplyingTo(null);
-    onCommentAdded?.();
+  const handleAddReply = async (parentCommentId: number) => {
+    if (!replyText.trim() || !postId || submitting) return;
+    setSubmitting(true);
+    try {
+      const reply = await addPostComment(postId, replyText.trim(), parentCommentId);
+      setComments(prev =>
+        prev.map(c =>
+          c.id === parentCommentId
+            ? {
+                ...c,
+                replies: [...(c.replies || []), reply],
+                repliesCount: c.repliesCount + 1,
+              }
+            : c
+        )
+      );
+      setReplyText('');
+      setReplyingTo(null);
+      onCommentAdded?.();
+    } catch (err) {
+      console.error('Failed to add reply:', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const formatLikes = (n: number) => (n > 0 ? String(n) : '');
+
+  const getImageSource = (img: any) => {
+    if (!img) return currentUserImage || require('../../assets/images/black-man.png');
+    if (typeof img === 'string') {
+      return { uri: img };
+    }
+    return img;
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -175,83 +108,90 @@ const CommentsModal: React.FC<CommentsModalProps> = ({ visible, onClose, current
         <View style={styles.handle} />
         <Text style={styles.title}>Comments</Text>
 
-        <FlatList
-          data={comments}
-          keyExtractor={item => item.id.toString()}
-          style={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={styles.commentRow}>
-              <Image source={item.userImage} style={styles.avatar} />
-              <View style={styles.commentBody}>
-                <Text style={styles.commentUser}>{item.userName}</Text>
-                <Text style={styles.commentText}>{item.text}</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setReplyingTo(replyingTo === item.id ? null : item.id);
-                    setReplyText('');
-                  }}
-                >
-                  <Text style={styles.replyLabel}>Reply</Text>
-                </TouchableOpacity>
-
-                {/* Inline reply input */}
-                {replyingTo === item.id && (
-                  <View style={styles.replyInputRow}>
-                    <TextInput
-                      style={styles.replyInput}
-                      placeholder={`Reply to ${item.userName}...`}
-                      placeholderTextColor="#333"
-                      value={replyText}
-                      onChangeText={setReplyText}
-                      autoFocus
-                    />
-                    <TouchableOpacity onPress={() => handleAddReply(item.id)} style={styles.replySendIconBtn}>
-                      <Ionicons name="send" size={18} color="#7126D0" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Nested replies */}
-                {item.replies.map(reply => (
-                  <View key={reply.id} style={styles.replyRow}>
-                    <Image source={reply.userImage} style={styles.replyAvatar} />
-                    <View style={styles.replyBody}>
-                      <Text style={styles.commentUser}>{reply.userName}</Text>
-                      <Text style={styles.commentText}>{reply.text}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.likeBtn} onPress={() => handleLikeReply(item.id, reply.id)}>
-                      <HeartIcon filled={reply.likedByMe} size={14} />
-                      {reply.likes > 0 && <Text style={styles.likeCount}>{reply.likes}</Text>}
-                    </TouchableOpacity>
-                  </View>
-                ))}
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#7126D0" />
+          </View>
+        ) : (
+          <FlatList
+            data={comments}
+            keyExtractor={item => item.id.toString()}
+            style={styles.list}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontFamily: 'Poppins-Medium', color: '#999' }}>
+                  No comments yet. Start the conversation!
+                </Text>
               </View>
+            }
+            renderItem={({ item }) => (
+              <View style={styles.commentRow}>
+                <Image source={getImageSource(item.userImageUrl)} style={styles.avatar} />
+                <View style={styles.commentBody}>
+                  <Text style={styles.commentUser}>{item.userName}</Text>
+                  <Text style={styles.commentText}>{item.content}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setReplyingTo(replyingTo === item.id ? null : item.id);
+                      setReplyText('');
+                    }}
+                  >
+                    <Text style={styles.replyLabel}>Reply</Text>
+                  </TouchableOpacity>
 
-              {/* Per-comment like button */}
-              <TouchableOpacity style={styles.likeBtn} onPress={() => handleLikeComment(item.id)}>
-                <HeartIcon filled={item.likedByMe} />
-                {item.likes > 0 && <Text style={styles.likeCount}>{formatLikes(item.likes)}</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+                  {/* Inline reply input */}
+                  {replyingTo === item.id && (
+                    <View style={styles.replyInputRow}>
+                      <TextInput
+                        style={styles.replyInput}
+                        placeholder={`Reply to ${item.userName}...`}
+                        placeholderTextColor="#999"
+                        value={replyText}
+                        onChangeText={setReplyText}
+                        autoFocus
+                      />
+                      <TouchableOpacity onPress={() => handleAddReply(item.id)} style={styles.replySendIconBtn}>
+                        <Ionicons name="send" size={18} color="#7126D0" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Nested replies */}
+                  {(item.replies || []).map(reply => (
+                    <View key={reply.id} style={styles.replyRow}>
+                      <Image source={getImageSource(reply.userImageUrl)} style={styles.replyAvatar} />
+                      <View style={styles.replyBody}>
+                        <Text style={styles.commentUser}>{reply.userName}</Text>
+                        <Text style={styles.commentText}>{reply.content}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          />
+        )}
 
         {/* Add comment bar */}
         <View style={styles.addRow}>
-          <Image source={currentUserImage} style={styles.avatar} />
+          <Image source={getImageSource(currentUserImage)} style={styles.avatar} />
           <View style={styles.addInputContainer}>
             <TextInput
               style={styles.addInput}
-              placeholder="Add comment"
-              placeholderTextColor="#333"
+              placeholder="Add comment..."
+              placeholderTextColor="#999"
               value={newComment}
               onChangeText={setNewComment}
               returnKeyType="send"
               onSubmitEditing={handleAddComment}
             />
-            <TouchableOpacity onPress={handleAddComment} style={styles.sendIconBtn}>
-              <Ionicons name="send" size={18} color="#7126D0" />
+            <TouchableOpacity onPress={handleAddComment} style={styles.sendIconBtn} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#7126D0" />
+              ) : (
+                <Ionicons name="send" size={18} color="#7126D0" />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -283,20 +223,17 @@ const styles = StyleSheet.create({
   commentRow: { flexDirection: 'row', marginBottom: 18, alignItems: 'flex-start' },
   avatar: { width: 40, height: 40, borderRadius: 18, marginRight: 10 },
   commentBody: { flex: 1 },
-  commentUser: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
-  commentText: { fontSize: 16, fontFamily: 'Poppins-Regular', color: '#333', lineHeight: 22, marginTop: 2 },
-  replyLabel: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#8c8c8c', marginTop: 5 },
-  likeBtn: { alignItems: 'center', marginLeft: 8, minWidth: 20 },
-  likeCount: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#7126D0', marginTop: 2 },
+  commentUser: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#000' },
+  commentText: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#333', lineHeight: 20, marginTop: 2 },
+  replyLabel: { fontSize: 12, fontFamily: 'Poppins-Bold', color: '#8c8c8c', marginTop: 4 },
   replyInputRow: {
     flexDirection: 'row', alignItems: 'center', marginTop: 8,
-    backgroundColor: '#f5f5f5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: '#f5f5f5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8,
   },
-  replyInput: { flex: 1, fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000', padding: 0 },
+  replyInput: { flex: 1, fontSize: 14, fontFamily: 'Poppins-Regular', color: '#000', padding: 0 },
   replySendIconBtn: { marginLeft: 8, justifyContent: 'center', alignItems: 'center' },
-  sendLabel: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0', marginLeft: 8 },
   replyRow: { flexDirection: 'row', marginTop: 10, paddingLeft: 8, alignItems: 'flex-start' },
-  replyAvatar: { width: 38, height: 38, borderRadius: 19, marginRight: 8 },
+  replyAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
   replyBody: { flex: 1 },
   addRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -309,8 +246,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   addInput: {
-    flex: 1, paddingVertical: 12,
-    fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000',
+    flex: 1, paddingVertical: 10,
+    fontSize: 14, fontFamily: 'Poppins-Regular', color: '#000',
   },
   sendIconBtn: {
     marginLeft: 8, justifyContent: 'center', alignItems: 'center',

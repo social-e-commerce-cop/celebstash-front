@@ -16,9 +16,40 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { StackNavigationProp } from '@react-navigation/stack';
 import TabBar from '@/components/Tabbar';
 import { FollowListModal } from '@/components/Profile/FollowListModal';
+import Post from '@/components/home/Post';
+import { fetchMyPosts, fetchSavedPosts, BackendPost } from '@/lib/postService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
+
+const getTabIconName = (tabName: string, isActive: boolean): keyof typeof Ionicons.glyphMap => {
+  switch (tabName) {
+    case 'Feed':
+      return isActive ? 'grid' : 'grid-outline';
+    case 'Shop':
+      return isActive ? 'bag-handle' : 'bag-handle-outline';
+    case 'Music':
+      return isActive ? 'musical-notes' : 'musical-notes-outline';
+    case 'Concerts':
+    case 'Event':
+      return isActive ? 'ticket' : 'ticket-outline';
+    case 'Analytics':
+      return isActive ? 'stats-chart' : 'stats-chart-outline';
+    case 'Saved':
+      return isActive ? 'bookmark' : 'bookmark-outline';
+    case 'Orders':
+      return isActive ? 'receipt' : 'receipt-outline';
+    case 'Tribes':
+      return isActive ? 'people' : 'people-outline';
+    case 'Reposts':
+      return isActive ? 'repeat' : 'repeat-outline';
+    case 'Auction':
+      return isActive ? 'sparkles' : 'sparkles-outline';
+    default:
+      return isActive ? 'grid' : 'grid-outline';
+  }
+};
 
 export type UserRole = 'artist' | 'user';
 
@@ -146,44 +177,179 @@ const USER_ORDERS: OrderItem[] = [
 
 import { getSessionUser } from '@/lib/session';
 import { artistService } from '@/lib/artistService';
+import { profileService, UserProfile } from '@/lib/profileService';
+import { followService } from '@/lib/followService';
+import { postsService, PostItem } from '@/lib/postsService';
+import { productsService, ProductItem as RealProductItem } from '@/lib/productsService';
+import { musicService, MusicReleaseItem } from '@/lib/musicService';
+import FollowersFollowingModal from '@/components/Profile/FollowersFollowingModal';
+import AddPostModal from '@/components/home/AddPostModal';
 
 const MyProfile: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const route = useRoute<any>();
   const [sessionUser, setSessionUser] = useState(getSessionUser());
   const [appStatus, setAppStatus] = useState<string | null>(null);
+  const [addPostVisible, setAddPostVisible] = useState(false);
+
+  // Determine if viewing own profile or someone else's profile
+  const paramUserId = route.params?.userId ? Number(route.params.userId) : null;
+  const paramUsername = route.params?.username ? String(route.params.username).trim().toLowerCase() : null;
+  const sessionUsername = sessionUser?.username ? String(sessionUser.username).trim().toLowerCase() : null;
+
+  const isMatchingSelf = !!(
+    (paramUserId && sessionUser?.id && (paramUserId === sessionUser.id || String(paramUserId) === String(sessionUser.id))) ||
+    (paramUsername && sessionUsername && paramUsername === sessionUsername)
+  );
+
+  const isOtherUser = isMatchingSelf
+    ? false
+    : !!(
+        route.params?.isOtherUser ||
+        (paramUserId && sessionUser?.id && paramUserId !== sessionUser.id) ||
+        (paramUsername && sessionUsername && paramUsername !== sessionUsername)
+      );
+  const isOwnProfile = !isOtherUser;
+
+  // Real profile data state
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  // Real posts state
+  const [feedPosts, setFeedPosts] = useState<PostItem[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+
+  // Real products state
+  const [realProducts, setRealProducts] = useState<RealProductItem[]>([]);
+
+  // Real music releases state
+  const [musicReleases, setMusicReleases] = useState<MusicReleaseItem[]>([]);
 
   useFocusEffect(
     React.useCallback(() => {
       const user = getSessionUser();
       setSessionUser(user);
-      if (user.role === 'ARTIST') {
-        setRole('artist');
-      }
-      artistService.getMyApplicationStatus().then((status) => {
-        if (status) {
-          setAppStatus(status.status);
-          if (status.status === 'APPROVED' || user.role === 'ARTIST') {
+
+      const targetId = paramUserId || Number(route.params?.userId);
+
+      // Fetch music releases for this artist
+      musicService.getReleases()
+        .then((releases) => {
+          if (Array.isArray(releases)) {
+            const currentUserId = targetId || profileData?.id || user?.id;
+            const currentUsername = (route.params?.username || profileData?.username || user?.username || '').toLowerCase();
+            const currentEmail = (profileData?.email || user?.email || '').toLowerCase();
+            const currentFullName = (route.params?.name || profileData?.fullName || user?.fullName || '').toLowerCase();
+
+            const artistReleases = releases.filter(r => {
+              if (!r.artist) return true;
+              if (currentUserId && String(r.artist.id) === String(currentUserId)) return true;
+              if (currentUsername && r.artist.username && r.artist.username.toLowerCase() === currentUsername) return true;
+              if (currentEmail && (r.artist as any).email && (r.artist as any).email.toLowerCase() === currentEmail) return true;
+              if (currentFullName && (r.artist as any).fullName && (r.artist as any).fullName.toLowerCase() === currentFullName) return true;
+              return false;
+            });
+            setMusicReleases(artistReleases.length > 0 ? artistReleases : releases);
+          } else {
+            setMusicReleases([]);
+          }
+        })
+        .catch(() => setMusicReleases([]));
+
+      // Fetch my products for shop tab
+      productsService.getMyProducts()
+        .then((prods) => {
+          if (Array.isArray(prods)) {
+            setRealProducts(prods);
+          }
+        })
+        .catch(() => {});
+
+      if (isOtherUser && targetId) {
+        // Load OTHER user's profile from backend
+        setProfileLoading(true);
+        profileService.getUserById(targetId)
+          .then((profile) => {
+            setProfileData(profile);
+            setFollowersCount(profile.followersCount || 0);
+            setFollowingCount(profile.followingCount || 0);
+            if (profile.role === 'ARTIST' || route.params?.role === 'artist') setRole('artist');
+
+            // Fetch products for this target artist (display all products normally)
+            productsService.getAllProducts()
+              .then((allProds) => {
+                if (Array.isArray(allProds)) {
+                  const targetName = (profile.fullName || route.params?.name || '').toLowerCase();
+                  const targetUser = (profile.username || route.params?.username || '').toLowerCase();
+                  const artistProds = allProds.filter((p) => {
+                    const matchesId = targetId && String(p.sellerId) === String(targetId);
+                    const sName = (p.sellerName || '').toLowerCase();
+                    const matchesName = Boolean(
+                      (targetName && sName && (sName.includes(targetName) || targetName.includes(sName))) ||
+                      (targetUser && sName && (sName.includes(targetUser) || targetUser.includes(sName)))
+                    );
+                    return matchesId || matchesName;
+                  });
+                  setRealProducts(artistProds);
+                }
+              })
+              .catch(() => {});
+          })
+          .catch(() => {})
+          .finally(() => setProfileLoading(false));
+
+        // Check follow status from backend
+        followService.checkFollowStatus(targetId)
+          .then(setIsFollowing)
+          .catch(() => {});
+
+      } else {
+        // Load OWN profile from backend
+        setProfileLoading(true);
+        profileService.getMyProfile()
+          .then((profile) => {
+            setProfileData(profile);
+            setFollowersCount(profile?.followersCount || 0);
+            setFollowingCount(profile?.followingCount || 0);
+            if (profile?.role === 'ARTIST') setRole('artist');
+
+            // Fetch live follow counts directly
+            if (user?.id) {
+              followService.getFollowCounts(user.id)
+                .then((counts) => {
+                  if (counts && typeof counts.followingCount === 'number') {
+                    setFollowingCount(counts.followingCount);
+                    setFollowersCount(counts.followersCount);
+                  }
+                })
+                .catch(() => {});
+            }
+          })
+          .catch(() => {})
+          .finally(() => setProfileLoading(false));
+
+        // Check artist application status
+        if (user?.role === 'ARTIST') setRole('artist');
+        artistService.getMyApplicationStatus().then((status) => {
+          if (status) {
+            setAppStatus(status.status);
+            if (status.status === 'APPROVED' || user?.role === 'ARTIST') setRole('artist');
+            else setRole('user');
+          } else if (user?.role === 'ARTIST') {
             setRole('artist');
           } else {
             setRole('user');
           }
-        } else if (user.role === 'ARTIST') {
-          setRole('artist');
-        } else {
-          setRole('user');
-        }
-      });
-    }, [])
+        });
+      }
+    }, [route.params?.userId, isOtherUser])
   );
 
-  // Determine if viewing own profile or someone else's profile
-  const isOtherUser = !!(route.params?.isOtherUser || (route.params?.username && route.params.username !== sessionUser.username));
-  const isOwnProfile = !isOtherUser;
-
   // Determine role based on session and route params
-  const targetRole = isOtherUser 
-    ? (route.params?.role || 'user') 
+  const targetRole = isOtherUser
+    ? (route.params?.role || 'user')
     : (sessionUser.role === 'ARTIST' ? 'artist' : (route.params?.role || 'user'));
 
   const [role, setRole] = useState<UserRole>(targetRole);
@@ -202,6 +368,8 @@ const MyProfile: React.FC = () => {
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const [myRealPosts, setMyRealPosts] = useState<BackendPost[]>([]);
+  const [savedRealPosts, setSavedRealPosts] = useState<BackendPost[]>([]);
 
   // Followers & Following Instagram-style Modal State
   const [followModalVisible, setFollowModalVisible] = useState(false);
@@ -212,21 +380,46 @@ const MyProfile: React.FC = () => {
     setFollowModalVisible(true);
   };
 
-  const displayName = isOtherUser
-    ? (route.params?.name || 'Emelyne')
-    : (role === 'artist' ? (sessionUser.fullName || 'Kenny K Shot') : (sessionUser.fullName || 'User'));
+  // Load own posts & saved posts from real backend API
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchMyPosts(0, 20)
+        .then((res) => {
+          if (res?.content) setMyRealPosts(res.content);
+        })
+        .catch((err) => console.error('Error fetching my posts:', err));
 
-  const displayHandle = isOtherUser
-    ? `@${route.params?.username || 'emelyne'}`
-    : `@${sessionUser.username || 'user'}`;
+      fetchSavedPosts(0, 20)
+        .then((res) => {
+          if (res?.content) setSavedRealPosts(res.content);
+        })
+        .catch((err) => console.error('Error fetching saved posts:', err));
+    }, [])
+  );
 
-  const avatarSource = isOtherUser
-    ? (route.params?.avatar || require('../../assets/images/feed6.jpg'))
-    : (role === 'artist' ? require('../../assets/images/black-man.png') : require('../../assets/images/profile.jpg'));
+  // Use real profile data when available, fallback to params/session
+  const displayName = profileData?.fullName ||
+    (isOtherUser ? (route.params?.name || 'User') : (sessionUser.fullName || 'User'));
+
+  const displayHandle = profileData?.username
+    ? `@${profileData.username}`
+    : (isOtherUser ? `@${route.params?.username || 'user'}` : `@${sessionUser.username || 'user'}`);
+
+  const profilePictureUri = profileData?.profilePicture || null;
+  const avatarSource = profilePictureUri
+    ? { uri: profilePictureUri }
+    : (isOtherUser
+      ? (route.params?.avatar || require('../../assets/images/feed6.jpg'))
+      : (role === 'artist' ? require('../../assets/images/black-man.png') : require('../../assets/images/profile.jpg')));
+
+  // The numeric user ID for API calls
+  const targetUserId: number = isOtherUser
+    ? (Number(route.params?.userId) || 0)
+    : (sessionUser?.id || 0);
 
   const handleShareStash = async () => {
     try {
-      const handle = isOtherUser ? (route.params?.username || 'emelyne') : (sessionUser.username || 'user');
+      const handle = profileData?.username || (isOtherUser ? (route.params?.username || 'user') : (sessionUser.username || 'user'));
       const shareUrl = `https://celebstash.com/@${handle}`;
       await Share.share({
         title: `Check out ${displayName}'s CelebStash Profile!`,
@@ -238,9 +431,29 @@ const MyProfile: React.FC = () => {
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!targetUserId) return;
+    // Optimistic update
+    const wasFollowing = isFollowing;
+    setIsFollowing(!wasFollowing);
+    setFollowersCount((prev) => wasFollowing ? prev - 1 : prev + 1);
+    try {
+      if (wasFollowing) {
+        await followService.unfollowUser(targetUserId);
+      } else {
+        await followService.followUser(targetUserId);
+      }
+    } catch {
+      // Revert on error
+      setIsFollowing(wasFollowing);
+      setFollowersCount((prev) => wasFollowing ? prev + 1 : prev - 1);
+    }
+  };
+
+
   const artistTabList = isOwnProfile
-    ? (['Feed', 'Shop', 'Music', 'Concerts', 'Analytics'] as const)
-    : (['Feed', 'Shop', 'Music', 'Concerts', 'Reposts'] as const);
+    ? (['Feed', 'Shop', 'Music', 'Analytics'] as const)
+    : (['Feed', 'Shop', 'Music', 'Reposts'] as const);
 
   const userTabList = isOwnProfile
     ? (['Feed', 'Saved', 'Orders', 'Tribes'] as const)
@@ -263,13 +476,13 @@ const MyProfile: React.FC = () => {
             <View style={styles.infoCol}>
               <View style={styles.nameRow}>
                 <Text style={styles.artistName}>
-                  {displayName}
+                  {displayHandle}
                 </Text>
                 {role === 'artist' && (
                   <Ionicons name="checkmark-circle" size={16} color={PURPLE} style={styles.verifiedIcon} />
                 )}
               </View>
-              <Text style={styles.handle}>{displayHandle}</Text>
+              <Text style={styles.handle}>{displayName}</Text>
 
               {/* Dynamic Clickable Stats Row (Single Row Layout) */}
               <View style={styles.statsRow}>
@@ -278,7 +491,7 @@ const MyProfile: React.FC = () => {
                   onPress={() => openFollowModal('Followers')}
                 >
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>{role === 'artist' ? '12.4K' : '1.2K'}</Text> Followers
+                    <Text style={styles.statNumber}>{followersCount.toLocaleString()}</Text> Followers
                   </Text>
                 </TouchableOpacity>
 
@@ -287,7 +500,7 @@ const MyProfile: React.FC = () => {
                   onPress={() => openFollowModal('Following')}
                 >
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>340</Text> Following
+                    <Text style={styles.statNumber}>{followingCount.toLocaleString()}</Text> Following
                   </Text>
                 </TouchableOpacity>
 
@@ -296,7 +509,7 @@ const MyProfile: React.FC = () => {
                   onPress={() => (role === 'artist' ? setArtistTab('Shop') : setUserTab(isOwnProfile ? 'Orders' : 'Tribes'))}
                 >
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>{role === 'artist' ? '40' : '5'}</Text> {role === 'artist' ? 'Drops' : 'Orders'}
+                    <Text style={styles.statNumber}>{role === 'artist' ? myRealPosts.length : '0'}</Text> {role === 'artist' ? 'Posts' : 'Orders'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -318,14 +531,14 @@ const MyProfile: React.FC = () => {
                       onPress={handleShareStash}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.messageBtnText}>Share Stash</Text>
+                      <Text style={styles.messageBtnText}>Share Profile</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <>
                     <TouchableOpacity
                       style={[styles.mateBtn, isFollowing && styles.matedBtn]}
-                      onPress={() => setIsFollowing(!isFollowing)}
+                      onPress={handleFollowToggle}
                       activeOpacity={0.8}
                     >
                       <Text style={[styles.mateBtnText, isFollowing && styles.matedBtnText]}>
@@ -346,23 +559,24 @@ const MyProfile: React.FC = () => {
 
               {/* Bio Paragraph */}
               <Text style={styles.bioText}>
-                {role === 'artist'
-                  ? 'Multi-instrumental ambient producer & digital designer. Crafting slow soundscapes for busy minds. Weekly vinyl & digital drops. 🌊'
-                  : 'Passionate music enthusiast, collector of rare vinyls & streetwear drops. Always exploring slow soundscapes! ✈️🍕'}
+                {profileData?.bio || 'No bio provided yet.'}
               </Text>
 
+
+
               {/* Community Badges (Placed Directly Under Bio) */}
-              <View style={styles.communityBadgesRow}>
-                <TouchableOpacity
-                  style={styles.communityBadgePill}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('MessagesScreen')}
-                >
-                  <Ionicons name="flash" size={13} color="#7126D0" />
-                  <Text style={styles.communityBadgeText}>Ibisumizi Tribe Member</Text>
-                  <Text style={styles.communityBadgeSub}>since 2025</Text>
-                </TouchableOpacity>
-              </View>
+              {profileData?.fandomName ? (
+                <View style={styles.communityBadgesRow}>
+                  <TouchableOpacity
+                    style={styles.communityBadgePill}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('MessagesScreen')}
+                  >
+                    <Ionicons name="flash" size={13} color="#7126D0" />
+                    <Text style={styles.communityBadgeText}>{profileData.fandomName} Tribe</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
 
             <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.navigate('Settings')}>
@@ -371,7 +585,7 @@ const MyProfile: React.FC = () => {
           </View>
 
           {/* Artist Exclusive Tribe Broadcast Channel */}
-          {role === 'artist' && (
+          {role === 'artist' && profileData?.fandomName && (
             <TouchableOpacity
               style={styles.tribeChannelCard}
               activeOpacity={0.85}
@@ -382,12 +596,12 @@ const MyProfile: React.FC = () => {
               </View>
               <View style={styles.tribeInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.tribeTitle}>Ibisumizi Tribe Channel</Text>
+                  <Text style={styles.tribeTitle}>{profileData.fandomName} Tribe Channel</Text>
                   <View style={styles.officialBadge}>
                     <Text style={styles.officialBadgeText}>Official</Text>
                   </View>
                 </View>
-                <Text style={styles.tribeSub}>14.2K members • Exclusive fan chatter & drops</Text>
+                <Text style={styles.tribeSub}>Exclusive fan chatter & drops</Text>
               </View>
               <View style={styles.joinTribeBtn}>
                 <Text style={styles.joinTribeText}>Join</Text>
@@ -395,44 +609,7 @@ const MyProfile: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Story Highlights Row */}
-          <View style={styles.highlightsContainer}>
-            <View style={styles.highlightsHeader}>
-              <Text style={styles.highlightsTitle}>Story Highlights</Text>
-            </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightsScroll}>
-              {/* Add New Highlight Button */}
-              {isOwnProfile && (
-                <TouchableOpacity
-                  style={styles.highlightItem}
-                  onPress={() => Alert.alert('New Highlight', 'Create a highlight collection from archived stories!')}
-                >
-                  <View style={styles.newHighlightCircle}>
-                    <Ionicons name="add" size={24} color="#7126D0" />
-                  </View>
-                  <Text style={styles.highlightLabel}>New</Text>
-                </TouchableOpacity>
-              )}
-
-              {[
-                { title: 'Concerts 🎸', image: require('../../assets/images/feed7.png') },
-                { title: 'Studio 🎧', image: require('../../assets/images/storyItem.jpg') },
-                { title: 'Merch 🛍️', image: require('../../assets/images/drop1.jpg') },
-              ].map((h, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.highlightItem}
-                  onPress={() => navigation.navigate('ProfileDetails', { story: { id: 80 + i, username: h.title, image: h.image } })}
-                >
-                  <View style={styles.highlightCircle}>
-                    <Image source={h.image} style={styles.highlightImage} />
-                  </View>
-                  <Text style={styles.highlightLabel} numberOfLines={1}>{h.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
 
           {/* Banners: ONLY DISPLAYED ON YOUR OWN PROFILE */}
           {isOwnProfile && (
@@ -446,10 +623,9 @@ const MyProfile: React.FC = () => {
                 >
                   <View style={styles.premiumTextWrap}>
                     <View style={styles.premiumTagRow}>
-                      <View style={styles.purpleDot} />
-                      <Text style={styles.premiumTag}>PROFESSIONAL DASHBOARD</Text>
+                      {/* <Text style={styles.premiumTag}>PROFESSIONAL DASHBOARD</Text> */}
                     </View>
-                    <Text style={styles.premiumTitle}>14.2K accounts reached in the last 30 days</Text>
+                    <Text style={styles.premiumTitle}>Professional Creator Tools & Analytics</Text>
                     <Text style={styles.premiumSubtitle}>View insights & manage your Stash store</Text>
                   </View>
 
@@ -515,7 +691,7 @@ const MyProfile: React.FC = () => {
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
                     onPress={() => setArtistTab(tab as any)}
                   >
-                    <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab}</Text>
+                    <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
                   </TouchableOpacity>
                 );
               })
@@ -527,233 +703,253 @@ const MyProfile: React.FC = () => {
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
                     onPress={() => setUserTab(tab as any)}
                   >
-                    <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab}</Text>
+                    <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
                   </TouchableOpacity>
                 );
               })}
         </View>
 
         {/* ── Tab Content Views ── */}
-        {/* 1. Feed Tab (Common to both) */}
         {((role === 'artist' && artistTab === 'Feed') || (role === 'user' && userTab === 'Feed')) && (
           <View style={styles.tabContent}>
-            {/* Feed Post 1 */}
-            <View style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <Image
-                  source={require('../../assets/images/black-man.png')}
-                  style={styles.postAvatar}
-                />
-                <View style={styles.postHeaderInfo}>
-                  <View style={styles.postNameRow}>
-                    <Text style={styles.postArtistName}>VORTEX</Text>
-                    <Ionicons name="checkmark-circle" size={14} color={PURPLE} />
-                  </View>
-                  <Text style={styles.postTime}>1h ago</Text>
-                </View>
-                <TouchableOpacity style={styles.postPlusBtn}>
-                  <Ionicons name="add" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.postCaption}>
-                VORTEX TOUR KICKS OFF TONIGHT. 🛍️ #NEONNIGHTS
-              </Text>
-
-              <Image
-                source={require('../../assets/images/feed6.jpg')}
-                style={styles.postMedia}
-              />
-
-              <View style={styles.postActionBar}>
-                <View style={styles.actionItem}>
-                  <Ionicons name="heart" size={20} color={PURPLE} />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <View style={styles.actionItem}>
-                  <Ionicons name="chatbubble-outline" size={20} color="#111" />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <TouchableOpacity style={styles.actionItem}>
-                  <Ionicons name="share-outline" size={20} color="#111" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionItem, { marginLeft: 'auto' }]}>
-                  <Ionicons name="repeat-outline" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Feed Post 2 with Shoppable Tag */}
-            <View style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <Image
-                  source={require('../../assets/images/black-man.png')}
-                  style={styles.postAvatar}
-                />
-                <View style={styles.postHeaderInfo}>
-                  <View style={styles.postNameRow}>
-                    <Text style={styles.postArtistName}>VORTEX</Text>
-                    <Ionicons name="checkmark-circle" size={14} color={PURPLE} />
-                  </View>
-                  <Text style={styles.postTime}>1h ago</Text>
-                </View>
-                <TouchableOpacity style={styles.postPlusBtn}>
-                  <Ionicons name="ellipsis-horizontal" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.postCaption}>
-                VORTEX TOUR KICKS OFF TONIGHT. 🛍️ #NEONNIGHTS
-              </Text>
-
-              <View style={styles.mediaWrap}>
-                <Image
-                  source={require('../../assets/images/feed6.jpg')}
-                  style={styles.postMedia}
-                />
-                <View style={styles.shoppableTag}>
-                  <Text style={styles.shoppableTitle}>Iwear Collection</Text>
-                  <View style={styles.shoppablePriceBadge}>
-                    <Text style={styles.shoppablePrice}>$1,250</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.postActionBar}>
-                <View style={styles.actionItem}>
-                  <Ionicons name="heart" size={20} color={PURPLE} />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <View style={styles.actionItem}>
-                  <Ionicons name="chatbubble-outline" size={20} color="#111" />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <TouchableOpacity style={styles.actionItem}>
-                  <Ionicons name="share-outline" size={20} color="#111" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionItem, { marginLeft: 'auto' }]}>
-                  <Ionicons name="repeat-outline" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Post 
+              posts={myRealPosts} 
+              onAddPostPress={() => navigation.navigate('CreatePost')}
+              isArtist={isOwnProfile && role === 'artist'}
+              emptyMessage={isOwnProfile ? "No posts yet. Share your first drop with your fans!" : "No posts yet."}
+            />
           </View>
         )}
 
         {/* 2. Shop Tab (Artist) */}
         {role === 'artist' && artistTab === 'Shop' && (
-          <View style={styles.shopGrid}>
-            {ARTIST_PRODUCTS.map(item => (
-              <View key={item.id} style={styles.productCard}>
-                <View style={styles.productImgWrap}>
-                  <Image source={item.image} style={styles.productImg} />
-                  {item.badge && (
-                    <View
-                      style={[
-                        styles.badgePill,
-                        item.badge === 'LTD' ? styles.badgeLtd : styles.badgeNew,
-                      ]}
-                    >
-                      <Text style={styles.badgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.productInfo}>
-                  <Text style={styles.productTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.productArtist}>{item.artist}</Text>
-
-                  <View style={styles.productPriceRow}>
-                    <Text style={styles.productPrice}>{item.price}</Text>
-                    <TouchableOpacity style={styles.cartIconBtn}>
-                      <Ionicons name="bag-handle-outline" size={16} color={PURPLE} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+          <View style={{ width: '100%', paddingHorizontal: 16 }}>
+            {realProducts.length === 0 ? (
+              <View style={styles.emptyShopState}>
+                <Text style={styles.emptyShopText}>
+                  {isOwnProfile ? "No products yet. Share your first merch or product!" : "This creator has no products listed yet."}
+                </Text>
+                {isOwnProfile && (
+                  <TouchableOpacity
+                    style={styles.addShopItemBtn}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('CreateProduct')}
+                  >
+                    <Text style={styles.addShopItemBtnText}>Add Product</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            ))}
+            ) : (
+              <View style={styles.shopGrid}>
+                {realProducts.map((item) => {
+                  const rawMainImg = item.imageUrls && item.imageUrls.length > 0 ? item.imageUrls[0] : item.imageUrl;
+                  const mainImg = rawMainImg ? resolveImageUrl(rawMainImg) : null;
+                  const resolvedImageUrls = Array.isArray(item.imageUrls) && item.imageUrls.length > 0
+                    ? item.imageUrls.map(u => resolveImageUrl(u))
+                    : (mainImg ? [mainImg] : []);
+                  const isApproved = item.status === 'APPROVED';
+                  const isRejected = item.status === 'REJECTED';
+
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.productCard}
+                      activeOpacity={0.85}
+                      onPress={() =>
+                        navigation.navigate('ProductDetails', {
+                          id: item.id,
+                          name: item.name,
+                          price: item.price,
+                          image: mainImg ? { uri: mainImg } : require('../../assets/images/product1.jpg'),
+                          imageUrls: resolvedImageUrls,
+                          description: item.description,
+                          artistName: item.sellerName || profileData?.username || displayName,
+                          verified: true,
+                          stockQuantity: item.stockQuantity,
+                          sizeStock: item.sizeStock,
+                          availableColors: item.availableColors,
+                          status: item.status,
+                          adminNotes: item.adminNotes,
+                          category: item.category,
+                          isSeller: isOwnProfile,
+                        })
+                      }
+                    >
+                      {/* Floating Price Tag matching ShopScreen */}
+                      <View style={styles.shopPriceTag}>
+                        <Text style={styles.shopPriceTagText}>${item.price}</Text>
+                      </View>
+
+                      <View style={styles.productImgWrap}>
+                        <Image
+                          source={mainImg ? { uri: mainImg } : require('../../assets/images/product1.jpg')}
+                          style={styles.productImg}
+                        />
+                      </View>
+
+                      <View style={styles.productInfo}>
+                        <Text style={styles.productTitle} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          <Text style={styles.productArtist} numberOfLines={1}>{profileData?.username || item.sellerName || displayName}</Text>
+                          <Ionicons name="checkmark-circle" size={13} color="#7126D0" />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
         {/* 3. Saved Tab (User) */}
         {role === 'user' && userTab === 'Saved' && (
-          <View style={styles.shopGrid}>
-            {USER_SAVED_ITEMS.map(item => (
-              <View key={item.id} style={styles.productCard}>
-                <View style={styles.productImgWrap}>
-                  <Image source={item.image} style={styles.productImg} />
-                  {item.badge && (
-                    <View style={[styles.badgePill, styles.badgeNew]}>
-                      <Text style={styles.badgeText}>{item.badge}</Text>
+          <View style={{ width: '100%' }}>
+            {savedRealPosts.length > 0 ? (
+              <Post posts={savedRealPosts} />
+            ) : (
+              <View style={styles.shopGrid}>
+                {USER_SAVED_ITEMS.map(item => (
+                  <View key={item.id} style={styles.productCard}>
+                    <View style={styles.productImgWrap}>
+                      <Image source={item.image} style={styles.productImg} />
+                      {item.badge && (
+                        <View style={[styles.badgePill, styles.badgeNew]}>
+                          <Text style={styles.badgeText}>{item.badge}</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
 
-                <View style={styles.productInfo}>
-                  <Text style={styles.productTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.productArtist}>{item.artist}</Text>
+                    <View style={styles.productInfo}>
+                      <Text style={styles.productTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.productArtist}>{item.artist}</Text>
 
-                  <View style={styles.productPriceRow}>
-                    <Text style={styles.productPrice}>{item.price}</Text>
-                    <TouchableOpacity style={styles.cartIconBtn}>
-                      <Ionicons name="heart" size={16} color={PURPLE} />
-                    </TouchableOpacity>
+                      <View style={styles.productPriceRow}>
+                        <Text style={styles.productPrice}>{item.price}</Text>
+                        <TouchableOpacity style={styles.cartIconBtn}>
+                          <Ionicons name="bag-handle-outline" size={16} color={PURPLE} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
-                </View>
+                ))}
               </View>
-            ))}
+            )}
           </View>
         )}
 
         {/* 4. Music Tab (Artist) */}
         {role === 'artist' && artistTab === 'Music' && (
           <View style={styles.tabContent}>
-            <View style={styles.lpCard}>
-              <Image source={require('../../assets/images/drop1.jpg')} style={styles.lpHeroImg} />
-              <View style={styles.lpOverlay}>
-                <TouchableOpacity
-                  style={styles.lpPlayCircle}
-                  onPress={() => setIsPlayingMusic(!isPlayingMusic)}
-                >
-                  <Ionicons name={isPlayingMusic ? 'pause' : 'play'} size={24} color="#FFFFFF" />
-                </TouchableOpacity>
+            {musicReleases.length > 0 ? (
+              <>
+                {/* Featured LP Player Hero */}
+                {(() => {
+                  const featured = musicReleases[0];
+                  const coverUri = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
+                  const trackCount = featured.tracks?.length || 1;
+                  const artistName = featured.artist?.username || featured.artist?.fullName || profileData?.username || displayName;
 
-                <View style={styles.lpFooter}>
-                  <View style={styles.lpTextWrap}>
-                    <Text style={styles.lpTitle}>Ethereal Tide LP</Text>
-                    <Text style={styles.lpSub}>12 tracks • Released today</Text>
-                  </View>
+                  return (
+                    <View style={styles.lpCard}>
+                      <Image
+                        source={coverUri ? { uri: coverUri } : require('../../assets/images/drop1.jpg')}
+                        style={styles.lpHeroImg}
+                      />
+                      <View style={styles.lpOverlay}>
+                        <TouchableOpacity
+                          style={styles.lpPlayCircle}
+                          onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
+                        >
+                          <Ionicons name="play" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.streamBtn}>
-                    <Text style={styles.streamBtnText}>STREAM</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+                        <View style={styles.lpFooter}>
+                          <View style={styles.lpTextWrap}>
+                            <Text style={styles.lpTitle}>{featured.title}</Text>
+                            <Text style={styles.lpSub}>
+                              {artistName} • {trackCount} {trackCount === 1 ? 'track' : 'tracks'} • {featured.releaseType || 'RELEASE'}
+                            </Text>
+                          </View>
 
-            <Text style={styles.sectionHeading}>ALL RELEASES</Text>
-            <View style={styles.releasesList}>
-              {MUSIC_RELEASES.map(track => (
-                <TouchableOpacity key={track.id} style={styles.releaseRow} activeOpacity={0.7}>
-                  <Image source={track.image} style={styles.releaseThumb} />
-                  <View style={styles.releaseInfo}>
-                    <View style={styles.releaseTitleRow}>
-                      <Text style={styles.releaseTitle}>{track.title}</Text>
-                      {track.badge && (
-                        <View style={styles.earlyBadge}>
-                          <Text style={styles.earlyBadgeText}>{track.badge}</Text>
+                          <TouchableOpacity
+                            style={styles.streamBtn}
+                            onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
+                          >
+                            <Text style={styles.streamBtnText}>STREAM</Text>
+                          </TouchableOpacity>
                         </View>
-                      )}
+                      </View>
                     </View>
-                    <Text style={styles.releaseArtist}>{track.artist}</Text>
-                  </View>
-                  <Text style={styles.releaseDuration}>{track.duration}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  );
+                })()}
+
+                {/* Releases Section */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
+                  <Text style={styles.sectionHeading}>ALL RELEASES ({musicReleases.length})</Text>
+                  {isOwnProfile && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: PURPLE, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
+                      onPress={() => navigation.navigate('UploadMusic')}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.releasesList}>
+                  {musicReleases.map((rel) => {
+                    const coverUri = rel.coverArtUrl ? resolveImageUrl(rel.coverArtUrl) : null;
+                    const artistName = rel.artist?.username || rel.artist?.fullName || profileData?.username || displayName;
+                    const trackCount = rel.tracks?.length || 1;
+
+                    return (
+                      <TouchableOpacity
+                        key={rel.id}
+                        style={styles.releaseRow}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('MusicDetail', { id: rel.id })}
+                      >
+                        <Image
+                          source={coverUri ? { uri: coverUri } : require('../../assets/images/drop1.jpg')}
+                          style={styles.releaseThumb}
+                        />
+                        <View style={styles.releaseInfo}>
+                          <View style={styles.releaseTitleRow}>
+                            <Text style={styles.releaseTitle}>{rel.title}</Text>
+                            <View style={styles.earlyBadge}>
+                              <Text style={styles.earlyBadgeText}>{rel.releaseType || 'SINGLE'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.releaseArtist}>{artistName} • {trackCount} tracks</Text>
+                        </View>
+                        <Text style={styles.releaseDuration}>${rel.albumPrice?.toFixed(2) || '1.99'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <View style={{ alignItems: 'center', paddingVertical: 12, backgroundColor: '#FFFFFF', borderRadius: 16, marginTop: 4, paddingHorizontal: 20 }}>
+
+                <Text style={{ fontSize: 13, fontFamily: 'Poppins-Regular', color: '#6B7280', textAlign: 'center', marginTop: 4 }}>
+                  {isOwnProfile ? "No Music Releases Yet! Publish singles, EPs, or albums directly to your fans." : "This artist has no music releases listed yet."}
+                </Text>
+                {isOwnProfile && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: PURPLE, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8, marginTop: 16 }}
+                    onPress={() => navigation.navigate('UploadMusic')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ color: '#FFF', fontSize: 14, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -876,10 +1072,55 @@ const MyProfile: React.FC = () => {
       </ScrollView>
 
       {/* Followers / Following List Modal */}
-      <FollowListModal
+      <FollowersFollowingModal
         visible={followModalVisible}
         initialTab={followModalTab}
+        userId={targetUserId}
         onClose={() => setFollowModalVisible(false)}
+      />
+
+      {/* Floating Action Button (Shows ONLY when the active tab has at least 1 item) */}
+      {isOwnProfile && (role === 'artist' || sessionUser?.role === 'ARTIST' || sessionUser?.role === 'ADMIN') && (() => {
+        const hasPosts = myRealPosts.length > 0;
+        const hasProducts = realProducts.length > 0;
+        const hasMusic = musicReleases.length > 0;
+
+        let shouldShowFab = false;
+        if (role === 'artist') {
+          if (artistTab === 'Feed' && hasPosts) shouldShowFab = true;
+          if (artistTab === 'Shop' && hasProducts) shouldShowFab = true;
+          if (artistTab === 'Music' && hasMusic) shouldShowFab = true;
+        } else {
+          if (userTab === 'Feed' && hasPosts) shouldShowFab = true;
+        }
+
+        if (!shouldShowFab) return null;
+
+        return (
+          <TouchableOpacity
+            style={styles.floatingCreatePostBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (role === 'artist' && artistTab === 'Shop') {
+                navigation.navigate('CreateProduct');
+              } else if (role === 'artist' && artistTab === 'Music') {
+                navigation.navigate('UploadMusic');
+              } else {
+                navigation.navigate('CreatePost');
+              }
+            }}
+          >
+            <Ionicons name="add" size={28} color="#FFF" />
+          </TouchableOpacity>
+        );
+      })()}
+
+      {/* Add Post Modal for Artist Profile */}
+      <AddPostModal
+        visible={addPostVisible}
+        onClose={() => setAddPostVisible(false)}
+        onPostCreated={fetchMyPosts}
+        artistName={profileData?.fullName || sessionUser?.fullName || 'Artist'}
       />
 
       {/* Footer Navigation */}
@@ -1041,7 +1282,7 @@ const styles = StyleSheet.create({
   // ── Premium Access / Upgrade Banner ──
   premiumBanner: {
     backgroundColor: '#F5F3FF',
-    borderRadius: 18,
+    borderRadius: 8,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1238,24 +1479,42 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   productCard: {
-    width: (width - 44) / 2,
+    width: (width - 50) / 2,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 6,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   productImgWrap: {
     position: 'relative',
-    width: '100%',
+    width: '90%',
     height: 150,
     backgroundColor: '#F3F4F6',
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: 'hidden',
   },
   productImg: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  shopPriceTag: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  shopPriceTagText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
   },
   badgePill: {
     position: 'absolute',
@@ -1739,6 +1998,51 @@ const styles = StyleSheet.create({
     color: '#333',
     marginTop: 4,
     textAlign: 'center',
+  },
+  floatingCreatePostBtn: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PURPLE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    zIndex: 99,
+  },
+  addShopItemBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7126D0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  addShopItemBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  emptyShopState: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyShopText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#888',
+    textAlign: 'center',
+    marginBottom: 16,
   },
 });
 

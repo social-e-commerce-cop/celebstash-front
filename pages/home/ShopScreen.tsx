@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   TextInput,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -18,6 +19,8 @@ import Svg, { Path, Circle, Line } from 'react-native-svg';
 import TabBar from '@/components/Tabbar';
 import LatestDrops from '@/components/home/LatestDrops';
 import UpcomingDrops from '@/components/home/UpcomingDrops';
+import { productsService, ProductItem } from '@/lib/productsService';
+import { formatPrice } from '@/lib/currency';
 
 const { width, height } = Dimensions.get('window');
 const H_PAD = 20;
@@ -28,32 +31,6 @@ type Category = 'All' | 'Clothing' | 'Accessories' | 'Art' | 'Utilities';
 
 const CATEGORIES: Category[] = ['All', 'Clothing', 'Accessories', 'Art', 'Utilities'];
 
-interface Product {
-  id: number;
-  name: string;
-  artist: string;
-  price: number;
-  verified: boolean;
-  category: Category;
-  image: any;
-}
-
-const ALL_PRODUCTS: Product[] = [
-  { id: 1, name: 'Ink Art Tee',        artist: 'Kenny K Shot', price: 34, verified: true, category: 'Clothing',    image: require('../../assets/images/products/product1.jpg') },
-  { id: 2, name: 'Vintage Hoodie',     artist: 'Kenny K Shot', price: 59, verified: true, category: 'Clothing',    image: require('../../assets/images/products/product2.jpg') },
-  { id: 3, name: 'Gold Chain',         artist: 'Kenny K Shot', price: 89, verified: true, category: 'Accessories', image: require('../../assets/images/products/product3.jpg') },
-  { id: 4, name: 'Snapback Cap',       artist: 'Kenny K Shot', price: 29, verified: true, category: 'Accessories', image: require('../../assets/images/products/product4.jpg') },
-  { id: 5, name: 'Canvas Print #1',    artist: 'Kenny K Shot', price: 45, verified: true, category: 'Art',         image: require('../../assets/images/products/product1.jpg') },
-  { id: 6, name: 'Signed Poster',      artist: 'Kenny K Shot', price: 22, verified: true, category: 'Art',         image: require('../../assets/images/products/product2.jpg') },
-  { id: 7, name: 'Phone Stand',        artist: 'Kenny K Shot', price: 18, verified: true, category: 'Utilities',   image: require('../../assets/images/products/product3.jpg') },
-  { id: 8, name: 'Tote Bag',           artist: 'Kenny K Shot', price: 24, verified: true, category: 'Utilities',   image: require('../../assets/images/products/product4.jpg') },
-];
-
-const UPCOMING_DROPS = [
-  { id: 1, name: 'Indorerwamo Collection', image: require('../../assets/images/drop1.jpg'), days: '02', mins: '30', secs: '60', date: 'May 25, 2026', time: '8:00 PM' },
-  { id: 2, name: 'Indorerwamo Collection', image: require('../../assets/images/drop1.jpg'), days: '02', mins: '30', secs: '60', date: 'May 25, 2026', time: '8:00 PM' },
-];
-
 const PurpleVerifiedBadge = () => (
   <Svg width="14" height="14" viewBox="0 0 18 18" fill="none">
     <Path
@@ -63,51 +40,89 @@ const PurpleVerifiedBadge = () => (
   </Svg>
 );
 
-
 export default function ShopScreen() {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [activeCategory, setActiveCategory] = useState<Category>('All');
   const [search, setSearch] = useState('');
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await productsService.getAllProducts();
+      if (Array.isArray(data)) {
+        setProducts(data);
+      }
+    } catch (err) {
+      console.log('Error fetching products:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredProducts = useMemo(() => {
-    let list = activeCategory === 'All' ? ALL_PRODUCTS : ALL_PRODUCTS.filter(p => p.category === activeCategory);
+    let list = products;
+    if (activeCategory !== 'All') {
+      list = list.filter((p) => (p.category || 'Clothing').toLowerCase() === activeCategory.toLowerCase());
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(p => p.name.toLowerCase().includes(q) || p.artist.toLowerCase().includes(q));
+      list = list.filter(
+        (p) => p.name.toLowerCase().includes(q) || (p.sellerName && p.sellerName.toLowerCase().includes(q))
+      );
     }
     return list;
-  }, [activeCategory, search]);
+  }, [products, activeCategory, search]);
 
-  const navigateToProduct = (product?: Product) => {
+  const navigateToProduct = (product?: ProductItem) => {
+    const mainImg = product?.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : product?.imageUrl;
     navigation.navigate('ProductDetails', {
       name: product?.name ?? 'Indorerwamo Collection',
       price: product?.price ?? 30,
-      image: product?.image ?? require('../../assets/images/products/product1.jpg'),
-      description: 'Exclusive limited merchandise from your favorite artist.',
-      artistName: product?.artist ?? 'Kenny K Shot',
+      image: mainImg ? { uri: mainImg } : require('../../assets/images/products/product1.jpg'),
+      imageUrls: Array.isArray(product?.imageUrls) && product.imageUrls.length > 0 ? product.imageUrls : (mainImg ? [mainImg] : []),
+      description: product?.description || 'Exclusive limited merchandise from your favorite artist.',
+      artistName: product?.sellerName ?? 'Kenny K Shot',
       verified: true,
+      stockQuantity: product?.stockQuantity,
+      sizeStock: product?.sizeStock,
+      availableColors: product?.availableColors,
+      isSeller: false,
     });
   };
 
-  const renderProduct = ({ item, index }: { item: Product; index: number }) => (
-    <TouchableOpacity
-      style={[styles.productCard, index % 2 === 0 ? { marginRight: GAP / 2 } : { marginLeft: GAP / 2 }]}
-      activeOpacity={0.85}
-      onPress={() => navigateToProduct(item)}
-    >
-      <View style={styles.priceTag}>
-        <Text style={styles.priceTagText}>${item.price}</Text>
-      </View>
-      <Image source={item.image} style={styles.productImage} />
-      <View style={styles.productInfo}>
-        <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-        <View style={styles.artistRow}>
-          <Text style={styles.artistName} numberOfLines={1}>{item.artist}</Text>
-          {item.verified && <PurpleVerifiedBadge />}
+  const renderProduct = ({ item, index }: { item: ProductItem; index: number }) => {
+    const prodImg = (item.imageUrls && item.imageUrls.length > 0)
+      ? { uri: item.imageUrls[0] }
+      : item.imageUrl
+      ? { uri: item.imageUrl }
+      : require('../../assets/images/products/product1.jpg');
+
+    return (
+      <TouchableOpacity
+        style={[styles.productCard, index % 2 === 0 ? { marginRight: GAP / 2 } : { marginLeft: GAP / 2 }]}
+        activeOpacity={0.85}
+        onPress={() => navigateToProduct(item)}
+      >
+        <View style={styles.priceTag}>
+          <Text style={styles.priceTagText}>{formatPrice(item.price)}</Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+        <Image source={prodImg} style={styles.productImage} />
+        <View style={styles.productInfo}>
+          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.artistRow}>
+            <Text style={styles.artistName} numberOfLines={1}>{item.sellerName || 'Artist'}</Text>
+            <PurpleVerifiedBadge />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   // We use a ScrollView for the header/drops section and embed a FlatList-like grid manually
   // to avoid nested VirtualizedList issues.
@@ -190,14 +205,14 @@ export default function ShopScreen() {
         </TouchableOpacity> */}
         <LatestDrops />
 
-        {/* ── Upcoming Drops ── */}
-        <View style={styles.sectionHeader}>
+        {/* ── Upcoming Drops (Disabled for now) ── */}
+        {/* <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Drops</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Drops')}>
             <Text style={styles.seeAllText}>See all</Text>
           </TouchableOpacity>
         </View>
-        <UpcomingDrops />
+        <UpcomingDrops /> */}
         {/* ── Product Grid (2 columns, manual render to avoid nested VirtualizedList) ── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
@@ -212,30 +227,38 @@ export default function ShopScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {filteredProducts.map((item, index) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.productCard,
-                  index % 2 === 0 ? { marginRight: GAP / 2 } : { marginLeft: GAP / 2 },
-                  index >= 2 && { marginTop: GAP },
-                ]}
-                activeOpacity={0.85}
-                onPress={() => navigateToProduct(item)}
-              >
-                <View style={styles.priceTag}>
-                  <Text style={styles.priceTagText}>${item.price}</Text>
-                </View>
-                <Image source={item.image} style={styles.productImage} />
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-                  <View style={styles.artistRow}>
-                    <Text style={styles.artistName} numberOfLines={1}>{item.artist}</Text>
-                    {item.verified && <PurpleVerifiedBadge />}
+            {filteredProducts.map((item, index) => {
+              const prodImg = (item.imageUrls && item.imageUrls.length > 0)
+                ? { uri: item.imageUrls[0] }
+                : item.imageUrl
+                ? { uri: item.imageUrl }
+                : require('../../assets/images/products/product1.jpg');
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.productCard,
+                    index % 2 === 0 ? { marginRight: GAP / 2 } : { marginLeft: GAP / 2 },
+                    index >= 2 && { marginTop: GAP },
+                  ]}
+                  activeOpacity={0.85}
+                  onPress={() => navigateToProduct(item)}
+                >
+                  <View style={styles.priceTag}>
+                    <Text style={styles.priceTagText}>{formatPrice(item.price)}</Text>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <Image source={prodImg} style={styles.productImage} />
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.artistRow}>
+                      <Text style={styles.artistName} numberOfLines={1}>{item.sellerName || 'Artist'}</Text>
+                      <PurpleVerifiedBadge />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 

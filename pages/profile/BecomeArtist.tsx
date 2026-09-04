@@ -12,12 +12,14 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { artistService, ArtistApplicationResponseData } from '@/lib/artistService';
-import { getSessionUser, setSessionUser } from '@/lib/session';
+import { profileService } from '@/lib/profileService';
+import { getSessionUser, setSessionUser, getSessionToken } from '@/lib/session';
 
 const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -45,9 +47,11 @@ const BecomeArtist: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [existingApplication, setExistingApplication] = useState<ArtistApplicationResponseData | null>(null);
 
-  useEffect(() => {
-    fetchApplicationStatus();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchApplicationStatus();
+    }, [])
+  );
 
   const handleAddLink = () => {
     setSocialLinks([...socialLinks, '']);
@@ -70,9 +74,21 @@ const BecomeArtist: React.FC = () => {
   const fetchApplicationStatus = async () => {
     setIsLoading(true);
     try {
+      // Fire profile check non-blocking in background
+      if (getSessionToken()) {
+        profileService.getMyProfile().then((prof) => {
+          if (prof && prof.role === 'ARTIST') {
+            setSessionUser({ role: 'ARTIST' });
+          }
+        }).catch(() => {});
+      }
+
       const status = await artistService.getMyApplicationStatus();
       if (status && status.status) {
         setExistingApplication(status);
+        if (status.status === 'APPROVED') {
+          setSessionUser({ role: 'ARTIST' });
+        }
       } else {
         setExistingApplication(null);
       }
@@ -114,7 +130,9 @@ const BecomeArtist: React.FC = () => {
         'Your application to become an Artist is currently under review by our curation team.'
       );
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to submit application. Please try again.');
+      const message = err.message || 'There is a problem submitting your application. Please try again.';
+      setErrorMsg(message);
+      Alert.alert('Submission Error', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -146,6 +164,12 @@ const BecomeArtist: React.FC = () => {
         /* Status Card View if Application Exists */
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.statusCard}>
+            {(sessionUser.avatar || sessionUser.profilePicture) ? (
+              <Image
+                source={{ uri: sessionUser.avatar || sessionUser.profilePicture }}
+                style={{ width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 12 }}
+              />
+            ) : null}
             <View style={styles.badgeRow}>
               <Ionicons
                 name={
@@ -204,9 +228,20 @@ const BecomeArtist: React.FC = () => {
               <Text style={styles.infoValue}>{existingApplication.category}</Text>
             </View>
             {existingApplication.socialProofLink ? (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Social Link:</Text>
-                <Text style={styles.infoValue}>{existingApplication.socialProofLink}</Text>
+              <View style={[styles.infoRow, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+                <Text style={styles.infoLabel}>Social Link(s):</Text>
+                {existingApplication.socialProofLink
+                  .split(/,|\n/)
+                  .map((link) => link.trim())
+                  .filter(Boolean)
+                  .map((link, idx) => (
+                    <Text
+                      key={idx}
+                      style={[styles.infoValue, { marginTop: 4, color: PURPLE }]}
+                    >
+                      {link}
+                    </Text>
+                  ))}
               </View>
             ) : null}
 
@@ -231,8 +266,8 @@ const BecomeArtist: React.FC = () => {
               </TouchableOpacity>
             )}
 
-            {/* Admin Review Quick Actions (For Testing & Curation) */}
-            <View style={styles.adminBox}>
+            {/* Admin Curation Portal — removed: all admin review is now done via the web Admin Dashboard */}
+            {/* <View style={styles.adminBox}>
               <View style={styles.adminHeader}>
                 <Ionicons name="shield-checkmark-outline" size={18} color={PURPLE} />
                 <Text style={styles.adminTitle}>Admin Curation Portal</Text>
@@ -285,7 +320,7 @@ const BecomeArtist: React.FC = () => {
               >
                 <Text style={styles.adminLinkText}>Open Full Admin Dashboard →</Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
           </View>
         </ScrollView>
       ) : (
@@ -578,18 +613,18 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    fontFamily: 'Poppins-Medium',
-    color: '#6B7280',
+    fontFamily: 'Poppins-Bold',
+    color: '#000000',
   },
   infoValue: {
     fontSize: 14,
-    fontFamily: 'Poppins-SemiBold',
-    color: '#111827',
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
   },
   reapplyBtn: {
     backgroundColor: PURPLE,
     height: 48,
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 20,

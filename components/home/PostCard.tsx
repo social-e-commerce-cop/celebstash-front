@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Modal, Alert, Platform, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Polyline, Line, Circle } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import CommentsModal from './CommentsModal';
 import ShareModal from './ShareModal';
 import { PostData } from '@/lib/postsData';
+import { BackendPost, likePostApi, unlikePostApi, repostPostApi, unrepostPostApi, savePostApi, unsavePostApi } from '@/lib/postService';
+import { followService } from '@/lib/followService';
+import { getSessionUser } from '@/lib/session';
 
 const { width } = Dimensions.get('window');
 
@@ -20,21 +23,12 @@ const PurpleVerifiedBadge = () => (
   </Svg>
 );
 
-// Plus icon for Mate status
-const PlusIcon = () => (
-  <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7126D0" strokeWidth="3">
-    <Path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-// Check icon for Mated status
 const CheckIcon = () => (
   <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7126D0" strokeWidth="3">
     <Path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
-// Feather/Lucide Share icon (three connected nodes)
 const NodeShareIcon = ({ color = "#000", size = 20 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Circle cx="18" cy="5" r="3" />
@@ -44,14 +38,12 @@ const NodeShareIcon = ({ color = "#000", size = 20 }: { color?: string; size?: n
   </Svg>
 );
 
-// Speech bubble icon matching the screenshot
 const CommentIcon = ({ color = "#000", size = 20 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
   </Svg>
 );
 
-// Inactive Repost Icon (two circular arrows forming a loop)
 const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M17 1l4 4-4 4" />
@@ -61,136 +53,409 @@ const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: numb
   </Svg>
 );
 
-// Active Repost Icon (purple with a tick/checkmark in the middle)
 const RepostedIcon = ({ size = 22 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    {/* Purple loop */}
     <Path d="M17 1l4 4-4 4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <Path d="M3 11V9a4 4 0 0 1 4-4h14" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <Path d="M7 23l-4-4 4-4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <Path d="M21 13v2a4 4 0 0 1-4 4H3" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    {/* Tick in the middle */}
     <Path d="M9 12l2 2 4-4" stroke="#7126D0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
-// Compact like count formatter (15200 → 15.2K)
 const formatCount = (n: number): string => {
+  if (!n) return '0';
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return String(n);
 };
 
 interface PostCardProps {
-  post: PostData;
+  post: BackendPost | PostData | any;
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [liked, setLiked] = useState(post.likedByMe);
-  const [likeCount, setLikeCount] = useState(post.likes);
-  const [mated, setMated] = useState(false);
-  const [reposted, setReposted] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [commentCount, setCommentCount] = useState(post.comments);
-  const [shareCount, setShareCount] = useState(post.shares);
-  const [showShareToast, setShowShareToast] = useState(false);
 
-  const handleLike = () => {
-    if (liked) {
-      setLiked(false);
-      setLikeCount(prev => prev - 1);
-    } else {
-      setLiked(true);
-      setLikeCount(prev => prev + 1);
+  const isBackend = 'likesCount' in post || 'description' in post;
+
+  const postId = post.id;
+  const userName = post.userName || 'Artist';
+  const postText = isBackend ? post.description : post.postText;
+  const userVerified = isBackend ? (post.userVerified || post.userRole === 'ARTIST') : post.verified;
+  
+  // Image sources
+  const defaultAvatar = require('../../assets/images/black-man.png');
+  const defaultPostImg = require('../../assets/images/feed6.jpg');
+
+  const userImage = post.userImageUrl ? { uri: post.userImageUrl } : (post.userImage || defaultAvatar);
+  const mainImage = (post.imageUrls && post.imageUrls.length > 0)
+    ? { uri: post.imageUrls[0] }
+    : (post.mainImage || defaultPostImg);
+
+  const price = post.attachedPrice || post.price || (post.product?.price ? `$${post.product.price}` : '$150');
+
+  // Attached item parsing
+  const attachedItem = post.attachedItem || (post.attachedType && post.attachedType !== 'none' ? {
+    type: post.attachedType,
+    title: post.attachedTitle || 'Exclusive Item',
+    subtitle: post.attachedSubtitle || 'Shoppable Item',
+    price: post.attachedPrice || price,
+  } : (post.product ? {
+    type: 'product',
+    title: post.product.name,
+    subtitle: 'Official Merch',
+    price: `$${post.product.price}`,
+    image: post.product.imageUrls?.[0] ? { uri: post.product.imageUrls[0] } : mainImage,
+  } : undefined));
+
+  const [liked, setLiked] = useState<boolean>(isBackend ? post.isLiked : post.likedByMe);
+  const [likeCount, setLikeCount] = useState<number>(isBackend ? post.likesCount : post.likes || 0);
+  const [reposted, setReposted] = useState<boolean>(isBackend ? post.isReposted : false);
+  const [repostCount, setRepostCount] = useState<number>(isBackend ? post.repostsCount : 0);
+  const [saved, setSaved] = useState<boolean>(isBackend ? post.isSaved : false);
+  const [mated, setMated] = useState<boolean>(false);
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(false);
+  const [shareOpen, setShareOpen] = useState<boolean>(false);
+  const [showShareToast, setShowShareToast] = useState<boolean>(false);
+  const [commentCount, setCommentCount] = useState<number>(isBackend ? post.commentsCount : post.comments || 0);
+  const [shareCount, setShareCount] = useState<number>(isBackend ? post.sharesCount : post.shares || 0);
+  const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
+
+  const handleSlideScroll = (event: any) => {
+    const slideWidth = width - 32;
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const currentIndex = Math.round(contentOffset / slideWidth);
+    if (currentIndex !== activeSlideIndex) {
+      setActiveSlideIndex(currentIndex);
     }
   };
+
+  const targetId = post.userId || (post.user && post.user.id);
+  const currentUserId = getSessionUser()?.id;
+
+  React.useEffect(() => {
+    if (targetId) {
+      followService.checkFollowStatus(targetId)
+        .then(isFollowing => setMated(isFollowing))
+        .catch(() => {});
+    }
+  }, [targetId]);
+
+  const handleLikeToggle = async () => {
+    const prevLiked = liked;
+    const prevCount = likeCount;
+
+    setLiked(!prevLiked);
+    setLikeCount(prevLiked ? prevCount - 1 : prevCount + 1);
+
+    if (isBackend && typeof postId === 'number') {
+      try {
+        if (prevLiked) {
+          await unlikePostApi(postId);
+        } else {
+          await likePostApi(postId);
+        }
+      } catch (err) {
+        console.error('Failed to update like status:', err);
+        setLiked(prevLiked);
+        setLikeCount(prevCount);
+      }
+    }
+  };
+
+  const handleRepostToggle = async () => {
+    const prevReposted = reposted;
+    setReposted(!prevReposted);
+    setRepostCount((prev: number) => prev + (prevReposted ? -1 : 1));
+
+    if (isBackend && typeof postId === 'number') {
+      try {
+        if (prevReposted) {
+          await unrepostPostApi(postId);
+        } else {
+          await repostPostApi(postId);
+        }
+      } catch (err) {
+        console.error('Failed to update repost status:', err);
+        setReposted(prevReposted);
+      }
+    }
+  };
+
+  const handleSaveToggle = async () => {
+    const prevSaved = saved;
+    setSaved(!prevSaved);
+
+    if (isBackend && typeof postId === 'number') {
+      try {
+        if (prevSaved) {
+          await unsavePostApi(postId);
+        } else {
+          await savePostApi(postId);
+        }
+      } catch (err) {
+        console.error('Failed to update save status:', err);
+        setSaved(prevSaved);
+      }
+    }
+  };
+
+  const [followOptionsOpen, setFollowOptionsOpen] = useState(false);
+
+  const handleFollowPress = () => {
+    if (mated) {
+      setFollowOptionsOpen(true);
+    } else {
+      handleFollowToggle(true);
+    }
+  };
+
+  const handleFollowToggle = async (shouldFollow: boolean) => {
+    setMated(shouldFollow);
+
+    const numericId = typeof targetId === 'number' ? targetId : parseInt(String(targetId), 10);
+    if (!isNaN(numericId) && numericId > 0) {
+      try {
+        if (shouldFollow) {
+          await followService.followUser(numericId);
+        } else {
+          await followService.unfollowUser(numericId);
+        }
+      } catch (err) {
+        console.warn('Follow status notice:', err);
+      }
+    }
+  };
+
+  const hasMedia = (post.imageUrls && post.imageUrls.length > 0) || !!post.videoUrl || (!isBackend && !!post.mainImage);
 
   return (
     <View style={styles.container}>
       {/* Header row */}
       <View style={styles.header}>
-        <View style={styles.profileDetails}>
-          <Image source={post.userImage} style={styles.avatar} />
+        <TouchableOpacity
+          style={styles.profileDetails}
+          activeOpacity={0.8}
+          onPress={() => {
+            const sessionUser = getSessionUser();
+            if (
+              (targetId && currentUserId && (targetId === currentUserId || String(targetId) === String(currentUserId))) ||
+              (post.userUsername && sessionUser?.username && post.userUsername.toLowerCase() === sessionUser.username.toLowerCase())
+            ) {
+              navigation.navigate('MyProfile', { isOtherUser: false });
+            } else {
+              navigation.navigate('MyProfile', {
+                isOtherUser: true,
+                userId: targetId,
+                name: userName,
+                username: post.userUsername || userName.toLowerCase().replace(/\s+/g, ''),
+                avatar: userImage,
+                role: post.userRole === 'ARTIST' ? 'artist' : 'user',
+              });
+            }
+          }}
+        >
+          <Image source={userImage} style={styles.avatar} />
           <View style={styles.userInfo}>
             <View style={styles.userNameRow}>
-              <Text style={styles.userName}>{post.userName}</Text>
-              {post.verified && <PurpleVerifiedBadge />}
+              <Text style={styles.userName}>{userName}</Text>
+              {userVerified && <PurpleVerifiedBadge />}
             </View>
-            <Text style={styles.timeAgo}>{post.timeAgo} ago</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.mateButton}
-          onPress={() => setMated(m => !m)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.mateButtonContent}>
-            {mated ? (
-              <CheckIcon />
-            ) : (
-              <>
-                <Text style={styles.mateText}>Follow</Text>
-              </>
-            )}
+            <Text style={styles.timeAgo}>Active</Text>
           </View>
         </TouchableOpacity>
+
+        {(!targetId || !currentUserId || targetId !== currentUserId) && (
+          <TouchableOpacity
+            style={[styles.mateButton, mated && { backgroundColor: '#F3F4F6' }]}
+            onPress={handleFollowPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.mateButtonContent}>
+              {mated ? (
+                <Ionicons name="person" size={16} color="#7126D0" />
+              ) : (
+                <Text style={styles.mateText}>Follow</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Caption */}
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() =>
-          navigation.navigate('ProductDetails', {
-            name: post.userName + ' Collection',
-            price: post.price,
-            image: post.mainImage,
-            description: post.postText,
-            artistName: post.userName,
-            verified: post.verified,
-          })
-        }
+      {/* Options Modal Sheet when tapping Person Icon */}
+      <Modal
+        visible={followOptionsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFollowOptionsOpen(false)}
       >
-        <Text style={styles.caption}>{post.postText}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setFollowOptionsOpen(false)}
+        >
+          <View style={styles.actionSheetContainer}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.actionSheetTitle}>@{post.userUsername || userName.toLowerCase().replace(/\s+/g, '')}</Text>
 
-      {/* Post image */}
-      <TouchableOpacity
-        style={styles.imageContainer}
-        activeOpacity={0.9}
-        onPress={() =>
-          navigation.navigate('ProductDetails', {
-            name: post.userName + ' Collection',
-            price: post.price,
-            image: post.mainImage,
-            description: post.postText,
-            artistName: post.userName,
-            verified: post.verified,
-          })
-        }
-      >
-        <Image source={post.mainImage} style={styles.postImage} />
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={async () => {
+                setFollowOptionsOpen(false);
+                await handleFollowToggle(false);
+              }}
+            >
+              <Ionicons name="person-remove-outline" size={20} color="#EF4444" style={{ marginRight: 12 }} />
+              <Text style={[styles.actionSheetOptionText, { color: '#EF4444' }]}>Unfollow</Text>
+            </TouchableOpacity>
 
-      {/* Attached Shoppable Card (Product / Song / Concert) */}
-      {post.attachedItem && (
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={() => {
+                setFollowOptionsOpen(false);
+                Alert.alert('Not Interested', "Got it. We'll show fewer posts like this.");
+              }}
+            >
+              <Ionicons name="eye-off-outline" size={20} color="#374151" style={{ marginRight: 12 }} />
+              <Text style={styles.actionSheetOptionText}>Not Interested</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={() => {
+                setFollowOptionsOpen(false);
+                Alert.alert('Report', 'Thank you. This post has been reported for review.');
+              }}
+            >
+              <Ionicons name="flag-outline" size={20} color="#374151" style={{ marginRight: 12 }} />
+              <Text style={styles.actionSheetOptionText}>Report</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionSheetOption, { borderBottomWidth: 0, justifyContent: 'center', paddingTop: 16 }]}
+              onPress={() => setFollowOptionsOpen(false)}
+            >
+              <Text style={{ fontSize: 15, fontFamily: 'Poppins-Bold', color: '#6B7280' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Caption & Text-Only Card */}
+      {!!postText && (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() =>
+            navigation.navigate('ProductDetails', {
+              name: userName + ' Collection',
+              price: price,
+              image: mainImage,
+              description: postText,
+              artistName: userName,
+              verified: userVerified,
+            })
+          }
+        >
+          {hasMedia ? (
+            <Text style={styles.caption}>{postText}</Text>
+          ) : (
+            <View style={styles.textOnlyCard}>
+              <Text style={styles.textOnlyCardText}>{postText}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Post image/gallery (Only if media exists) */}
+      {hasMedia && (
+        <View style={styles.imageContainer}>
+          {post.imageUrls && post.imageUrls.length > 1 ? (
+            <View style={{ position: 'relative' }}>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleSlideScroll}
+                scrollEventThrottle={16}
+              >
+                {post.imageUrls.map((imgUrl: string, idx: number) => (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.95}
+                    onPress={() =>
+                      navigation.navigate('ProductDetails', {
+                        name: userName + ' Collection',
+                        price: price,
+                        image: { uri: imgUrl },
+                        description: postText,
+                        artistName: userName,
+                        verified: userVerified,
+                      })
+                    }
+                  >
+                    <Image source={{ uri: imgUrl }} style={[styles.postImage, { width: width - 32 }]} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Instagram Slide Counter Badge (e.g. 1/4) */}
+              <View style={styles.slideCounterBadge}>
+                <Text style={styles.slideCounterText}>
+                  {activeSlideIndex + 1}/{post.imageUrls.length}
+                </Text>
+              </View>
+
+              {/* Instagram Dots Indicator */}
+              <View style={styles.paginationDotsContainer}>
+                {post.imageUrls.map((_: any, idx: number) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.dot,
+                      idx === activeSlideIndex ? styles.activeDot : styles.inactiveDot,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() =>
+                navigation.navigate('ProductDetails', {
+                  name: userName + ' Collection',
+                  price: price,
+                  image: mainImage,
+                  description: postText,
+                  artistName: userName,
+                  verified: userVerified,
+                })
+              }
+            >
+              <Image source={mainImage} style={styles.postImage} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Attached Shoppable Card */}
+      {attachedItem && (
         <TouchableOpacity
           style={styles.attachedCard}
           activeOpacity={0.85}
           onPress={() => {
-            if (post.attachedItem?.type === 'product') {
+            if (attachedItem.type === 'product') {
               navigation.navigate('ProductDetails', {
-                name: post.attachedItem.title,
-                price: post.attachedItem.price || post.price,
-                image: post.attachedItem.image || post.mainImage,
-                description: post.postText,
-                artistName: post.userName,
-                verified: post.verified,
+                name: attachedItem.title,
+                price: attachedItem.price || price,
+                image: attachedItem.image || mainImage,
+                description: postText,
+                artistName: userName,
+                verified: userVerified,
               });
-            } else if (post.attachedItem?.type === 'song') {
+            } else if (attachedItem.type === 'song') {
               navigation.navigate('MusicScreen');
-            } else if (post.attachedItem?.type === 'concert') {
+            } else if (attachedItem.type === 'concert') {
               navigation.navigate('ConcertsScreen');
             }
           }}
@@ -199,9 +464,9 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             <View style={styles.attachedIconBadge}>
               <Ionicons
                 name={
-                  post.attachedItem.type === 'product'
+                  attachedItem.type === 'product'
                     ? 'bag-handle-outline'
-                    : post.attachedItem.type === 'song'
+                    : attachedItem.type === 'song'
                     ? 'musical-notes-outline'
                     : 'ticket-outline'
                 }
@@ -211,19 +476,19 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             </View>
             <View style={styles.attachedInfo}>
               <Text style={styles.attachedTitle} numberOfLines={1}>
-                {post.attachedItem.title}
+                {attachedItem.title}
               </Text>
               <Text style={styles.attachedSubtitle} numberOfLines={1}>
-                {post.attachedItem.subtitle || 'Shoppable Item'}
+                {attachedItem.subtitle || 'Shoppable Item'}
               </Text>
             </View>
           </View>
 
           <View style={styles.attachedActionBtn}>
             <Text style={styles.attachedActionText}>
-              {post.attachedItem.type === 'product'
+              {attachedItem.type === 'product'
                 ? 'Shop'
-                : post.attachedItem.type === 'song'
+                : attachedItem.type === 'song'
                 ? 'Listen'
                 : 'Get Tickets'}
             </Text>
@@ -232,11 +497,11 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         </TouchableOpacity>
       )}
 
-      {/* Footer: like, comment, share + repost */}
+      {/* Footer: like, comment, share, save + repost */}
       <View style={styles.footer}>
         <View style={styles.statsLeft}>
           {/* Like */}
-          <TouchableOpacity style={styles.statItem} onPress={handleLike} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.statItem} onPress={handleLikeToggle} activeOpacity={0.7}>
             <Svg
               width="20"
               height="20"
@@ -258,6 +523,15 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             <Text style={styles.statNum}>{formatCount(commentCount)}</Text>
           </TouchableOpacity>
 
+          {/* Save / Bookmark */}
+          <TouchableOpacity style={styles.statItem} onPress={handleSaveToggle} activeOpacity={0.7}>
+            <Ionicons
+              name={saved ? 'bookmark' : 'bookmark-outline'}
+              size={20}
+              color={saved ? '#7126D0' : '#000'}
+            />
+          </TouchableOpacity>
+
           {/* Share */}
           <TouchableOpacity style={styles.statItem} onPress={() => setShareOpen(true)} activeOpacity={0.7}>
             <NodeShareIcon color="#000" size={20} />
@@ -265,14 +539,11 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Right Actions: Trending & Repost */}
+        {/* Right Actions: Repost */}
         <View style={styles.rightActions}>
-          {!!post.trending && (
-            <Text style={styles.trending}>{post.trending}</Text>
-          )}
           <TouchableOpacity
             style={styles.repostButton}
-            onPress={() => setReposted(r => !r)}
+            onPress={handleRepostToggle}
             activeOpacity={0.7}
           >
             {reposted ? <RepostedIcon size={22} /> : <RepostIcon color="#000" size={22} />}
@@ -284,17 +555,18 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <CommentsModal
         visible={commentsOpen}
         onClose={() => setCommentsOpen(false)}
-        currentUserImage={post.userImage}
-        onCommentAdded={() => setCommentCount(prev => prev + 1)}
+        currentUserImage={userImage}
+        postId={typeof postId === 'number' ? postId : undefined}
+        onCommentAdded={() => setCommentCount((prev: number) => prev + 1)}
       />
 
       {/* Share Modal */}
       <ShareModal
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
-        postText={post.postText}
+        postText={postText || 'Check out this post on Zikii'}
         onPostShared={() => {
-          setShareCount(prev => prev + 1);
+          setShareCount((prev: number) => prev + 1);
           setShowShareToast(true);
           setTimeout(() => {
             setShowShareToast(false);
@@ -335,8 +607,8 @@ const styles = StyleSheet.create({
   avatar: { width: 45, height: 45, borderRadius: 22.5, marginRight: 10 },
   userInfo: { justifyContent: 'center' },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  userName: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
-  timeAgo: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#888', marginTop: -1 },
+  userName: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#000' },
+  timeAgo: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#888', marginTop: -1 },
   mateButton: {
     backgroundColor: '#e5d3fdff',
     paddingHorizontal: 12,
@@ -348,13 +620,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  mateText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0' },
+  mateText: { fontSize: 13, fontFamily: 'Poppins-Bold', color: '#7126D0' },
   caption: {
-    fontSize: 16, fontFamily: 'Poppins-Regular', color: '#000',
-    lineHeight: 20, marginBottom: 16,
+    fontSize: 15, fontFamily: 'Poppins-Regular', color: '#000',
+    lineHeight: 20, marginBottom: 12,
+  },
+  textOnlyCard: {
+    backgroundColor: '#F5F0FD',
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#7126D0',
+  },
+  textOnlyCardText: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Medium',
+    color: '#111827',
+    lineHeight: 24,
   },
   imageContainer: {
-    width: '100%', height: width * 0.7, // slightly taller to match screenshot aspect ratio
+    width: '100%', height: width * 0.7,
     borderRadius: 12, overflow: 'hidden', marginBottom: 10,
   },
   postImage: { width: '100%', height: '100%', resizeMode: 'cover' },
@@ -362,9 +648,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 4,
   },
-  statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 24 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statNum: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#000' },
+  statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statNum: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#000' },
   statNumLiked: { color: '#7126D0' },
   rightActions: {
     flexDirection: 'row',
@@ -374,21 +660,16 @@ const styles = StyleSheet.create({
   repostButton: {
     padding: 4,
   },
-  trending: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#7126D0' },
   successToast: {
     position: 'absolute',
     top: '40%',
     alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
   },
   successIconCircle: {
     width: 24,
@@ -400,7 +681,7 @@ const styles = StyleSheet.create({
   },
   successToastText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Poppins-Bold',
   },
   attachedCard: {
@@ -455,5 +736,85 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
     color: '#FFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  actionSheetTitle: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  actionSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  actionSheetOptionText: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Medium',
+    color: '#111827',
+  },
+  slideCounterBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  slideCounterText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+  },
+  paginationDotsContainer: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  activeDot: {
+    backgroundColor: '#7126D0',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  inactiveDot: {
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
   },
 });

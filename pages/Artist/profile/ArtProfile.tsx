@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,34 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import Post from '@/components/home/Post';
+import { fetchMyPosts, BackendPost } from '@/lib/postService';
+import { getSessionUser } from '@/lib/session';
+
+import { profileService, UserProfile } from '@/lib/profileService';
+import { musicService, MusicReleaseItem } from '@/lib/musicService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
+
+const getTabIconName = (tabName: string, isActive: boolean): keyof typeof Ionicons.glyphMap => {
+  switch (tabName) {
+    case 'Feed':
+      return isActive ? 'grid' : 'grid-outline';
+    case 'Shop':
+      return isActive ? 'bag-handle' : 'bag-handle-outline';
+    case 'Music':
+      return isActive ? 'musical-notes' : 'musical-notes-outline';
+    case 'Event':
+    case 'Concerts':
+      return isActive ? 'ticket' : 'ticket-outline';
+    case 'Auction':
+      return isActive ? 'sparkles' : 'sparkles-outline';
+    default:
+      return isActive ? 'grid' : 'grid-outline';
+  }
+};
 
 type TabType = 'Feed' | 'Shop' | 'Music' | 'Event' | 'Auction';
 
@@ -36,90 +61,89 @@ interface ReleaseItem {
   image: any;
 }
 
-const PRODUCTS: ProductItem[] = [
-  {
-    id: '1',
-    title: 'Ethereal Tide Heavyweight...',
-    artist: 'by Anelia',
-    price: '$38',
-    badge: 'NEW',
-    image: require('../../../assets/images/product1.jpg'),
-  },
-  {
-    id: '2',
-    title: 'Ethereal Tide Purple Vinyl',
-    artist: 'by Anelia',
-    price: '$38',
-    badge: 'LTD',
-    image: require('../../../assets/images/drop1.jpg'),
-  },
-  {
-    id: '3',
-    title: 'Slow Soundscapes (Hardco...',
-    artist: 'by Anelia',
-    price: '$38',
-    image: require('../../../assets/images/product3.jpg'),
-  },
-  {
-    id: '4',
-    title: 'Ambient Ocean Poster Print',
-    artist: 'by Anelia',
-    price: '$38',
-    image: require('../../../assets/images/product4.jpg'),
-  },
-  {
-    id: '5',
-    title: 'Slow Soundscapes (Hardco...',
-    artist: 'by Anelia',
-    price: '$38',
-    image: require('../../../assets/images/product5.jpg'),
-  },
-  {
-    id: '6',
-    title: 'Ambient Ocean Poster Print',
-    artist: 'by Anelia',
-    price: '$38',
-    image: require('../../../assets/images/feed7.png'),
-  },
-];
+const PRODUCTS: ProductItem[] = [];
 
-const RELEASES: ReleaseItem[] = [
-  {
-    id: '1',
-    title: 'Glow in the Mist',
-    artist: 'Anelia',
-    duration: '5:42',
-    badge: 'EARLY',
-    image: require('../../../assets/images/drop1.jpg'),
-  },
-  {
-    id: '2',
-    title: 'Ambient Ocean Drift',
-    artist: 'Anelia',
-    duration: '4:15',
-    image: require('../../../assets/images/story2.png'),
-  },
-  {
-    id: '3',
-    title: 'Slow Soundscapes LP',
-    artist: 'Anelia',
-    duration: '6:01',
-    image: require('../../../assets/images/story3.png'),
-  },
-  {
-    id: '4',
-    title: 'Vinyl Night Reprise',
-    artist: 'Anelia',
-    duration: '3:54',
-    image: require('../../../assets/images/feed6.jpg'),
-  },
-];
+const RELEASES: ReleaseItem[] = [];
 
 const ArtProfile: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const [activeTab, setActiveTab] = useState<TabType>('Feed');
   const [isMated, setIsMated] = useState(false);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const [artistPosts, setArtistPosts] = useState<BackendPost[]>([]);
+  const [sessionUser, setSessionUser] = useState(getSessionUser());
+  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const [musicReleases, setMusicReleases] = useState<MusicReleaseItem[]>([]);
+  const [loadingMusic, setLoadingMusic] = useState(false);
+
+  useEffect(() => {
+    const loadArtistFeed = async () => {
+      try {
+        const res = await fetchMyPosts(0, 20);
+        if (res && res.content) {
+          setArtistPosts(res.content);
+        }
+      } catch (err) {
+        console.error('Failed to load artist posts:', err);
+      }
+    };
+
+    const loadProfile = async () => {
+      setSessionUser(getSessionUser());
+      try {
+        const prof = await profileService.getMyProfile();
+        if (prof) setProfileData(prof);
+      } catch {}
+    };
+
+    const loadMusic = async () => {
+      setLoadingMusic(true);
+      try {
+        const user = getSessionUser();
+        const prof = await profileService.getMyProfile().catch(() => null);
+        const currentUserId = prof?.id || user?.id;
+        const currentUsername = (prof?.username || user?.username || '').toLowerCase();
+        const currentEmail = (prof?.email || user?.email || '').toLowerCase();
+        const currentFullName = (prof?.fullName || user?.fullName || '').toLowerCase();
+
+        const targetArtistId = profileData?.id || currentUserId;
+        const releases = await musicService.getReleases();
+        if (Array.isArray(releases)) {
+          const artistReleases = releases.filter(r => {
+            if (!r.artist) return true;
+            if (targetArtistId && String(r.artist.id) === String(targetArtistId)) return true;
+            if (currentUsername && r.artist.username && r.artist.username.toLowerCase() === currentUsername) return true;
+            if (currentEmail && (r.artist as any).email && (r.artist as any).email.toLowerCase() === currentEmail) return true;
+            if (currentFullName && (r.artist as any).fullName && (r.artist as any).fullName.toLowerCase() === currentFullName) return true;
+            return false;
+          });
+          setMusicReleases(artistReleases.length > 0 ? artistReleases : releases);
+        } else {
+          setMusicReleases([]);
+        }
+      } catch (e) {
+        console.warn('Failed to load artist music releases:', e);
+        setMusicReleases([]);
+      } finally {
+        setLoadingMusic(false);
+      }
+    };
+
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadArtistFeed();
+      loadProfile();
+      loadMusic();
+    });
+    loadArtistFeed();
+    loadProfile();
+    loadMusic();
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const displayName = profileData?.fullName || sessionUser?.fullName || 'Artist';
+  const displayHandle = profileData?.username ? `@${profileData.username}` : (sessionUser?.username ? `@${sessionUser.username}` : '@artist');
+  const avatarSource = profileData?.profilePicture ? { uri: profileData.profilePicture } : require('../../../assets/images/black-man.png');
 
   return (
     <View style={styles.container}>
@@ -131,33 +155,33 @@ const ArtProfile: React.FC = () => {
           {/* Top Row: Avatar + Info + Menu */}
           <View style={styles.profileTopRow}>
             <Image
-              source={require('../../../assets/images/black-man.png')}
+              source={avatarSource}
               style={styles.avatar}
             />
 
             <View style={styles.infoCol}>
               <View style={styles.nameRow}>
-                <Text style={styles.artistName}>Kenny K Shot</Text>
+                <Text style={styles.artistName}>{displayHandle}</Text>
                 <Ionicons name="checkmark-circle" size={16} color={PURPLE} style={styles.verifiedIcon} />
               </View>
-              <Text style={styles.handle}>@Artist</Text>
+              <Text style={styles.handle}>{displayName}</Text>
 
               <View style={styles.statsRow}>
-                <TouchableOpacity onPress={() => alert('12,400 Followers')}>
+                <TouchableOpacity onPress={() => alert(`${profileData?.followersCount || 0} Followers`)}>
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>12.4K</Text> Followers
+                    <Text style={styles.statNumber}>{(profileData?.followersCount || 0).toLocaleString()}</Text> Followers
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.statDot}>•</Text>
-                <TouchableOpacity onPress={() => alert('Following 340 creators')}>
+                <TouchableOpacity onPress={() => alert(`Following ${profileData?.followingCount || 0} creators`)}>
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>340</Text> Following
+                    <Text style={styles.statNumber}>{(profileData?.followingCount || 0).toLocaleString()}</Text> Following
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.statDot}>•</Text>
                 <TouchableOpacity onPress={() => setActiveTab('Shop')}>
                   <Text style={styles.statText}>
-                    <Text style={styles.statNumber}>40</Text> Drops
+                    <Text style={styles.statNumber}>{artistPosts.length}</Text> Drops
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -191,29 +215,33 @@ const ArtProfile: React.FC = () => {
 
           {/* Bio paragraph */}
           <Text style={styles.bioText}>
-            Multi-instrumental ambient producer & digital designer. Crafting slow soundscapes for busy minds. Weekly vinyl & digital drops. 🌊
+            {profileData?.bio || 'No bio provided yet.'}
           </Text>
 
-          {/* Premium Access Banner */}
-          <View style={styles.premiumBanner}>
+          {/* Creator Hub Banner */}
+          <TouchableOpacity 
+            style={styles.premiumBanner}
+            onPress={() => navigation.navigate('BecomeArtist')}
+            activeOpacity={0.85}
+          >
             <View style={styles.premiumTextWrap}>
               <View style={styles.premiumTagRow}>
                 <View style={styles.purpleDot} />
-                <Text style={styles.premiumTag}>PREMIUM ACCESS</Text>
+                <Text style={styles.premiumTag}>CREATOR HUB</Text>
               </View>
-              <Text style={styles.premiumTitle}>Are you an artist who wants to sell your merch?</Text>
-              <Text style={styles.premiumSubtitle}>Restart Pro for only $0.89</Text>
+              <Text style={styles.premiumTitle}>Explore Exclusive Drops & Music</Text>
+              <Text style={styles.premiumSubtitle}>Connect with fans & manage your stash</Text>
             </View>
 
-            <TouchableOpacity style={styles.claimBtn} activeOpacity={0.85}>
-              <Text style={styles.claimBtnText}>Claim Now</Text>
+            <TouchableOpacity style={styles.claimBtn} onPress={() => navigation.navigate('BecomeArtist')} activeOpacity={0.85}>
+              <Text style={styles.claimBtnText}>Explore</Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Sub-Tabs Bar: Feed | Shop | Music | Event | Auction ── */}
+        {/* ── Sub-Tabs Bar: Feed | Shop | Music | Auction ── */}
         <View style={styles.tabsBar}>
-          {(['Feed', 'Shop', 'Music', 'Event', 'Auction'] as const).map(tab => {
+          {(['Feed', 'Shop', 'Music', 'Auction'] as const).map(tab => {
             const isActive = activeTab === tab;
             return (
               <TouchableOpacity
@@ -221,115 +249,15 @@ const ArtProfile: React.FC = () => {
                 style={[styles.tabItem, isActive && styles.activeTabItem]}
                 onPress={() => setActiveTab(tab)}
               >
-                <Text style={[styles.tabText, isActive && styles.activeTabText]}>{tab}</Text>
+                <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* ── Tab Content Views ── */}
         {activeTab === 'Feed' && (
           <View style={styles.tabContent}>
-            {/* Feed Post 1 */}
-            <View style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <Image
-                  source={require('../../../assets/images/black-man.png')}
-                  style={styles.postAvatar}
-                />
-                <View style={styles.postHeaderInfo}>
-                  <View style={styles.postNameRow}>
-                    <Text style={styles.postArtistName}>VORTEX</Text>
-                    <Ionicons name="checkmark-circle" size={14} color={PURPLE} />
-                  </View>
-                  <Text style={styles.postTime}>1h ago</Text>
-                </View>
-                <TouchableOpacity style={styles.postPlusBtn}>
-                  <Ionicons name="add" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.postCaption}>
-                VORTEX TOUR KICKS OFF TONIGHT. 🛍️ #NEONNIGHTS
-              </Text>
-
-              <Image
-                source={require('../../../assets/images/feed6.jpg')}
-                style={styles.postMedia}
-              />
-
-              <View style={styles.postActionBar}>
-                <View style={styles.actionItem}>
-                  <Ionicons name="heart" size={20} color={PURPLE} />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <View style={styles.actionItem}>
-                  <Ionicons name="chatbubble-outline" size={20} color="#111" />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <TouchableOpacity style={styles.actionItem}>
-                  <Ionicons name="share-outline" size={20} color="#111" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionItem, { marginLeft: 'auto' }]}>
-                  <Ionicons name="repeat-outline" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Feed Post 2 with Shoppable Tag */}
-            <View style={styles.postCard}>
-              <View style={styles.postHeader}>
-                <Image
-                  source={require('../../../assets/images/black-man.png')}
-                  style={styles.postAvatar}
-                />
-                <View style={styles.postHeaderInfo}>
-                  <View style={styles.postNameRow}>
-                    <Text style={styles.postArtistName}>VORTEX</Text>
-                    <Ionicons name="checkmark-circle" size={14} color={PURPLE} />
-                  </View>
-                  <Text style={styles.postTime}>1h ago</Text>
-                </View>
-                <TouchableOpacity style={styles.postPlusBtn}>
-                  <Ionicons name="ellipsis-horizontal" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.postCaption}>
-                VORTEX TOUR KICKS OFF TONIGHT. 🛍️ #NEONNIGHTS
-              </Text>
-
-              <View style={styles.mediaWrap}>
-                <Image
-                  source={require('../../../assets/images/feed6.jpg')}
-                  style={styles.postMedia}
-                />
-                {/* Shoppable Tag Banner */}
-                <View style={styles.shoppableTag}>
-                  <Text style={styles.shoppableTitle}>Iwear Collection</Text>
-                  <View style={styles.shoppablePriceBadge}>
-                    <Text style={styles.shoppablePrice}>$1,250</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.postActionBar}>
-                <View style={styles.actionItem}>
-                  <Ionicons name="heart" size={20} color={PURPLE} />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <View style={styles.actionItem}>
-                  <Ionicons name="chatbubble-outline" size={20} color="#111" />
-                  <Text style={styles.actionCount}>15.2K</Text>
-                </View>
-                <TouchableOpacity style={styles.actionItem}>
-                  <Ionicons name="share-outline" size={20} color="#111" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionItem, { marginLeft: 'auto' }]}>
-                  <Ionicons name="repeat-outline" size={20} color="#111" />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Post posts={artistPosts} emptyMessage="No posts by this artist yet." />
           </View>
         )}
 
@@ -371,77 +299,109 @@ const ArtProfile: React.FC = () => {
 
         {activeTab === 'Music' && (
           <View style={styles.tabContent}>
-            {/* Featured LP Player Hero */}
-            <View style={styles.lpCard}>
-              <Image
-                source={require('../../../assets/images/drop1.jpg')}
-                style={styles.lpHeroImg}
-              />
-              <View style={styles.lpOverlay}>
-                <TouchableOpacity
-                  style={styles.lpPlayCircle}
-                  onPress={() => setIsPlayingMusic(!isPlayingMusic)}
-                >
-                  <Ionicons
-                    name={isPlayingMusic ? 'pause' : 'play'}
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
+            {musicReleases.length > 0 ? (
+              <>
+                {/* Featured LP Player Hero */}
+                {(() => {
+                  const featured = musicReleases[0];
+                  const coverUri = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
+                  const trackCount = featured.tracks?.length || 1;
+                  const artistName = featured.artist?.username || featured.artist?.fullName || displayName;
 
-                <View style={styles.lpFooter}>
-                  <View style={styles.lpTextWrap}>
-                    <Text style={styles.lpTitle}>Ethereal Tide LP</Text>
-                    <Text style={styles.lpSub}>12 tracks • Released today</Text>
-                  </View>
+                  return (
+                    <View style={styles.lpCard}>
+                      <Image
+                        source={coverUri ? { uri: coverUri } : require('../../../assets/images/drop1.jpg')}
+                        style={styles.lpHeroImg}
+                      />
+                      <View style={styles.lpOverlay}>
+                        <TouchableOpacity
+                          style={styles.lpPlayCircle}
+                          onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
+                        >
+                          <Ionicons name="play" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.streamBtn}>
-                    <Text style={styles.streamBtnText}>STREAM</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+                        <View style={styles.lpFooter}>
+                          <View style={styles.lpTextWrap}>
+                            <Text style={styles.lpTitle}>{featured.title}</Text>
+                            <Text style={styles.lpSub}>
+                              {artistName} • {trackCount} {trackCount === 1 ? 'track' : 'tracks'} • {featured.releaseType || 'RELEASE'}
+                            </Text>
+                          </View>
 
-            {/* Releases Section */}
-            <Text style={styles.sectionHeading}>ALL RELEASES</Text>
-            <View style={styles.releasesList}>
-              {RELEASES.map(track => (
-                <TouchableOpacity key={track.id} style={styles.releaseRow} activeOpacity={0.7}>
-                  <Image source={track.image} style={styles.releaseThumb} />
-                  <View style={styles.releaseInfo}>
-                    <View style={styles.releaseTitleRow}>
-                      <Text style={styles.releaseTitle}>{track.title}</Text>
-                      {track.badge && (
-                        <View style={styles.earlyBadge}>
-                          <Text style={styles.earlyBadgeText}>{track.badge}</Text>
+                          <TouchableOpacity
+                            style={styles.streamBtn}
+                            onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
+                          >
+                            <Text style={styles.streamBtnText}>STREAM</Text>
+                          </TouchableOpacity>
                         </View>
-                      )}
+                      </View>
                     </View>
-                    <Text style={styles.releaseArtist}>{track.artist}</Text>
-                  </View>
-                  <Text style={styles.releaseDuration}>{track.duration}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  );
+                })()}
 
-            {/* Floating Mini Player Bar */}
-            {isPlayingMusic && (
-              <View style={styles.miniPlayerBar}>
-                <Image
-                  source={require('../../../assets/images/drop1.jpg')}
-                  style={styles.miniPlayerThumb}
-                />
-                <Text style={styles.miniPlayerTitle} numberOfLines={1}>
-                  Glow in the Mist
-                </Text>
-                <View style={styles.miniPlayerControls}>
-                  <TouchableOpacity onPress={() => setIsPlayingMusic(false)}>
-                    <Ionicons name="pause" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ marginLeft: 12 }}>
-                    <Ionicons name="play-skip-forward" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
+                {/* Releases Section */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
+                  <Text style={styles.sectionHeading}>ALL RELEASES ({musicReleases.length})</Text>
+                  {(sessionUser?.role === 'ARTIST' || sessionUser?.role === 'ADMIN') && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: PURPLE, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
+                      onPress={() => navigation.navigate('UploadMusic')}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+                <View style={styles.releasesList}>
+                  {musicReleases.map((rel) => {
+                    const coverUri = rel.coverArtUrl ? resolveImageUrl(rel.coverArtUrl) : null;
+                    const artistName = rel.artist?.username || rel.artist?.fullName || displayName;
+                    const trackCount = rel.tracks?.length || 1;
+
+                    return (
+                      <TouchableOpacity
+                        key={rel.id}
+                        style={styles.releaseRow}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('MusicDetail', { id: rel.id })}
+                      >
+                        <Image
+                          source={coverUri ? { uri: coverUri } : require('../../../assets/images/drop1.jpg')}
+                          style={styles.releaseThumb}
+                        />
+                        <View style={styles.releaseInfo}>
+                          <View style={styles.releaseTitleRow}>
+                            <Text style={styles.releaseTitle}>{rel.title}</Text>
+                            <View style={styles.earlyBadge}>
+                              <Text style={styles.earlyBadgeText}>{rel.releaseType || 'SINGLE'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.releaseArtist}>{artistName} • {trackCount} tracks</Text>
+                        </View>
+                        <Text style={styles.releaseDuration}>${rel.albumPrice?.toFixed(2) || '1.99'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <View style={{ alignItems: 'center', paddingVertical: 36, backgroundColor: '#FFFFFF', borderRadius: 16, marginTop: 4, paddingHorizontal: 20 }}>
+                <Text style={{ fontSize: 16, fontFamily: 'Poppins-Bold', color: '#111', marginTop: 4 }}>
+                  No Music Releases Yet
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: 'Poppins-Regular', color: '#6B7280', textAlign: 'center', marginTop: 4 }}>
+                  Publish singles, EPs, or albums directly to your fans.
+                </Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: PURPLE, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8, marginTop: 16 }}
+                  onPress={() => navigation.navigate('UploadMusic')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 14, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>

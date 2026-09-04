@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,17 @@ import {
   Dimensions,
   TouchableOpacity,
   StatusBar,
+  ActivityIndicator
 } from 'react-native';
 import NotificationItem, { NotificationType, FollowMode } from '@/components/messages/NotificationItem';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { notificationService, NotificationResponse } from '@/lib/notificationService';
 
-const { height } = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
 
-interface Notification {
+interface UINotification {
   id: string;
   time: string;
   user: string;
@@ -29,146 +31,99 @@ interface Notification {
   isRead?: boolean;
   isFollowing?: boolean;
   date: string;
+  relatedEntityId?: number;
+  originalType: string;
 }
 
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  // ── New ──
-  {
-    id: '1',
-    time: '5m',
-    user: 'theweeknd',
-    action: 'is host of a Live Stash Auction: "After Hours Signed Vinyl".',
-    type: 'live',
-    avatar: require('../../assets/images/black-man.png'),
-    actionButtonLabel: 'Join Live',
-    isRead: false,
-    date: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '2',
-    time: '22m',
-    user: 'leviileon',
-    action: 'started following you.',
-    type: 'follow',
-    followMode: 'follow_back',
-    avatar: require('../../assets/images/smiling-black.png'),
-    isFollowing: false,
-    isRead: false,
-    date: new Date(Date.now() - 22 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '3',
-    time: '45m',
-    user: 'ange_nadette',
-    action: 'outbid you ($340) on "Vintage Leather Bomber".',
-    type: 'auction',
-    avatar: require('../../assets/images/prof.jpg'),
-    thumbnail: require('../../assets/images/product1.jpg'),
-    actionButtonLabel: 'Bid $360',
-    isRead: false,
-    date: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '4',
-    time: '2h',
-    user: 'mbestra',
-    action: 'commented on your product drop:',
-    type: 'comment',
-    comment: 'Need this jacket in size L! Is it still available? 🔥',
-    avatar: require('../../assets/images/profile.jpg'),
-    thumbnail: require('../../assets/images/product3.jpg'),
-    isRead: false,
-    date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  },
-
-  // ── Yesterday ──
-  {
-    id: '5',
-    time: '12h',
-    user: 'king_kivumbi',
-    action: 'shared your item "Custom Oversized Tee" to their story.',
-    type: 'share',
-    avatar: require('../../assets/images/story3.png'),
-    thumbnail: require('../../assets/images/feed7.png'),
-    isRead: true,
-    date: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '6',
-    time: '14h',
-    user: 'halukman',
-    action: 'suggested for you based on items you bought.',
-    type: 'follow',
-    followMode: 'follow',
-    avatar: require('../../assets/images/professional-black.png'),
-    isFollowing: false,
-    isRead: true,
-    date: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '7',
-    time: '18h',
-    user: 'verna.dare',
-    action: 'liked your story drop.',
-    type: 'like',
-    avatar: require('../../assets/images/ast.png'),
-    thumbnail: require('../../assets/images/drop1.jpg'),
-    isRead: true,
-    date: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '8',
-    time: '22h',
-    user: 'fateme_ahmadi',
-    action: 'started following you.',
-    type: 'follow',
-    followMode: 'follow_back',
-    avatar: require('../../assets/images/story1.png'),
-    isFollowing: true,
-    isRead: true,
-    date: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(),
-  },
-
-  // ── Last 7 days ──
-  {
-    id: '9',
-    time: '2d',
-    user: 'zahrakan',
-    action: 'liked your collection drop.',
-    type: 'like',
-    avatar: require('../../assets/images/story2.png'),
-    thumbnail: require('../../assets/images/product5.jpg'),
-    isRead: true,
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '10',
-    time: '4d',
-    user: 'drake_official',
-    action: 'suggested for you from your favorite artists.',
-    type: 'follow',
-    followMode: 'follow',
-    avatar: require('../../assets/images/feed6.jpg'),
-    isFollowing: false,
-    isRead: true,
-    date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
+type TabType = 'All' | 'Social' | 'Purchases' | 'Activity';
+const TABS: TabType[] = ['All', 'Social', 'Purchases', 'Activity'];
 
 const Notifications: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<UINotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('All');
 
-  const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationService.getMyNotifications();
+      setNotifications(data.map(mapBackendToUI));
+    } catch (error) {
+      console.log('Failed to fetch notifications', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const groupNotifications = (list: Notification[]) => {
+  const mapBackendToUI = (n: NotificationResponse): UINotification => {
+    // Map the 26 backend types to the generic UI types
+    let type: NotificationType = 'mention';
+    let action = n.content;
+    let actionButtonLabel = undefined;
+    const t = n.type;
+
+    if (['NEW_FOLLOWER'].includes(t)) type = 'follow';
+    else if (['LIKE'].includes(t)) type = 'like';
+    else if (['COMMENT'].includes(t)) type = 'comment';
+    else if (['SHARE', 'REPOST'].includes(t)) type = 'share';
+    else if (['PRODUCT_DROP', 'PURCHASE_SUCCESSFUL', 'ORDER_PROCESSING', 'DELIVERED'].includes(t)) type = 'purchase';
+    else if (['AUCTION_STARTED', 'BID_SUCCESSFUL', 'OUTBID', 'AUCTION_WON'].includes(t)) type = 'auction';
+    
+    // Time formatter
+    const diff = Date.now() - new Date(n.createdAt).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const time = hours < 24 ? (hours === 0 ? 'Just now' : `${hours}h`) : `${Math.floor(hours / 24)}d`;
+
+    return {
+      id: String(n.id),
+      time,
+      user: n.title,
+      action: action,
+      type,
+      date: n.createdAt,
+      isRead: n.read,
+      relatedEntityId: n.relatedEntityId,
+      originalType: t,
+      avatar: require('../../assets/images/profile.jpg'), // Default until backend sends avatar
+    };
+  };
+
+  const markRead = async (id: string, relatedEntityId?: number, originalType?: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    try {
+      await notificationService.markAsRead(Number(id));
+    } catch (e) {
+      console.log(e);
+    }
+
+    // Navigation Mapping
+    if (originalType === 'NEW_FOLLOWER' && relatedEntityId) {
+      navigation.push('MyProfile', { userId: relatedEntityId });
+    }
+  };
+
+  const getFilteredNotifications = () => {
+    if (activeTab === 'All') return notifications;
+    if (activeTab === 'Social') {
+      return notifications.filter(n => ['NEW_FOLLOWER', 'LIKE', 'COMMENT', 'REPOST', 'SHARE', 'STORY_INTERACTION'].includes(n.originalType));
+    }
+    if (activeTab === 'Purchases') {
+      return notifications.filter(n => ['PRODUCT_DROP', 'RESERVATION_SUCCESSFUL', 'PURCHASE_SUCCESSFUL', 'ORDER_PROCESSING', 'DELIVERED'].includes(n.originalType));
+    }
+    return notifications; // Activity (default)
+  };
+
+  const groupNotifications = (list: UINotification[]) => {
     const now = Date.now();
     const HOUR = 60 * 60 * 1000;
     const DAY = 24 * HOUR;
 
-    const groups: Record<string, Notification[]> = {
+    const groups: Record<string, UINotification[]> = {
       New: [],
       Yesterday: [],
       'Last 7 days': [],
@@ -210,34 +165,52 @@ const Notifications: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={styles.listContent}
-        renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.sectionTitle}>{title}</Text>
-        )}
-        renderItem={({ item, index, section }) => {
-          const isFirst = index === 0;
-          const isLast = index === section.data.length - 1;
-          return (
-            <View
-              style={[
-                styles.itemCard,
-                isFirst && styles.itemCardFirst,
-                isLast && styles.itemCardLast,
-                !isLast && styles.itemBorderBottom,
-              ]}
-            >
-              <NotificationItem
-                {...item}
-                onPress={() => markRead(item.id)}
-              />
-            </View>
-          );
-        }}
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        {TABS.map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7126D0" />
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={styles.listContent}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionTitle}>{title}</Text>
+          )}
+          renderItem={({ item, index, section }) => {
+            const isFirst = index === 0;
+            const isLast = index === section.data.length - 1;
+            return (
+              <View
+                style={[
+                  styles.itemCard,
+                  isFirst && styles.itemCardFirst,
+                  isLast && styles.itemCardLast,
+                  !isLast && styles.itemBorderBottom,
+                ]}
+              >
+                <NotificationItem
+                  {...item}
+                  onPress={() => markRead(item.id, item.relatedEntityId, item.originalType)}
+                />
+              </View>
+            );
+          }}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="notifications-off-outline" size={52} color="#D1D5DB" />
@@ -246,6 +219,7 @@ const Notifications: React.FC = () => {
           </View>
         }
       />
+      )}
     </View>
   );
 };
@@ -322,6 +296,34 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 8,
+  },
+  tab: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#E5E7EB',
+  },
+  activeTab: {
+    backgroundColor: '#7126D0',
+  },
+  tabText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#6B7280',
+  },
+  activeTabText: {
+    color: '#FFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

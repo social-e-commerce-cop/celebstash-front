@@ -6,12 +6,14 @@ export interface UserSession {
   phoneNumber?: string;
   role?: string;
   status?: string;
+  avatar?: string;
+  profilePicture?: string;
 }
 
 let currentUser: UserSession = {
-  fullName: 'Ange',
-  username: 'ange',
-  email: 'user@zikiii.com',
+  fullName: 'INEZA Gretta',
+  username: 'ineza_gretta',
+  email: 'karabogretta@gmail.com',
 };
 
 let accessToken: string | null = null;
