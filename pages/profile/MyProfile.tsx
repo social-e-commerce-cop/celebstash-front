@@ -17,7 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import TabBar from '@/components/Tabbar';
 import { FollowListModal } from '@/components/Profile/FollowListModal';
 import Post from '@/components/home/Post';
-import { fetchMyPosts, fetchSavedPosts, BackendPost } from '@/lib/postService';
+import { fetchMyPosts, fetchSavedPosts, fetchRepostedPosts, BackendPost } from '@/lib/postService';
 import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
@@ -370,6 +370,7 @@ const MyProfile: React.FC = () => {
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const [myRealPosts, setMyRealPosts] = useState<BackendPost[]>([]);
   const [savedRealPosts, setSavedRealPosts] = useState<BackendPost[]>([]);
+  const [repostedRealPosts, setRepostedRealPosts] = useState<BackendPost[]>([]);
 
   // Followers & Following Instagram-style Modal State
   const [followModalVisible, setFollowModalVisible] = useState(false);
@@ -380,7 +381,7 @@ const MyProfile: React.FC = () => {
     setFollowModalVisible(true);
   };
 
-  // Load own posts & saved posts from real backend API
+  // Load own posts, saved posts & reposted posts from real backend API
   useFocusEffect(
     React.useCallback(() => {
       fetchMyPosts(0, 20)
@@ -394,6 +395,12 @@ const MyProfile: React.FC = () => {
           if (res?.content) setSavedRealPosts(res.content);
         })
         .catch((err) => console.error('Error fetching saved posts:', err));
+
+      fetchRepostedPosts(0, 20)
+        .then((res) => {
+          if (res?.content) setRepostedRealPosts(res.content);
+        })
+        .catch((err) => console.error('Error fetching reposted posts:', err));
     }, [])
   );
 
@@ -452,11 +459,11 @@ const MyProfile: React.FC = () => {
 
 
   const artistTabList = isOwnProfile
-    ? (['Feed', 'Shop', 'Music', 'Analytics'] as const)
+    ? (['Feed', 'Shop', 'Music', 'Analytics', 'Reposts'] as const)
     : (['Feed', 'Shop', 'Music', 'Reposts'] as const);
 
   const userTabList = isOwnProfile
-    ? (['Feed', 'Saved', 'Orders', 'Tribes'] as const)
+    ? (['Feed', 'Saved', 'Orders', 'Tribes', 'Reposts'] as const)
     : (['Feed', 'Reposts', 'Tribes'] as const);
 
   return (
@@ -1050,6 +1057,14 @@ const MyProfile: React.FC = () => {
               </View>
 
               <View style={styles.metricItem}>
+                <Text style={styles.metricNumber}>
+                  {myRealPosts.reduce((acc, p) => acc + (p.repostsCount || 0), 0) || 124}
+                </Text>
+                <Text style={styles.metricLabel}>Total Reposts</Text>
+                <Text style={styles.metricGrowth}>+15.3% virality rate</Text>
+              </View>
+
+              <View style={styles.metricItem}>
                 <Text style={styles.metricNumber}>$12.4K</Text>
                 <Text style={styles.metricLabel}>Total Merch Sales</Text>
                 <Text style={styles.metricGrowth}>+24.1% vs last month</Text>
@@ -1067,6 +1082,16 @@ const MyProfile: React.FC = () => {
                 <Text style={styles.metricGrowth}>Top 5% Creators</Text>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* 9. Reposts Tab (Artist & User) */}
+        {((role === 'artist' && artistTab === 'Reposts') || (role === 'user' && userTab === 'Reposts')) && (
+          <View style={styles.tabContent}>
+            <Post
+              posts={repostedRealPosts}
+              emptyMessage={isOwnProfile ? "No reposted posts yet." : "This user hasn't reposted any posts yet."}
+            />
           </View>
         )}
       </ScrollView>

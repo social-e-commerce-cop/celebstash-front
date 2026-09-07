@@ -28,10 +28,10 @@ const getBaseUrl = (): string => {
 
   // 2. Local Wi-Fi IP / Android Emulator fallback
   if (Platform.OS === 'android') {
-    return 'http://10.224.89.52:8080';
+    return 'http://10.0.2.2:8080';
   }
 
-  return 'http://10.224.89.52:8080';
+  return 'http://10.0.2.2:8080';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -125,8 +125,17 @@ async function request<T = any>(
 
   const candidateUrls: string[] = [primaryUrl];
   if (!endpoint.startsWith('http')) {
+    const hostUri = Constants.expoConfig?.hostUri || Constants.experienceUrl;
+    let detectedIp: string | null = null;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        detectedIp = ip;
+      }
+    }
+
     const fallbacks = [
-      `http://10.224.89.52:8080${endpoint}`,
+      ...(detectedIp ? [`http://${detectedIp}:8080${endpoint}`] : []),
       `http://10.0.2.2:8080${endpoint}`,
       `http://localhost:8080${endpoint}`,
     ];
@@ -138,9 +147,10 @@ async function request<T = any>(
   }
 
   let lastError: any = null;
+  const timeoutMs = (options.method && options.method !== 'GET') ? 15000 : 8000;
   for (const targetUrl of candidateUrls) {
     try {
-      const result = await tryFetchUrl<T>(targetUrl, options, headers, 4000);
+      const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
       if (!endpoint.startsWith('http')) {
         const urlObj = targetUrl.replace(endpoint, '');
         if (urlObj && urlObj.startsWith('http')) {
@@ -239,12 +249,18 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
     }
   }
 
-  let rawCandidates: string[] = [
-    `http://10.224.89.52:8080/api/files/upload`,
-    ...(detectedIp ? [`http://${detectedIp}:8080/api/files/upload`] : []),
-    `http://10.0.2.2:8080/api/files/upload`,
-    `${API_BASE_URL}/api/files/upload`,
-  ];
+  let rawCandidates: string[] = [];
+
+  if (cachedWorkingBaseUrl) {
+    rawCandidates.push(`${cachedWorkingBaseUrl}/api/files/upload`);
+  }
+
+  if (detectedIp) {
+    rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
+  }
+
+  rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
+  rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
 
   if (Platform.OS === 'web') {
     rawCandidates.push(`http://localhost:8080/api/files/upload`);
@@ -265,7 +281,7 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
       const result = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', targetUrl);
-        xhr.timeout = 15000;
+        xhr.timeout = 5000;
 
         if (token) {
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -274,6 +290,10 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             console.log(`[Upload Success] ${targetUrl} -> ${xhr.responseText}`);
+            const baseHost = targetUrl.replace('/api/files/upload', '');
+            if (baseHost && baseHost.startsWith('http')) {
+              cachedWorkingBaseUrl = baseHost;
+            }
             resolve(xhr.responseText.trim());
           } else {
             console.error(`[Upload HTTP Error] ${targetUrl} status ${xhr.status}: ${xhr.responseText}`);

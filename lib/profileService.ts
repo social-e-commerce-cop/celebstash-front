@@ -43,6 +43,8 @@ export const profileService = {
           email: data.email,
           phoneNumber: data.phoneNumber,
           role: data.role,
+          profilePicture: data.profilePicture,
+          avatar: data.profilePicture,
         });
         return data;
       }
@@ -64,6 +66,8 @@ export const profileService = {
       username: data.username,
       email: data.email,
       phoneNumber: data.phoneNumber,
+      profilePicture: data.profilePicture,
+      avatar: data.profilePicture,
     });
     return data;
   },

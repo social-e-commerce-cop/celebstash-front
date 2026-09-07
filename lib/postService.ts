@@ -49,6 +49,7 @@ export interface BackendComment {
   postId: number;
   userId: number;
   userName: string;
+  userUsername?: string;
   userImageUrl?: string;
   content: string;
   createdAt: string;
@@ -279,6 +280,22 @@ export async function fetchPostComments(postId: number, page = 0, size = 20): Pr
 }
 
 /**
+ * Fetch replies for a comment
+ */
+export async function fetchCommentReplies(postId: number, commentId: number, page = 0, size = 10): Promise<{ content: BackendComment[]; totalElements: number }> {
+  try {
+    const res = await fetchWithAuth<{ content: BackendComment[]; totalElements: number }>(
+      `/api/posts/${postId}/comments/${commentId}/replies?page=${page}&size=${size}`
+    );
+    if (!res.ok) return { content: [], totalElements: 0 };
+    return await res.json();
+  } catch (err) {
+    console.warn('fetchCommentReplies failed:', err);
+    return { content: [], totalElements: 0 };
+  }
+}
+
+/**
  * Add a comment or reply to a post
  */
 export async function addPostComment(postId: number, content: string, parentId?: number): Promise<BackendComment> {
@@ -288,4 +305,76 @@ export async function addPostComment(postId: number, content: string, parentId?:
   });
   if (!res.ok) throw new Error('Failed to add comment');
   return await res.json();
+}
+
+/**
+ * Like a comment
+ */
+export async function likeCommentApi(postId: number, commentId: number): Promise<BackendComment> {
+  const res = await fetchWithAuth<BackendComment>(`/api/posts/${postId}/comments/${commentId}/like`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to like comment');
+  return await res.json();
+}
+
+/**
+ * Unlike a comment
+ */
+export async function unlikeCommentApi(postId: number, commentId: number): Promise<BackendComment> {
+  const res = await fetchWithAuth<BackendComment>(`/api/posts/${postId}/comments/${commentId}/like`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to unlike comment');
+  return await res.json();
+}
+
+/**
+ * Edit a comment (owner only)
+ */
+export async function editCommentApi(postId: number, commentId: number, content: string): Promise<BackendComment> {
+  const res = await fetchWithAuth<BackendComment>(`/api/posts/${postId}/comments/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ postId, content }),
+  });
+  if (!res.ok) throw new Error('Failed to edit comment');
+  return await res.json();
+}
+
+/**
+ * Delete a comment (owner only)
+ */
+export async function deleteCommentApi(postId: number, commentId: number): Promise<void> {
+  const res = await fetchWithAuth(`/api/posts/${postId}/comments/${commentId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete comment');
+}
+
+
+
+/**
+ * Fetch reposted posts for current user
+ */
+export async function fetchRepostedPosts(page = 0, size = 20): Promise<{ content: BackendPost[]; totalElements: number }> {
+  try {
+    const res = await fetchWithAuth<{ content: BackendPost[]; totalElements: number }>(
+      `/api/posts/reposted?page=${page}&size=${size}`
+    );
+    if (!res.ok) {
+      const feedRes = await fetchWithAuth<{ content: BackendPost[] }>(`/api/posts?page=${page}&size=${size}`);
+      if (feedRes.ok) {
+        const data = await feedRes.json();
+        const repostedList = (data.content || []).filter((p: BackendPost) => p.isReposted);
+        return { content: repostedList, totalElements: repostedList.length };
+      }
+      return { content: [], totalElements: 0 };
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn('fetchRepostedPosts failed, using fallback:', err);
+    try {
+      const feedRes = await fetchWithAuth<{ content: BackendPost[] }>(`/api/posts?page=${page}&size=${size}`);
+      if (feedRes.ok) {
+        const data = await feedRes.json();
+        const repostedList = (data.content || []).filter((p: BackendPost) => p.isReposted);
+        return { content: repostedList, totalElements: repostedList.length };
+      }
+    } catch {}
+    return { content: [], totalElements: 0 };
+  }
 }

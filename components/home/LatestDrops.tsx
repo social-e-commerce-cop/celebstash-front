@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#7126D0',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 5,
+    borderRadius: 8,
   },
   badgeText: {
     color: 'white',
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#7126D0',
     paddingHorizontal: 22,
     paddingVertical: 10,
-    borderRadius: 5,
+    borderRadius: 8,
   },
   shopButtonText: {
     color: 'white',

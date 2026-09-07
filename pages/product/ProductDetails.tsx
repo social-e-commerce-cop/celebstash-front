@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { formatPrice } from '@/lib/currency';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { productsService, ProductItem } from '@/lib/productsService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -63,21 +64,46 @@ const ProductDetails = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const route = useRoute<ProductDetailsRouteProp>();
 
-  // Route parameters with fallbacks matching the mockup
-  const paramName = route.params?.name || 'Indorerwamo Collection';
-  const paramPrice = route.params?.price !== undefined ? route.params.price : '30';
-  const paramImage = route.params?.image || require('@/assets/images/products/product1.jpg');
-  const paramDesc = route.params?.description || 'This is the jacket i wore during the opening night of my Eras Tour in Los Angeles. It has so many crystals';
-  const paramArtistName = route.params?.artistName || 'Kenny K Shot';
+  const targetProductId = route.params?.id || (route.params as any)?.product?.id;
+  const [liveProduct, setLiveProduct] = React.useState<ProductItem | null>((route.params as any)?.product || null);
+
+  React.useEffect(() => {
+    if (targetProductId && typeof targetProductId === 'number') {
+      productsService.getProductById(targetProductId)
+        .then(data => {
+          if (data) {
+            setLiveProduct(data);
+          }
+        })
+        .catch(err => {
+          console.warn('Unable to fetch live product details for ID:', targetProductId, err);
+        });
+    }
+  }, [targetProductId]);
+
+  // Dynamic parameters with liveProduct resolution
+  const paramName = liveProduct?.name || route.params?.name || 'Indorerwamo Collection';
+  const paramPrice = liveProduct?.price !== undefined ? liveProduct.price : (route.params?.price !== undefined ? route.params.price : '30');
+  const paramImage = liveProduct?.imageUrls?.[0] ? { uri: resolveImageUrl(liveProduct.imageUrls[0]) } : (route.params?.image || require('@/assets/images/products/product1.jpg'));
+  const paramDesc = liveProduct?.description || route.params?.description || 'Exclusive item description.';
+  const paramArtistName = liveProduct?.sellerName || route.params?.artistName || 'Kenny K Shot';
   const paramVerified = route.params?.verified !== undefined ? route.params.verified : true;
-  const paramCategory = route.params?.category;
+  const paramCategory = liveProduct?.category || route.params?.category;
   const paramArtistImage = route.params?.artistImage;
+
+  const effectiveSizeStock = liveProduct?.sizeStock || route.params?.sizeStock;
+  const effectiveAvailableColors = (Array.isArray(liveProduct?.availableColors) && liveProduct.availableColors.length > 0)
+    ? liveProduct.availableColors
+    : (Array.isArray(route.params?.availableColors) && route.params.availableColors.length > 0
+      ? route.params.availableColors
+      : ['Black', 'White', 'Purple', 'Blue']);
+  const effectiveStockQuantity = liveProduct?.stockQuantity ?? route.params?.stockQuantity;
 
   const isMusic = paramCategory === 'Music';
   const isSeller = route.params?.isSeller === true;
 
   // Build exact image gallery list from uploaded images
-  const rawImageUrls = (route.params as any)?.imageUrls;
+  const rawImageUrls = liveProduct?.imageUrls || (route.params as any)?.imageUrls;
   const uploadedGallery = Array.isArray(rawImageUrls) && rawImageUrls.length > 0
     ? rawImageUrls.map((img: any) => {
         if (typeof img === 'string') return { uri: resolveImageUrl(img) };
@@ -98,6 +124,12 @@ const ProductDetails = () => {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(false);
+
+  React.useEffect(() => {
+    if (galleryImages && galleryImages.length > 0) {
+      setActiveImage(galleryImages[0]);
+    }
+  }, [liveProduct]);
 
   const selectedColorValue = colors.find(c => c.id === selectedColor)?.value ?? null;
 
@@ -411,32 +443,32 @@ const ProductDetails = () => {
           )}
 
           {/* Buyer Stock Availability Badge */}
-          {Boolean(!isSeller && route.params?.stockQuantity !== undefined) && (
+          {Boolean(!isSeller && effectiveStockQuantity !== undefined) && (
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
               marginBottom: 14,
-              backgroundColor: (route.params?.stockQuantity ?? 0) > 0 ? '#F0FDF4' : '#FEF2F2',
+              backgroundColor: (effectiveStockQuantity ?? 0) > 0 ? '#F0FDF4' : '#FEF2F2',
               paddingHorizontal: 12,
               paddingVertical: 8,
               borderRadius: 8,
               borderWidth: 1,
-              borderColor: (route.params?.stockQuantity ?? 0) > 0 ? '#BBF7D0' : '#FECACA',
+              borderColor: (effectiveStockQuantity ?? 0) > 0 ? '#BBF7D0' : '#FECACA',
               alignSelf: 'flex-start'
             }}>
               <Ionicons
-                name={(route.params?.stockQuantity ?? 0) > 0 ? "checkmark-circle" : "alert-circle"}
+                name={(effectiveStockQuantity ?? 0) > 0 ? "checkmark-circle" : "alert-circle"}
                 size={16}
-                color={(route.params?.stockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"}
+                color={(effectiveStockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"}
                 style={{ marginRight: 6 }}
               />
               <Text style={{
                 fontSize: 12,
                 fontFamily: 'Poppins-Bold',
-                color: (route.params?.stockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"
+                color: (effectiveStockQuantity ?? 0) > 0 ? "#166534" : "#991B1B"
               }}>
-                {(route.params?.stockQuantity ?? 0) > 0
-                  ? `In Stock (${route.params?.stockQuantity} available)`
+                {(effectiveStockQuantity ?? 0) > 0
+                  ? `In Stock (${effectiveStockQuantity} available)`
                   : 'Sold Out'}
               </Text>
             </View>
@@ -447,12 +479,12 @@ const ProductDetails = () => {
             <>
               <Text style={styles.sectionHeader}>Sizes & Stock per Size:</Text>
               <View style={styles.sizeContainer}>
-                {(route.params?.sizeStock && Object.keys(route.params.sizeStock).length > 0
-                  ? Object.keys(route.params.sizeStock)
+                {(effectiveSizeStock && Object.keys(effectiveSizeStock).length > 0
+                  ? Object.keys(effectiveSizeStock)
                   : sizes
                 ).map(size => {
                   const isSelected = selectedSize === size;
-                  const itemQty = route.params?.sizeStock ? route.params.sizeStock[size] : undefined;
+                  const itemQty = effectiveSizeStock ? effectiveSizeStock[size] : undefined;
                   return (
                     <TouchableOpacity
                       key={size}
@@ -481,10 +513,7 @@ const ProductDetails = () => {
               {/* Color Options - ONLY COLOR SWATCHES (NO WORDS) */}
               <Text style={styles.sectionHeader}>Available Colors:</Text>
               <View style={styles.colorContainer}>
-                {(Array.isArray(route.params?.availableColors) && route.params.availableColors.length > 0
-                  ? route.params.availableColors
-                  : ['Black', 'White', 'Purple', 'Blue']
-                ).map((colStr, idx) => {
+                {effectiveAvailableColors.map((colStr: string, idx: number) => {
                   const rawVal = (colStr || '').trim();
                   const upper = rawVal.toUpperCase();
                   const colorHex = upper.startsWith('#')

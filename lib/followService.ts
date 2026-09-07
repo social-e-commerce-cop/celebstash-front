@@ -51,4 +51,9 @@ export const followService = {
   getSuggestedUsers: async (): Promise<FollowUser[]> => {
     return apiClient.get<FollowUser[]>('/api/follow/suggestions');
   },
+
+  /** Get all registered users from database */
+  getAllUsers: async (): Promise<FollowUser[]> => {
+    return apiClient.get<FollowUser[]>('/api/v1/users');
+  },
 };

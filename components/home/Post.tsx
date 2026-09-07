@@ -43,7 +43,7 @@ const Post: React.FC<PostProps> = ({
 export default Post;
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 40 },
+  container: { marginBottom: 16 },
   empty: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
   emptyText: { fontSize: 14, fontFamily: 'Poppins-Medium', color: '#888', textAlign: 'center', marginBottom: 16 },
   artistAddPostFooter: {

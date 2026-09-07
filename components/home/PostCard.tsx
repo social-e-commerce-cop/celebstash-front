@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle } from 'react-native-svg';
 import CommentsModal from './CommentsModal';
 import ShareModal from './ShareModal';
+import LikesModal from './LikesModal';
 import { PostData } from '@/lib/postsData';
 import { BackendPost, likePostApi, unlikePostApi, repostPostApi, unrepostPostApi, savePostApi, unsavePostApi } from '@/lib/postService';
 import { followService } from '@/lib/followService';
@@ -54,13 +55,16 @@ const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: numb
 );
 
 const RepostedIcon = ({ size = 22 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M17 1l4 4-4 4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M3 11V9a4 4 0 0 1 4-4h14" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M7 23l-4-4 4-4" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M21 13v2a4 4 0 0 1-4 4H3" stroke="#7126D0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M9 12l2 2 4-4" stroke="#7126D0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
+  <View style={{
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#7126D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  }}>
+    <Ionicons name="checkmark-sharp" size={16} color="#FFFFFF" />
+  </View>
 );
 
 const formatCount = (n: number): string => {
@@ -79,7 +83,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const isBackend = 'likesCount' in post || 'description' in post;
 
   const postId = post.id;
-  const userName = post.userName || 'Artist';
+  const rawUsername = post.userUsername || (post.user && post.user.username) || post.username;
+  const userName = rawUsername || post.userName || 'Artist';
   const postText = isBackend ? post.description : post.postText;
   const userVerified = isBackend ? (post.userVerified || post.userRole === 'ARTIST') : post.verified;
   
@@ -115,6 +120,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const [saved, setSaved] = useState<boolean>(isBackend ? post.isSaved : false);
   const [mated, setMated] = useState<boolean>(false);
   const [commentsOpen, setCommentsOpen] = useState<boolean>(false);
+  const [likesOpen, setLikesOpen] = useState<boolean>(false);
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [showShareToast, setShowShareToast] = useState<boolean>(false);
   const [commentCount, setCommentCount] = useState<number>(isBackend ? post.commentsCount : post.comments || 0);
@@ -343,27 +349,13 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
       {/* Caption & Text-Only Card */}
       {!!postText && (
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() =>
-            navigation.navigate('ProductDetails', {
-              name: userName + ' Collection',
-              price: price,
-              image: mainImage,
-              description: postText,
-              artistName: userName,
-              verified: userVerified,
-            })
-          }
-        >
-          {hasMedia ? (
-            <Text style={styles.caption}>{postText}</Text>
-          ) : (
-            <View style={styles.textOnlyCard}>
-              <Text style={styles.textOnlyCardText}>{postText}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        hasMedia ? (
+          <Text style={styles.caption}>{postText}</Text>
+        ) : (
+          <View style={styles.textOnlyCard}>
+            <Text style={styles.textOnlyCardText}>{postText}</Text>
+          </View>
+        )
       )}
 
       {/* Post image/gallery (Only if media exists) */}
@@ -379,22 +371,9 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
                 scrollEventThrottle={16}
               >
                 {post.imageUrls.map((imgUrl: string, idx: number) => (
-                  <TouchableOpacity
-                    key={idx}
-                    activeOpacity={0.95}
-                    onPress={() =>
-                      navigation.navigate('ProductDetails', {
-                        name: userName + ' Collection',
-                        price: price,
-                        image: { uri: imgUrl },
-                        description: postText,
-                        artistName: userName,
-                        verified: userVerified,
-                      })
-                    }
-                  >
-                    <Image source={{ uri: imgUrl }} style={[styles.postImage, { width: width - 32 }]} />
-                  </TouchableOpacity>
+                  <View key={idx}>
+                    <Image source={{ uri: imgUrl }} style={[styles.postImage, { width: width }]} />
+                  </View>
                 ))}
               </ScrollView>
 
@@ -419,21 +398,9 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() =>
-                navigation.navigate('ProductDetails', {
-                  name: userName + ' Collection',
-                  price: price,
-                  image: mainImage,
-                  description: postText,
-                  artistName: userName,
-                  verified: userVerified,
-                })
-              }
-            >
+            <View style={{ width: width, height: '100%' }}>
               <Image source={mainImage} style={styles.postImage} />
-            </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -444,14 +411,18 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           style={styles.attachedCard}
           activeOpacity={0.85}
           onPress={() => {
-            if (attachedItem.type === 'product') {
+            if (attachedItem.type === 'product' || post.product) {
+              const attachedProduct = post.product;
               navigation.navigate('ProductDetails', {
-                name: attachedItem.title,
-                price: attachedItem.price || price,
-                image: attachedItem.image || mainImage,
-                description: postText,
+                product: attachedProduct,
+                id: attachedProduct?.id,
+                name: attachedProduct?.name || attachedItem.title,
+                price: attachedProduct?.price ? `$${attachedProduct.price}` : (attachedItem.price || price),
+                image: attachedProduct?.imageUrls?.[0] ? { uri: attachedProduct.imageUrls[0] } : (attachedItem.image || mainImage),
+                description: attachedProduct?.description || postText,
                 artistName: userName,
                 verified: userVerified,
+                sellerId: attachedProduct?.seller?.id || targetId,
               });
             } else if (attachedItem.type === 'song') {
               navigation.navigate('MusicScreen');
@@ -551,20 +522,89 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         </View>
       </View>
 
-      {/* Comments Modal */}
-      <CommentsModal
-        visible={commentsOpen}
-        onClose={() => setCommentsOpen(false)}
-        currentUserImage={userImage}
-        postId={typeof postId === 'number' ? postId : undefined}
-        onCommentAdded={() => setCommentCount((prev: number) => prev + 1)}
+      {/* Instagram-style Liked By Section */}
+      {likeCount > 0 && (
+        <TouchableOpacity
+          style={styles.likedByContainer}
+          onPress={() => setLikesOpen(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.likedByAvatars}>
+            <Image source={userImage} style={[styles.likedAvatar, { zIndex: 3 }]} />
+            <Image source={require('../../assets/images/black-man.png')} style={[styles.likedAvatar, styles.likedAvatarOverlap, { zIndex: 2 }]} />
+          </View>
+          <Text style={styles.likedByText}>
+            Liked by <Text style={styles.likedByBold}>{liked ? 'you' : 'others'}</Text>{' '}
+            {likeCount > 1 && (
+              <>
+                and <Text style={styles.likedByBold}>{likeCount - (liked ? 1 : 0)} others</Text>
+              </>
+            )}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Likes Modal */}
+      <LikesModal
+        visible={likesOpen}
+        postId={post.id ? Number(post.id) : undefined}
+        onClose={() => setLikesOpen(false)}
       />
+
+      {/* Comments Modal */}
+      {(() => {
+        const sUser = getSessionUser();
+        const loggedInUserAvatar = sUser?.profilePicture || sUser?.avatar;
+        const validPostId = post.id && !isNaN(Number(post.id)) ? Number(post.id) : undefined;
+        return (
+          <CommentsModal
+            visible={commentsOpen}
+            onClose={() => setCommentsOpen(false)}
+            currentUserImage={loggedInUserAvatar}
+            postId={validPostId}
+            onCommentAdded={() => setCommentCount(prev => prev + 1)}
+            onCommentDeleted={() => setCommentCount(prev => Math.max(0, prev - 1))}
+            postSnippet={{
+              text: postText,
+              imageUrl: post.imageUrls?.[0] || post.product?.imageUrls?.[0],
+              userAvatar: userImage,
+              userName: userName,
+              userUsername: rawUsername || userName,
+            }}
+            postOwner={{
+              id: targetId,
+              username: rawUsername || userName,
+              fullName: post.fullName || userName,
+              profilePicture: post.userImageUrl,
+            }}
+            onNavigateToProfile={(uId, uName) => {
+              setCommentsOpen(false);
+              const sessionUser = getSessionUser();
+              if (
+                (uId && currentUserId && (uId === currentUserId || String(uId) === String(currentUserId))) ||
+                (uName && sessionUser?.username && uName.toLowerCase() === sessionUser.username.toLowerCase())
+              ) {
+                navigation.navigate('MyProfile', { isOtherUser: false });
+              } else {
+                navigation.navigate('MyProfile', {
+                  isOtherUser: true,
+                  userId: uId,
+                  name: uName || 'User',
+                  username: uName || '',
+                  role: 'user',
+                });
+              }
+            }}
+          />
+        );
+      })()}
 
       {/* Share Modal */}
       <ShareModal
         visible={shareOpen}
         onClose={() => setShareOpen(false)}
         postText={postText || 'Check out this post on Zikii'}
+        postId={typeof postId === 'number' ? postId : (typeof post?.id === 'number' ? post.id : undefined)}
         onPostShared={() => {
           setShareCount((prev: number) => prev + 1);
           setShowShareToast(true);
@@ -594,7 +634,10 @@ export default PostCard;
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    marginVertical: 14,
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
     width: '100%',
   },
   header: {
@@ -640,10 +683,15 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   imageContainer: {
-    width: '100%', height: width * 0.7,
-    borderRadius: 12, overflow: 'hidden', marginBottom: 10,
+    width: width,
+    height: width * 0.85,
+    marginLeft: -16,
+    marginRight: -16,
+    borderRadius: 0,
+    overflow: 'hidden',
+    marginBottom: 12,
   },
-  postImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  postImage: { width: width, height: '100%', borderRadius: 0, resizeMode: 'cover' },
   footer: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 4,
@@ -689,7 +737,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#F7F2FC',
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 10,
     marginBottom: 12,
     borderWidth: 1,
@@ -729,7 +777,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#7126D0',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 8,
     gap: 4,
   },
   attachedActionText: {
@@ -816,5 +864,35 @@ const styles = StyleSheet.create({
   },
   inactiveDot: {
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
+  },
+  likedByContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 10,
+  },
+  likedByAvatars: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  likedAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  likedAvatarOverlap: {
+    marginLeft: -8,
+  },
+  likedByText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#111827',
+  },
+  likedByBold: {
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
   },
 });

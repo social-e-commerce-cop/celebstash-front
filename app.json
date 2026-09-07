@@ -45,7 +45,22 @@
           ]
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Celebstash to access your photos so you can select and publish posts.",
+          "savePhotosPermission": "Allow Celebstash to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Celebstash to access your photos so you can choose media for your posts.",
+          "cameraPermission": "Allow Celebstash to access your camera to capture photos for your posts."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
