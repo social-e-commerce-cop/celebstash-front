@@ -10,6 +10,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { restoreSession, getSessionToken } from '@/lib/session';
 
 type AppStackParamList = {
   Splash: undefined;
@@ -29,8 +30,9 @@ export default function SplashScreen() {
   const float3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('OnBoarding'); // Navigate after 3 seconds
+    const timer = setTimeout(async () => {
+      await restoreSession();
+      navigation.replace(getSessionToken() ? 'Home' : 'OnBoarding');
     }, 3000);
 
     // Pulse animation for logo

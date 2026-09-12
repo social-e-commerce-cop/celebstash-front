@@ -27,7 +27,13 @@ export interface AuthResponseData {
   accessToken?: string;
   refreshToken?: string;
   tokenType?: string;
+  userId?: string;
+  fullName?: string;
   username?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: string;
+  status?: string;
   user?: {
     id: number;
     fullName: string;
@@ -60,6 +66,8 @@ export const authService = {
       const userEmail = response.email || response.user?.email || (params.identifier.includes('@') ? params.identifier : '');
       const userPhone = response.phoneNumber || response.user?.phoneNumber || (!params.identifier.includes('@') ? params.identifier : '');
       const userHandle = response.username || response.user?.username || params.username || '';
+      const userRole = response.role || response.user?.role || 'USER';
+      const userStatus = response.status || response.user?.status || 'ACTIVE';
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },
@@ -69,6 +77,8 @@ export const authService = {
           email: userEmail,
           phoneNumber: userPhone,
           username: userHandle,
+          role: userRole,
+          status: userStatus,
         }
       );
     }
@@ -86,6 +96,8 @@ export const authService = {
       const userEmail = response.email || response.user?.email || (params.emailOrPhone.includes('@') ? params.emailOrPhone : '');
       const userPhone = response.phoneNumber || response.user?.phoneNumber;
       const userHandle = response.username || response.user?.username || '';
+      const userRole = response.role || response.user?.role || 'USER';
+      const userStatus = response.status || response.user?.status || 'ACTIVE';
 
       setSessionAuth(
         { accessToken: response.accessToken, refreshToken: response.refreshToken },
@@ -95,6 +107,8 @@ export const authService = {
           email: userEmail,
           phoneNumber: userPhone,
           username: userHandle,
+          role: userRole,
+          status: userStatus,
         }
       );
     }

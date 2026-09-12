@@ -48,7 +48,10 @@ const Signin: React.FC = () => {
       try {
         const response = await authService.login({ emailOrPhone: email.trim(), password });
         if (response.success) {
-          if (email.toLowerCase().includes('artist')) {
+          // Route on the role the backend actually returned — never infer it from the address.
+          const role = (response.role || response.user?.role || 'USER').toUpperCase();
+          const isArtist = role === 'ARTIST';
+          if (isArtist) {
             navigation.navigate('ArtHome');
           } else {
             navigation.navigate('Home');
@@ -130,24 +133,6 @@ const Signin: React.FC = () => {
             )}
           </TouchableOpacity>
 
-          {/* Quick Demo Logins Section */}
-          <View style={styles.demoContainer}>
-            <Text style={styles.demoLabel}>Quick Demo Logins</Text>
-            <View style={styles.demoButtonsRow}>
-              <TouchableOpacity 
-                style={styles.demoBtn} 
-                onPress={() => { setEmail('user@zikiii.com'); setPassword('password123'); }}
-              >
-                <Text style={styles.demoBtnText}>User</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.demoBtn, styles.demoBtnArtist]} 
-                onPress={() => { setEmail('artist@zikiii.com'); setPassword('password123'); }}
-              >
-                <Text style={[styles.demoBtnText, styles.demoBtnTextArtist]}>Artist</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         <View style={styles.dividerRow}>
@@ -309,44 +294,6 @@ const styles = StyleSheet.create({
     color: '#7126D0',
     fontFamily: 'Poppins-Bold',
     fontSize: 16,
-  },
-  demoContainer: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'center',
-  },
-  demoLabel: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  demoButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  demoBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  demoBtnArtist: {
-    backgroundColor: '#7126D0',
-  },
-  demoBtnText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    color: '#374151',
-  },
-  demoBtnTextArtist: {
-    color: 'white',
   },
 });
 

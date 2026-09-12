@@ -11,7 +11,8 @@ export interface PostItem {
   likesCount?: number;
   commentsCount?: number;
   sharesCount?: number;
-  likedByCurrentUser?: boolean;
+  /** Matches the backend PostResponse wire format. */
+  isLiked?: boolean;
   createdAt: string;
 }
 

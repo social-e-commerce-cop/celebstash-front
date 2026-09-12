@@ -7,7 +7,13 @@ LogBox.ignoreLogs(['Unable to activate keep awake']);
 import * as NavigationBar from 'expo-navigation-bar';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 
-import { useNavigation } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  NavigationIndependentTree,
+  useNavigation,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
+
 
 import Onboarding from '@/pages/Onboarding';
 import SplashScreen from '@/pages/SplashScreen';
@@ -188,14 +194,23 @@ type AppStackParamList = {
 
 const Stack = createStackNavigator<AppStackParamList>();
 
+const navigationRef = createNavigationContainerRef<AppStackParamList>();
+
 const SplashScreenWrapper = () => {
   const navigation = useNavigation<StackNavigationProp<AppStackParamList>>();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('OnBoarding');
-    }, 7000);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const { restoreSession, getSessionToken } = await import('@/lib/session');
+      await restoreSession();
+      if (cancelled) return;
+      navigation.replace(getSessionToken() ? 'Home' : 'OnBoarding');
+    }, 3000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [navigation]);
 
   return <SplashScreen />;
@@ -203,6 +218,19 @@ const SplashScreenWrapper = () => {
 
 export default function App() {
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    import('@/lib/session').then(({ restoreSession, onSessionExpired }) => {
+      restoreSession();
+
+      // A 401 from the backend means the stored token is no longer valid. Send the user
+      // back to sign-in instead of leaving them on a screen that can no longer load data.
+      unsubscribe = onSessionExpired(() => {
+        if (navigationRef.isReady()) {
+          navigationRef.reset({ index: 0, routes: [{ name: 'Signin' }] });
+        }
+      });
+    });
     async function hideSystemNavBar() {
       if (Platform.OS === 'android') {
         try {
@@ -213,11 +241,17 @@ export default function App() {
       }
     }
     hideSystemNavBar();
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   return (
-    <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreenWrapper} />
+    <NavigationIndependentTree>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreenWrapper} />
         <Stack.Screen name="OnBoarding" component={Onboarding} />
         <Stack.Screen name="Signin" component={Signin} />
         <Stack.Screen name="Signup" component={Signup} />
@@ -291,5 +325,8 @@ export default function App() {
         <Stack.Screen name="AllReleases" component={AllReleasesScreen} />
         <Stack.Screen name="Library" component={LibraryScreen} />
       </Stack.Navigator>
+    </NavigationContainer>
+  </NavigationIndependentTree>
   );
 }
+

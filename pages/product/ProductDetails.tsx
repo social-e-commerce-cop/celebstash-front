@@ -98,6 +98,8 @@ const ProductDetails = () => {
       ? route.params.availableColors
       : ['Black', 'White', 'Purple', 'Blue']);
   const effectiveStockQuantity = liveProduct?.stockQuantity ?? route.params?.stockQuantity;
+  const effectiveStatus = liveProduct?.status || route.params?.status || 'PENDING';
+  const effectiveAdminNotes = liveProduct?.adminNotes || route.params?.adminNotes;
 
   const isMusic = paramCategory === 'Music';
   const isSeller = route.params?.isSeller === true;
@@ -294,7 +296,7 @@ const ProductDetails = () => {
                   CREATOR LISTING DASHBOARD
                 </Text>
                 <View style={{
-                  backgroundColor: route.params?.status === 'APPROVED' ? '#DCFCE7' : route.params?.status === 'REJECTED' ? '#FEE2E2' : '#FEF3C7',
+                  backgroundColor: effectiveStatus === 'APPROVED' ? '#DCFCE7' : effectiveStatus === 'REJECTED' ? '#FEE2E2' : '#FEF3C7',
                   paddingHorizontal: 10,
                   paddingVertical: 4,
                   borderRadius: 12,
@@ -302,9 +304,9 @@ const ProductDetails = () => {
                   <Text style={{
                     fontSize: 11,
                     fontFamily: 'Poppins-Bold',
-                    color: route.params?.status === 'APPROVED' ? '#166534' : route.params?.status === 'REJECTED' ? '#991B1B' : '#92400E'
+                    color: effectiveStatus === 'APPROVED' ? '#166534' : effectiveStatus === 'REJECTED' ? '#991B1B' : '#92400E'
                   }}>
-                    {route.params?.status || 'PENDING'}
+                    {effectiveStatus}
                   </Text>
                 </View>
               </View>
@@ -375,14 +377,14 @@ const ProductDetails = () => {
               )}
 
               {/* Status Note & Rejection Reason */}
-              {route.params?.status === 'REJECTED' && (
+              {effectiveStatus === 'REJECTED' && (
                 <View style={{ marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5' }}>
                   <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: '#991B1B', marginBottom: 4 }}>
                     ✕ Submission Rejected
                   </Text>
                   <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#7F1D1D', lineHeight: 18 }}>
-                    {route.params?.adminNotes
-                      ? `Reason: "${route.params.adminNotes}"`
+                    {effectiveAdminNotes
+                      ? `Reason: "${effectiveAdminNotes}"`
                       : 'Your product submission was rejected by Admin. Please update details below and resubmit.'}
                   </Text>
 
@@ -422,19 +424,19 @@ const ProductDetails = () => {
                 </View>
               )}
 
-              {route.params?.status === 'APPROVED' && (
+              {effectiveStatus === 'APPROVED' && (
                 <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#059669', lineHeight: 18, marginTop: 10 }}>
                   ✓ Live / Public: Approved by admin, visible in shop and purchasable by fans.
                 </Text>
               )}
 
-              {(route.params?.status === 'SOLD_OUT' || (route.params?.stockQuantity !== undefined && route.params.stockQuantity <= 0)) && (
+              {(effectiveStatus === 'SOLD_OUT' || (effectiveStockQuantity !== undefined && effectiveStockQuantity <= 0)) && (
                 <Text style={{ fontSize: 12, fontFamily: 'Poppins-Bold', color: '#DC2626', lineHeight: 18, marginTop: 10 }}>
                   🔥 Sold Out: Quantity/edition exhausted.
                 </Text>
               )}
 
-              {route.params?.status !== 'APPROVED' && route.params?.status !== 'REJECTED' && route.params?.status !== 'SOLD_OUT' && (
+              {effectiveStatus !== 'APPROVED' && effectiveStatus !== 'REJECTED' && effectiveStatus !== 'SOLD_OUT' && (
                 <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#D97706', lineHeight: 18, marginTop: 10 }}>
                   ⏳ Pending Admin Review: Submitted by artist, awaiting admin review (not visible to public users).
                 </Text>

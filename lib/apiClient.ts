@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { getSessionToken } from './session';
+import { clearSession, getSessionToken } from './session';
 
 /**
  * Auto-detect Base API URL for Spring Boot Backend:
@@ -34,7 +34,14 @@ const getBaseUrl = (): string => {
   return 'http://10.0.2.2:8080';
 };
 
-export const API_BASE_URL = getBaseUrl();
+export const API_BASE_URL = getBaseUrl().replace(/\/$/, '');
+const USE_CONFIGURED_API = Boolean(process.env.EXPO_PUBLIC_API_URL);
+const AUTH_PUBLIC_PREFIX = '/api/v1/auth/';
+const RENDER_HOST = 'onrender.com';
+
+function isPublicAuthEndpoint(endpoint: string): boolean {
+  return endpoint.includes(AUTH_PUBLIC_PREFIX);
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -78,6 +85,10 @@ async function tryFetchUrl<T = any>(
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401 && !isPublicAuthEndpoint(fullUrl)) {
+        // Invalid/expired token: drop it and send the user back to sign-in.
+        clearSession('expired');
+      }
       let errorMessage = data?.message || data?.error;
       if (!errorMessage && data?.errors) {
         if (typeof data.errors === 'object') {
@@ -124,7 +135,7 @@ async function request<T = any>(
     : `${API_BASE_URL}${endpoint}`;
 
   const candidateUrls: string[] = [primaryUrl];
-  if (!endpoint.startsWith('http')) {
+  if (!endpoint.startsWith('http') && !USE_CONFIGURED_API) {
     const hostUri = Constants.expoConfig?.hostUri || Constants.experienceUrl;
     let detectedIp: string | null = null;
     if (hostUri) {
@@ -138,6 +149,7 @@ async function request<T = any>(
       ...(detectedIp ? [`http://${detectedIp}:8080${endpoint}`] : []),
       `http://10.0.2.2:8080${endpoint}`,
       `http://localhost:8080${endpoint}`,
+      `https://celebstash-back-3.onrender.com${endpoint}`,
     ];
     for (const fb of fallbacks) {
       if (!candidateUrls.includes(fb)) {
@@ -147,7 +159,10 @@ async function request<T = any>(
   }
 
   let lastError: any = null;
-  const timeoutMs = (options.method && options.method !== 'GET') ? 15000 : 8000;
+  const usesRender = candidateUrls.some((url) => url.includes(RENDER_HOST));
+  const timeoutMs = usesRender
+    ? 25000
+    : ((options.method && options.method !== 'GET') ? 15000 : 8000);
   for (const targetUrl of candidateUrls) {
     try {
       const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
@@ -255,15 +270,17 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
     rawCandidates.push(`${cachedWorkingBaseUrl}/api/files/upload`);
   }
 
-  if (detectedIp) {
-    rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
-  }
-
   rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
-  rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
 
-  if (Platform.OS === 'web') {
-    rawCandidates.push(`http://localhost:8080/api/files/upload`);
+  if (!USE_CONFIGURED_API) {
+    if (detectedIp) {
+      rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
+    }
+    rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
+    rawCandidates.push(`https://celebstash-back-3.onrender.com/api/files/upload`);
+    if (Platform.OS === 'web') {
+      rawCandidates.push(`http://localhost:8080/api/files/upload`);
+    }
   }
 
   const candidateUrls: string[] = Array.from(new Set(rawCandidates)).filter((url) => {
@@ -281,7 +298,7 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
       const result = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', targetUrl);
-        xhr.timeout = 5000;
+        xhr.timeout = targetUrl.includes(RENDER_HOST) ? 25000 : 15000;
 
         if (token) {
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -296,6 +313,9 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
             }
             resolve(xhr.responseText.trim());
           } else {
+            if (xhr.status === 401) {
+              clearSession('expired');
+            }
             console.error(`[Upload HTTP Error] ${targetUrl} status ${xhr.status}: ${xhr.responseText}`);
             reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
           }

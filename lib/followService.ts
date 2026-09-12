@@ -52,8 +52,11 @@ export const followService = {
     return apiClient.get<FollowUser[]>('/api/follow/suggestions');
   },
 
-  /** Get all registered users from database */
-  getAllUsers: async (): Promise<FollowUser[]> => {
-    return apiClient.get<FollowUser[]>('/api/v1/users');
+  /**
+   * Get users for people pickers (sharing, tagging).
+   * Uses the public search endpoint rather than the full admin-only directory.
+   */
+  getAllUsers: async (query = ''): Promise<FollowUser[]> => {
+    return apiClient.get<FollowUser[]>(`/api/v1/users/search?query=${encodeURIComponent(query)}`);
   },
 };
