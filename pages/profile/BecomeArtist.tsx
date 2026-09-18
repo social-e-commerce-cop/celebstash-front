@@ -20,6 +20,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { artistService, ArtistApplicationResponseData } from '@/lib/artistService';
 import { profileService } from '@/lib/profileService';
 import { getSessionUser, setSessionUser, getSessionToken } from '@/lib/session';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -166,7 +167,7 @@ const BecomeArtist: React.FC = () => {
           <View style={styles.statusCard}>
             {(sessionUser.avatar || sessionUser.profilePicture) ? (
               <Image
-                source={{ uri: sessionUser.avatar || sessionUser.profilePicture }}
+                source={{ uri: resolveImageUrl(sessionUser.avatar || sessionUser.profilePicture) }}
                 style={{ width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 12 }}
               />
             ) : null}

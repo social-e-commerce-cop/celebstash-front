@@ -2,7 +2,7 @@
  * chatService.ts — REST API layer for the chat module.
  * All calls go through the shared apiClient (JWT-authenticated).
  */
-import { apiClient } from './apiClient';
+import { apiClient, uploadFileToBackend } from './apiClient';
 
 // ── Types matching the backend DTOs ──────────────────────────────────────────
 
@@ -157,14 +157,7 @@ export const chatService = {
 
   // Upload file and get back a URL to attach to a message
   uploadFile: async (uri: string, mimeType: string, filename: string): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', { uri, type: mimeType, name: filename } as any);
-    const response = await fetch('/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    const text = await response.text();
-    return text;
+    return await uploadFileToBackend(uri, filename, mimeType);
   },
 
   // ── User search ───────────────────────────────────────────────────────────

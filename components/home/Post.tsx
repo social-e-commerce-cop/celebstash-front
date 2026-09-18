@@ -10,6 +10,8 @@ interface PostProps {
   onAddPostPress?: () => void;
   isArtist?: boolean;
   emptyMessage?: string;
+  onSaveToggle?: (postId: number, isSaved: boolean) => void;
+  onRepostToggle?: (postId: number, isReposted: boolean) => void;
 }
 
 const Post: React.FC<PostProps> = ({
@@ -17,6 +19,8 @@ const Post: React.FC<PostProps> = ({
   onAddPostPress,
   isArtist = false,
   emptyMessage = 'Follow creators & artists to see their latest drops and posts here!',
+  onSaveToggle,
+  onRepostToggle,
 }) => {
   if (!posts || posts.length === 0) {
     return (
@@ -34,7 +38,12 @@ const Post: React.FC<PostProps> = ({
   return (
     <View style={styles.container}>
       {posts.map((post, index) => (
-        <PostCard key={post.id ? `post_${post.id}` : `post_idx_${index}`} post={post} />
+        <PostCard
+          key={post.id ? `post_${post.id}` : `post_idx_${index}`}
+          post={post}
+          onSaveToggle={onSaveToggle}
+          onRepostToggle={onRepostToggle}
+        />
       ))}
     </View>
   );

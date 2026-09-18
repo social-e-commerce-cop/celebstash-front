@@ -12,14 +12,16 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { musicService, MusicEntitlementItem } from '@/lib/musicService';
+import { musicService, MusicReleaseItem } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { playSong } from '@/lib/musicPlayerStore';
+import { getSessionToken } from '@/lib/session';
 
 const PURPLE = '#7126D0';
 
 export default function MyMusicScreen() {
   const navigation = useNavigation<any>();
-  const [entitlements, setEntitlements] = useState<MusicEntitlementItem[]>([]);
+  const [releases, setReleases] = useState<MusicReleaseItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export default function MyMusicScreen() {
     setLoading(true);
     try {
       const data = await musicService.getMyMusic();
-      setEntitlements(data);
+      setReleases(data || []);
     } catch (err: any) {
       console.warn('Failed to load My Music library:', err);
     } finally {
@@ -38,53 +40,65 @@ export default function MyMusicScreen() {
     }
   };
 
-  const handlePlayTrack = async (item: MusicEntitlementItem) => {
-    const trackId = item.track?.id || (item.release.tracks && item.release.tracks[0]?.id);
-    if (!trackId) {
-      Alert.alert('Unavailable', 'No playable track found in this release');
-      return;
-    }
+  const handlePlayRelease = (rel: MusicReleaseItem) => {
+    const track = rel.tracks && rel.tracks.length > 0 ? rel.tracks[0] : null;
+    const token = getSessionToken();
+    const coverUri = rel.coverArtUrl ? resolveImageUrl(rel.coverArtUrl) : null;
+    const artistName = rel.artist?.artistName || rel.artist?.fullName || rel.artist?.username || 'Artist';
 
-    try {
-      // Consume play count on server side
-      const updatedAccess = await musicService.consumePlay(trackId);
-      Alert.alert(
-        'Streaming Unlocked Track',
-        `Online stream started. ${updatedAccess.isPermanent ? 'Permanent Unlimited Access' : `Remaining Plays: ${updatedAccess.remainingPlays}`}`
-      );
-      loadMyMusic();
-    } catch (err: any) {
-      Alert.alert('Playback Error', err.message || 'Unable to stream audio');
+    if (track) {
+      const streamUrl = `${musicService.getStreamUrl(track.id)}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      playSong({
+        id: String(track.id),
+        title: track.title,
+        artist: artistName,
+        image: coverUri ? { uri: coverUri } : require('@/assets/images/drop1.jpg'),
+        genre: rel.genre || 'Music',
+        duration: `${Math.floor((track.durationSeconds || 180) / 60)}:${String((track.durationSeconds || 180) % 60).padStart(2, '0')}`,
+        durationSeconds: track.durationSeconds || 180,
+        audioUrl: streamUrl,
+        isPermanent: true,
+      });
+      navigation.navigate('Library');
+    } else {
+      navigation.navigate('MusicDetail', { id: rel.id });
     }
   };
 
-  const renderItem = ({ item }: { item: MusicEntitlementItem }) => {
-    const coverUrl = item.release?.coverArtUrl ? resolveImageUrl(item.release.coverArtUrl) : null;
-    const title = item.track ? item.track.title : item.release?.title;
-    const artistName = item.release?.artist?.username || item.release?.artist?.fullName || 'Artist';
+  const renderItem = ({ item }: { item: MusicReleaseItem }) => {
+    const coverUrl = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
+    const artistName = item.artist?.artistName || item.artist?.fullName || item.artist?.username || 'Artist';
+    const trackCount = item.tracks?.length || 0;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.88}
+        onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+      >
         <Image
           source={coverUrl ? { uri: coverUrl } : require('@/assets/images/drop1.jpg')}
           style={styles.coverImg}
         />
         <View style={styles.cardInfo}>
-          <Text style={styles.trackTitle} numberOfLines={1}>{title}</Text>
-          <Text style={styles.artistText}>{artistName} • {item.release?.releaseType || 'RELEASE'}</Text>
-          
+          <Text style={styles.trackTitle} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.artistText}>{artistName} • {item.releaseType || 'RELEASE'}</Text>
+
           <View style={styles.accessBadge}>
-            <Ionicons name="checkmark-circle" size={14} color={PURPLE} style={{ marginRight: 4 }} />
-            <Text style={styles.accessBadgeText}>
-              {item.isPermanent ? 'Permanent Stream' : `${item.playsRemaining} / ${item.playsGranted} Plays Left`}
+            <Ionicons name="checkmark-circle" size={14} color="#10B981" style={{ marginRight: 4 }} />
+            <Text style={[styles.accessBadgeText, { color: '#059669' }]}>
+              Access Unlocked • {trackCount} {trackCount === 1 ? 'Track' : 'Tracks'}
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.playBtn} onPress={() => handlePlayTrack(item)}>
+        <TouchableOpacity
+          style={styles.playBtn}
+          onPress={() => handlePlayRelease(item)}
+        >
           <Ionicons name="play" size={20} color="#FFF" />
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -103,19 +117,19 @@ export default function MyMusicScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Streaming Only Notice */}
+      {/* Access Badge Notice */}
       <View style={styles.noticeBanner}>
-        <Ionicons name="wifi-outline" size={16} color={PURPLE} style={{ marginRight: 6 }} />
-        <Text style={styles.noticeText}>Online Streaming Only • No Downloads</Text>
+        <Ionicons name="sparkles" size={16} color={PURPLE} style={{ marginRight: 6 }} />
+        <Text style={styles.noticeText}>Direct-to-Fan Unlocked Music • Full Access</Text>
       </View>
 
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={PURPLE} />
         </View>
-      ) : entitlements.length > 0 ? (
+      ) : releases.length > 0 ? (
         <FlatList
-          data={entitlements}
+          data={releases}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -124,7 +138,7 @@ export default function MyMusicScreen() {
         <View style={styles.emptyBox}>
           <Ionicons name="musical-notes-outline" size={48} color="#D1D5DB" />
           <Text style={styles.emptyTitle}>Your Music Library is Empty</Text>
-          <Text style={styles.emptySub}>Unlocked unreleased tracks and albums will appear here.</Text>
+          <Text style={styles.emptySub}>Releases you have unlocked directly from artists will appear here.</Text>
           <TouchableOpacity
             style={styles.exploreBtn}
             onPress={() => navigation.navigate('MusicScreen')}

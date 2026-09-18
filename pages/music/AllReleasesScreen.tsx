@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,650 +10,517 @@ import {
   Dimensions,
   StatusBar,
   FlatList,
-  Animated,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path, Circle, Polygon } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import { musicService, MusicReleaseItem } from '@/lib/musicService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+const PURPLE = '#7126D0';
 
-// ─── Data ────────────────────────────────────────────────────────────────────
-const FILTERS = ['All', 'Single', 'Album', 'EP', 'Live'];
+const FILTERS = ['All', 'Single', 'EP', 'Album'];
 
-interface Release {
-  id: string;
-  title: string;
-  artist: string;
-  type: 'Single' | 'Album' | 'EP' | 'Live';
-  price: number;
-  accesses: number;
-  daysLeft: number;
-  image: any;
-  artistImage: any;
-  featured?: boolean;
-}
-
-const ALL_RELEASES: Release[] = [
-  {
-    id: '1',
-    title: "IF THE WORLD WAS ENDING FT TAYE P",
-    artist: 'Justin Timberlake',
-    type: 'Single',
-    price: 10.25,
-    accesses: 3,
-    daysLeft: 2,
-    image: require('@/assets/images/drop1.jpg'),
-    artistImage: require('@/assets/images/prof.jpg'),
-    featured: true,
-  },
-  {
-    id: '2',
-    title: "Mama – Acoustic Sessions",
-    artist: 'Chris Brown',
-    type: 'Album',
-    price: 14.99,
-    accesses: 5,
-    daysLeft: 5,
-    image: require('@/assets/images/storyItem.jpg'),
-    artistImage: require('@/assets/images/profile.jpg'),
-  },
-  {
-    id: '3',
-    title: "Corazol ft T-Pain, Usher",
-    artist: 'The Weeknd',
-    type: 'EP',
-    price: 8.50,
-    accesses: 2,
-    daysLeft: 8,
-    image: require('@/assets/images/products/product1.jpg'),
-    artistImage: require('@/assets/images/black-man.png'),
-  },
-  {
-    id: '4',
-    title: "Lost In Translation Live",
-    artist: 'Drake',
-    type: 'Live',
-    price: 12.00,
-    accesses: 10,
-    daysLeft: 3,
-    image: require('@/assets/images/products/product2.jpg'),
-    artistImage: require('@/assets/images/prof.jpg'),
-  },
-  {
-    id: '5',
-    title: "Midnight Chapter",
-    artist: 'Kendrick Lamar',
-    type: 'Album',
-    price: 18.00,
-    accesses: 7,
-    daysLeft: 12,
-    image: require('@/assets/images/products/product3.jpg'),
-    artistImage: require('@/assets/images/profile.jpg'),
-  },
-  {
-    id: '6',
-    title: "Golden Hour Singles",
-    artist: 'Justin Timberlake',
-    type: 'Single',
-    price: 6.99,
-    accesses: 4,
-    daysLeft: 1,
-    image: require('@/assets/images/products/product4.jpg'),
-    artistImage: require('@/assets/images/prof.jpg'),
-  },
-];
-
-// ─── Icons ───────────────────────────────────────────────────────────────────
-const BackIcon = () => (
-  <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
-    <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const VerifiedIcon = () => (
-  <Svg width="13" height="13" viewBox="0 0 24 24" fill="#7126D0">
-    <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-  </Svg>
-);
-
-const PlayIcon = () => (
-  <Svg width="16" height="16" viewBox="0 0 24 24" fill="#fff">
-    <Polygon points="5,3 19,12 5,21" />
-  </Svg>
-);
-
-const ClockIcon = () => (
-  <Svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2">
-    <Circle cx="12" cy="12" r="10" />
-    <Path d="M12 6v6l4 2" strokeLinecap="round" />
-  </Svg>
-);
-
-// ─── Featured Hero Card ───────────────────────────────────────────────────────
-const FeaturedCard = ({ item, onPress }: { item: Release; onPress: () => void }) => (
-  <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={styles.featuredCard}>
-    <ImageBackground source={item.image} style={styles.featuredBg} imageStyle={styles.featuredImageStyle}>
-      <View style={styles.featuredOverlay}>
-        {/* Top row */}
-        <View style={styles.featuredTopRow}>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>{item.type}</Text>
-          </View>
-          <View style={styles.priceBadge}>
-            <Text style={styles.priceBadgeText}>${item.price}</Text>
-          </View>
-        </View>
-
-        {/* Artist row */}
-        <View style={styles.featuredArtistRow}>
-          <Image source={item.artistImage} style={styles.featuredArtistAvatar} />
-          <View>
-            <Text style={styles.featuredArtistName}>{item.artist}</Text>
-            <View style={styles.verifiedRow}>
-              <VerifiedIcon />
-              <Text style={styles.verifiedText}>Verified Artist</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Title */}
-        <Text style={styles.featuredTitle}>{item.title}</Text>
-
-        {/* Footer */}
-        <View style={styles.featuredFooter}>
-          <View style={styles.featuredMeta}>
-            <ClockIcon />
-            <Text style={styles.featuredMetaText}>{item.daysLeft}d left • {item.accesses} accesses</Text>
-          </View>
-          <TouchableOpacity style={styles.featuredAccessBtn} onPress={onPress} activeOpacity={0.85}>
-            <PlayIcon />
-            <Text style={styles.featuredAccessText}>Get Access</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ImageBackground>
-  </TouchableOpacity>
-);
-
-// ─── Regular Release Card ─────────────────────────────────────────────────────
-const ReleaseCard = ({ item, onPress }: { item: Release; onPress: () => void }) => (
-  <TouchableOpacity style={styles.releaseCard} activeOpacity={0.88} onPress={onPress}>
-    <ImageBackground source={item.image} style={styles.releaseCardBg} imageStyle={styles.releaseCardImage}>
-      {/* Dark overlay */}
-      <View style={styles.releaseCardOverlay} />
-
-      {/* Type tag */}
-      <View style={styles.releaseTypeBadge}>
-        <Text style={styles.releaseTypeBadgeText}>{item.type}</Text>
-      </View>
-
-      {/* Days badge */}
-      <View style={styles.daysBadge}>
-        <Text style={styles.daysBadgeNumber}>{item.daysLeft}</Text>
-        <Text style={styles.daysBadgeLabel}>days</Text>
-      </View>
-    </ImageBackground>
-
-    {/* Info row below image */}
-    <View style={styles.releaseInfo}>
-      <Image source={item.artistImage} style={styles.releaseArtistAvatar} />
-      <View style={styles.releaseTextCol}>
-        <Text style={styles.releaseTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.releaseArtistRow}>
-          <Text style={styles.releaseArtistName}>{item.artist}</Text>
-          <VerifiedIcon />
-        </View>
-        <View style={styles.releaseBottomRow}>
-          <Text style={styles.releasePrice}>${item.price}</Text>
-          <Text style={styles.releaseAccesses}>{item.accesses} accesses</Text>
-        </View>
-      </View>
-    </View>
-
-    {/* CTA */}
-    <TouchableOpacity style={styles.releaseAccessBtn} onPress={onPress} activeOpacity={0.85}>
-      <Text style={styles.releaseAccessText}>Get Access</Text>
-    </TouchableOpacity>
-  </TouchableOpacity>
-);
-
-// ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function AllReleasesScreen() {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [activeFilter, setActiveFilter] = useState('All');
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [releases, setReleases] = useState<MusicReleaseItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filtered = activeFilter === 'All'
-    ? ALL_RELEASES
-    : ALL_RELEASES.filter(r => r.type === activeFilter);
+  useEffect(() => {
+    loadReleases();
+  }, []);
 
-  const featured = ALL_RELEASES.find(r => r.featured);
-  const rest = filtered.filter(r => !r.featured);
-
-  const headerBg = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: ['rgba(255,255,255,0)', 'rgba(255,255,255,0.98)'],
-    extrapolate: 'clamp',
-  });
-
-  const handleAccess = (item: Release) => {
-    navigation.navigate('ProductDetails', {
-      name: item.title,
-      price: item.price,
-      image: item.image,
-      description: `Exclusive premium release by ${item.artist}. Get limited-time access now.`,
-      artistName: item.artist,
-      verified: true,
-      category: 'Music',
-      artistImage: item.artistImage,
-    });
+  const loadReleases = async () => {
+    try {
+      setLoading(true);
+      const data = await musicService.getReleases();
+      setReleases(data);
+    } catch (err) {
+      console.warn('Failed to load releases:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadReleases();
+  };
+
+  const filteredReleases = releases.filter((r) => {
+    if (selectedFilter === 'All') return true;
+    const type = r.releaseType?.toUpperCase();
+    return type === selectedFilter.toUpperCase();
+  });
+
+  const featuredRelease = releases.length > 0 ? releases[0] : null;
+
   return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Sticky animated header */}
-      <Animated.View style={[styles.stickyHeader, { backgroundColor: headerBg }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <BackIcon />
-        </TouchableOpacity>
-        <Text style={styles.stickyTitle}>All Releases</Text>
-        <View style={{ width: 40 }} />
-      </Animated.View>
-
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-        scrollEventThrottle={16}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Dark hero area */}
-        <View style={styles.heroArea}>
-          <Text style={styles.heroTitle}>Exclusive Music Drops</Text>
-          <Text style={styles.heroSub}>Get limited-time access to your favorite artists' latest work.</Text>
-        </View>
-
-        {/* Featured card */}
-        {featured && (
-          <View style={styles.featuredSection}>
-            <Text style={styles.sectionLabel}>Featured Drop</Text>
-            <FeaturedCard item={featured} onPress={() => handleAccess(featured)} />
-          </View>
-        )}
-
-        {/* Filter tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterList}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterChip, activeFilter === f && styles.filterChipActive]}
-              onPress={() => setActiveFilter(f)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.filterChipText, activeFilter === f && styles.filterChipTextActive]}>
-                {f}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <Ionicons name="chevron-back" size={24} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>All Music Releases</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.filterContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {FILTERS.map((filter) => {
+            const isSelected = selectedFilter === filter;
+            return (
+              <TouchableOpacity
+                key={filter}
+                style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                onPress={() => setSelectedFilter(filter)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterText, isSelected && styles.filterTextActive]}>{filter}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
+      </View>
 
-        {/* All Releases grid */}
-        <View style={styles.releasesGrid}>
-          {rest.map(item => (
-            <ReleaseCard key={item.id} item={item} onPress={() => handleAccess(item)} />
-          ))}
+      {loading && !refreshing ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={PURPLE} />
+          <Text style={styles.loadingText}>Loading releases...</Text>
         </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PURPLE]} />}
+        >
+          {/* Featured Hero Banner */}
+          {featuredRelease && selectedFilter === 'All' && (
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={styles.featuredCard}
+              onPress={() => navigation.navigate('MusicDetail', { id: featuredRelease.id })}
+            >
+              <ImageBackground
+                source={
+                  featuredRelease.coverArtUrl
+                    ? { uri: resolveImageUrl(featuredRelease.coverArtUrl) }
+                    : require('@/assets/images/drop1.jpg')
+                }
+                style={styles.featuredBg}
+                imageStyle={styles.featuredImageStyle}
+              >
+                <View style={styles.featuredOverlay}>
+                  <View style={styles.featuredBadgeRow}>
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeBadgeText}>{featuredRelease.releaseType || 'RELEASE'}</Text>
+                    </View>
+                    <View style={styles.exclusiveBadge}>
+                      <Ionicons name="sparkles" size={12} color="#FFF" style={{ marginRight: 4 }} />
+                      <Text style={styles.exclusiveBadgeText}>DIRECT TO FAN</Text>
+                    </View>
+                  </View>
 
-        <View style={{ height: 40 }} />
-      </Animated.ScrollView>
+                  <View style={styles.featuredBottom}>
+                    <Text style={styles.featuredTitle} numberOfLines={2}>
+                      {featuredRelease.title}
+                    </Text>
+                    <View style={styles.featuredArtistRow}>
+                      <Text style={styles.featuredArtistText}>
+                        {featuredRelease.artist?.artistName ||
+                          featuredRelease.artist?.fullName ||
+                          featuredRelease.artist?.username ||
+                          'Artist'}
+                        {featuredRelease.releaseDate
+                          ? ` • ${new Date(featuredRelease.releaseDate).getFullYear()}`
+                          : (featuredRelease.createdAt ? ` • ${new Date(featuredRelease.createdAt).getFullYear()}` : '')}
+                      </Text>
+                      <Ionicons name="checkmark-circle" size={16} color="#A78BFA" style={{ marginLeft: 4 }} />
+                    </View>
+
+                    <View style={styles.featuredCtaRow}>
+                      <Text style={styles.featuredPriceText}>
+                        ${featuredRelease.albumPrice?.toFixed(2) || '9.99'}
+                      </Text>
+                      <View style={styles.featuredPlayBtn}>
+                        <Ionicons name="play" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.featuredPlayBtnText}>GET ACCESS</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          )}
+
+          {/* Releases Grid / List */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>
+              {selectedFilter === 'All' ? 'Latest Releases' : `${selectedFilter} Releases`} ({filteredReleases.length})
+            </Text>
+          </View>
+
+          {filteredReleases.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="musical-notes-outline" size={48} color="#D1D5DB" />
+              <Text style={styles.emptyTitle}>No Releases Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {selectedFilter === 'All'
+                  ? 'No music releases have been uploaded yet.'
+                  : `No ${selectedFilter.toLowerCase()} releases found.`}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {filteredReleases.map((item) => {
+                const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
+                const artistName =
+                  item.artist?.artistName ||
+                  item.artist?.fullName ||
+                  item.artist?.username ||
+                  'Artist';
+                const releaseYear = item.releaseDate
+                  ? new Date(item.releaseDate).getFullYear()
+                  : (item.createdAt ? new Date(item.createdAt).getFullYear() : null);
+
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.card}
+                    activeOpacity={0.88}
+                    onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+                  >
+                    <View style={styles.cardImageWrapper}>
+                      <Image
+                        source={coverUri ? { uri: coverUri } : require('@/assets/images/drop1.jpg')}
+                        style={styles.cardImage}
+                      />
+                      <View style={styles.cardTypeTag}>
+                        <Text style={styles.cardTypeTagText}>{item.releaseType || 'SINGLE'}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.cardInfo}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <View style={styles.cardArtistRow}>
+                        <Text style={styles.cardArtist} numberOfLines={1}>
+                          {artistName}{releaseYear ? ` • ${releaseYear}` : ''}
+                        </Text>
+                        <Ionicons name="checkmark-circle" size={13} color={PURPLE} style={{ marginLeft: 3 }} />
+                      </View>
+
+                      <View style={styles.cardFooter}>
+                        <Text style={styles.cardPrice}>
+                          ${item.albumPrice?.toFixed(2) || '9.99'}
+                        </Text>
+                        <View style={styles.cardAccessPill}>
+                          <Text style={styles.cardAccessPillText}>
+                            {item.tracks?.length || 1} {item.tracks?.length === 1 ? 'Track' : 'Tracks'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const CARD_W = (width - 48) / 2;
-
 const styles = StyleSheet.create({
-  screen: {
+  container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FAFAFA',
   },
-  stickyHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
+  header: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: height * 0.055,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   backBtn: {
     width: 40,
     height: 40,
     justifyContent: 'center',
-    borderRadius: 20,
+    alignItems: 'flex-start',
   },
-  stickyTitle: {
-    color: '#000',
+  headerTitle: {
     fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+  },
+  filterContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  filterScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+  },
+  filterChipActive: {
+    backgroundColor: PURPLE,
+  },
+  filterText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    color: '#4B5563',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
     fontFamily: 'Poppins-Bold',
   },
   scrollContent: {
-    paddingBottom: 20,
+    padding: 16,
+    paddingBottom: 40,
   },
-
-  // ── Hero ──
-  heroArea: {
-    paddingTop: height * 0.14,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  heroLabel: {
-    color: '#7126D0',
+  loadingText: {
+    marginTop: 12,
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  heroTitle: {
-    color: '#000',
-    fontSize: 34,
-    fontFamily: 'Poppins-Bold',
-    lineHeight: 40,
-    marginBottom: 10,
-  },
-  heroSub: {
-    color: '#475467',
-    fontSize: 16,
     fontFamily: 'Poppins-Regular',
-    lineHeight: 20,
-  },
-
-  // ── Featured ──
-  featuredSection: {
-    paddingHorizontal: 20,
-    marginBottom: 28,
-  },
-  sectionLabel: {
-    color: '#475467',
-    fontSize: 12,
-    fontFamily: 'Poppins-Bold',
-    letterSpacing: 1.5,
-    marginBottom: 12,
-    textTransform: 'uppercase',
+    color: '#6B7280',
   },
   featuredCard: {
-    borderRadius: 8,
-    overflow: 'hidden',
     height: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 20,
+    backgroundColor: '#111827',
   },
   featuredBg: {
     flex: 1,
   },
   featuredImageStyle: {
-    resizeMode: 'cover',
+    borderRadius: 20,
   },
   featuredOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    padding: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    padding: 16,
     justifyContent: 'space-between',
   },
-  featuredTopRow: {
+  featuredBadgeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
   },
   typeBadge: {
-    backgroundColor: '#7126D0',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
   typeBadgeText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
   },
-  priceBadge: {
-    backgroundColor: '#fff',
+  exclusiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PURPLE,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  priceBadgeText: {
-    color: '#111',
-    fontSize: 12,
+  exclusiveBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
     fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
+  },
+  featuredBottom: {
+    gap: 4,
+  },
+  featuredTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
   },
   featuredArtistRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
-  featuredArtistAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#7126D0',
-  },
-  featuredArtistName: {
-    color: '#fff',
+  featuredArtistText: {
     fontSize: 13,
-    fontFamily: 'Poppins-Bold',
+    fontFamily: 'Poppins-Medium',
+    color: '#E5E7EB',
   },
-  verifiedRow: {
+  featuredCtaRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
   },
-  verifiedText: {
-    color: '#aaa',
-    fontSize: 10,
-    fontFamily: 'Poppins-Regular',
-  },
-  featuredTitle: {
-    color: '#fff',
+  featuredPriceText: {
     fontSize: 18,
     fontFamily: 'Poppins-Bold',
-    lineHeight: 24,
+    color: '#FFFFFF',
   },
-  featuredFooter: {
+  featuredPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PURPLE,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  featuredPlayBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  featuredMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  featuredMetaText: {
-    color: '#aaa',
-    fontSize: 11,
-    fontFamily: 'Poppins-Regular',
-  },
-  featuredAccessBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#7126D0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  featuredAccessText: {
-    color: '#fff',
-    fontSize: 13,
+  sectionTitle: {
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
+    color: '#111827',
   },
-
-  // ── Filters ──
-  filterList: {
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 20,
-  },
-  filterChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F2F4F7',
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-  },
-  filterChipActive: {
-    backgroundColor: '#7126D0',
-    borderColor: '#7126D0',
-  },
-  filterChipText: {
-    color: '#344054',
-    fontSize: 13,
-    fontFamily: 'Poppins-Medium',
-  },
-  filterChipTextActive: {
-    color: '#fff',
-    fontFamily: 'Poppins-Bold',
-  },
-
-  // ── Release cards grid ──
-  releasesGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 16,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  releaseCard: {
-    width: CARD_W,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+  card: {
+    width: (width - 44) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F2F4F7',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: '#E5E7EB',
+    marginBottom: 4,
   },
-  releaseCardBg: {
+  cardImageWrapper: {
     width: '100%',
-    height: CARD_W,
+    aspectRatio: 1,
+    position: 'relative',
   },
-  releaseCardImage: {
+  cardImage: {
+    width: '100%',
+    height: '100%',
     resizeMode: 'cover',
   },
-  releaseCardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  releaseTypeBadge: {
+  cardTypeTag: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'rgba(113,38,208,0.85)',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 5,
-  },
-  releaseTypeBadgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
-  daysBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
     borderRadius: 6,
-    alignItems: 'center',
   },
-  daysBadgeNumber: {
-    color: '#fff',
-    fontSize: 14,
+  cardTypeTagText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontFamily: 'Poppins-Bold',
-    lineHeight: 16,
   },
-  daysBadgeLabel: {
-    color: '#aaa',
-    fontSize: 12,
-    fontFamily: 'Poppins-Medium',
-  },
-  releaseInfo: {
-    flexDirection: 'row',
+  cardInfo: {
     padding: 10,
-    gap: 8,
-    alignItems: 'flex-start',
+    gap: 2,
   },
-  releaseArtistAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: '#7126D0',
-    marginTop: 2,
-  },
-  releaseTextCol: {
-    flex: 1,
-  },
-  releaseTitle: {
-    color: '#1A1A1A',
+  cardTitle: {
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
-    lineHeight: 16,
-    marginBottom: 3,
+    color: '#111827',
   },
-  releaseArtistRow: {
+  cardArtistRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 5,
   },
-  releaseArtistName: {
-    color: '#475467',
+  cardArtist: {
     fontSize: 12,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    flexShrink: 1,
   },
-  releaseBottomRow: {
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
-  releasePrice: {
-    color: '#7126D0',
+  cardPrice: {
     fontSize: 14,
     fontFamily: 'Poppins-Bold',
+    color: PURPLE,
   },
-  releaseAccesses: {
-    color: '#000',
-    fontSize: 12,
-    fontFamily: 'Poppins-Bold',
+  cardAccessPill: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  releaseAccessBtn: {
-    margin: 10,
-    marginTop: 0,
-    backgroundColor: '#7126D0',
-    borderRadius: 7,
-    paddingVertical: 8,
+  cardAccessPillText: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Medium',
+    color: '#4B5563',
+  },
+  emptyContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 8,
   },
-  releaseAccessText: {
-    color: '#fff',
-    fontSize: 12,
+  emptyTitle: {
+    fontSize: 16,
     fontFamily: 'Poppins-Bold',
+    color: '#374151',
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });

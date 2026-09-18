@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { productsService, ProductItem } from '@/lib/productsService';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width } = Dimensions.get('window');
 
@@ -20,23 +21,29 @@ const LatestDrops = () => {
       .catch(() => {});
   }, []);
 
-  const bannerImg =
+  const rawBannerUrl =
     latestDrop?.imageUrls && latestDrop.imageUrls.length > 0
-      ? { uri: latestDrop.imageUrls[0] }
-      : latestDrop?.imageUrl
-      ? { uri: latestDrop.imageUrl }
-      : require('../../assets/images/drop1.jpg');
+      ? latestDrop.imageUrls[0]
+      : latestDrop?.imageUrl;
+  const resolvedBannerUrl = rawBannerUrl ? resolveImageUrl(rawBannerUrl) : null;
+  const bannerImg = resolvedBannerUrl
+    ? { uri: resolvedBannerUrl }
+    : require('../../assets/images/drop1.jpg');
 
   const titleText = latestDrop?.name || 'Indorerwamo\nCollection';
 
   const handlePress = () => {
     if (latestDrop) {
-      const mainImg = latestDrop.imageUrls && latestDrop.imageUrls.length > 0 ? latestDrop.imageUrls[0] : latestDrop.imageUrl;
+      const rawMainImg = latestDrop.imageUrls && latestDrop.imageUrls.length > 0 ? latestDrop.imageUrls[0] : latestDrop.imageUrl;
+      const mainImg = rawMainImg ? resolveImageUrl(rawMainImg) : null;
+      const resolvedImageUrls = Array.isArray(latestDrop.imageUrls) && latestDrop.imageUrls.length > 0
+        ? latestDrop.imageUrls.map(u => resolveImageUrl(u))
+        : (mainImg ? [mainImg] : []);
       navigation.navigate('ProductDetails', {
         name: latestDrop.name,
         price: latestDrop.price,
         image: mainImg ? { uri: mainImg } : require('../../assets/images/products/product1.jpg'),
-        imageUrls: Array.isArray(latestDrop.imageUrls) && latestDrop.imageUrls.length > 0 ? latestDrop.imageUrls : (mainImg ? [mainImg] : []),
+        imageUrls: resolvedImageUrls,
         description: latestDrop.description || 'Exclusive limited merchandise.',
         artistName: latestDrop.sellerName || 'Artist',
         verified: true,

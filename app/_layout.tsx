@@ -6,7 +6,9 @@ import React, { useEffect } from 'react';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import '../global.css';
 import { Text, TextInput } from 'react-native';
-import App from './App';
+import { Slot } from 'expo-router';
+
+export { ErrorBoundary } from 'expo-router';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -23,22 +25,29 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      // Set Poppins as the default font for ALL Text and TextInput components
-      const defaultTextStyle = { fontFamily: 'Poppins-Regular' };
-      const oldTextRender = (Text as any).render;
-      (Text as any).render = function (...args: any[]) {
-        const origin = oldTextRender.call(this, ...args);
-        return React.cloneElement(origin, {
-          style: [defaultTextStyle, origin.props.style],
-        });
-      };
-      const oldTextInputRender = (TextInput as any).render;
-      (TextInput as any).render = function (...args: any[]) {
-        const origin = oldTextInputRender.call(this, ...args);
-        return React.cloneElement(origin, {
-          style: [defaultTextStyle, origin.props.style],
-        });
-      };
+      try {
+        const defaultTextStyle = { fontFamily: 'Poppins-Regular' };
+        if ((Text as any)?.render) {
+          const oldTextRender = (Text as any).render;
+          (Text as any).render = function (...args: any[]) {
+            const origin = oldTextRender.call(this, ...args);
+            return React.cloneElement(origin, {
+              style: [defaultTextStyle, origin.props.style],
+            });
+          };
+        }
+        if ((TextInput as any)?.render) {
+          const oldTextInputRender = (TextInput as any).render;
+          (TextInput as any).render = function (...args: any[]) {
+            const origin = oldTextInputRender.call(this, ...args);
+            return React.cloneElement(origin, {
+              style: [defaultTextStyle, origin.props.style],
+            });
+          };
+        }
+      } catch (e) {
+        console.warn('Could not override Text/TextInput render:', e);
+      }
       SplashScreen.hideAsync();
     }
   }, [loaded]);
@@ -49,7 +58,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'light' ? DarkTheme : DefaultTheme}>
-      <App />
+      <Slot />
     </ThemeProvider>
   );
 }

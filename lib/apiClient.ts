@@ -99,7 +99,7 @@ async function tryFetchUrl<T = any>(
   }
 }
 
-let cachedWorkingBaseUrl: string | null = null;
+export let cachedWorkingBaseUrl: string | null = null;
 
 async function request<T = any>(
   endpoint: string,
@@ -172,21 +172,8 @@ async function request<T = any>(
   throw new ApiError('Unable to connect to backend server. Please verify Spring Boot server is running.', 0);
 }
 
-export async function fetchWithAuth<T = any>(endpoint: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; json: () => Promise<T> }> {
-  try {
-    const data = await request<T>(endpoint, options);
-    return {
-      ok: true,
-      status: 200,
-      json: async () => data,
-    };
-  } catch (err: any) {
-    return {
-      ok: false,
-      status: err.status || 500,
-      json: async () => ({ message: err.message } as any),
-    };
-  }
+export async function fetchWithAuth<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  return await request<T>(endpoint, options);
 }
 
 export const apiClient = {
@@ -218,6 +205,10 @@ export const apiClient = {
     request<T>(endpoint, { method: 'DELETE', headers }),
 };
 
+export function getWorkingBaseUrl(): string {
+  return cachedWorkingBaseUrl || API_BASE_URL;
+}
+
 export async function uploadFileToBackend(fileUri: string, fileName?: string, fileType?: string): Promise<string> {
   const token = getSessionToken();
   const filename = fileName || fileUri.split('/').pop() || `file_${Date.now()}.jpg`;
@@ -236,6 +227,8 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
     mimeType = 'video/mp4';
   } else if (ext === 'mov') {
     mimeType = 'video/quicktime';
+  } else if (ext === 'mp3' || ext === 'wav' || ext === 'm4a' || ext === 'aac') {
+    mimeType = 'audio/mpeg';
   } else {
     mimeType = 'image/jpeg';
   }
@@ -281,7 +274,7 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
       const result = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', targetUrl);
-        xhr.timeout = 5000;
+        xhr.timeout = 60000; // 60s timeout for large images and audio
 
         if (token) {
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -346,11 +339,19 @@ export function resolveImageUrl(url: string | null | undefined): string {
     const fileSubpath = url.substring(url.indexOf('/api/files/'));
     return `${workingHost}${fileSubpath}`;
   }
-  if (url.startsWith('http://localhost:8080') || url.startsWith('http://127.0.0.1:8080')) {
-    return url.replace(/http:\/\/(localhost|127\.0\.0\.1):8080/, workingHost);
+  if (url.includes('/uploads/')) {
+    const fileSubpath = url.substring(url.indexOf('/uploads/'));
+    return `${workingHost}${fileSubpath}`;
+  }
+  if (url.match(/^https?:\/\/[^/]+:8080/)) {
+    return url.replace(/^https?:\/\/[^/]+:8080/, workingHost);
   }
   if (url.startsWith('/')) {
     return `${workingHost}${url}`;
+  }
+  // Plain filename stored in database (e.g. uuid.jpg)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `${workingHost}/api/files/${url}`;
   }
   return url;
 }

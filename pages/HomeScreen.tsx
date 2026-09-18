@@ -56,6 +56,7 @@ const HomeScreen = () => {
   const filteredPosts = searchQuery.trim()
     ? postsList.filter(
         p =>
+          (p.userUsername && p.userUsername.toLowerCase().includes(searchQuery.toLowerCase())) ||
           (p.userName && p.userName.toLowerCase().includes(searchQuery.toLowerCase())) ||
           (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
       )

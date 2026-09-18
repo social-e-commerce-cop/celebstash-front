@@ -15,8 +15,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Polygon, Rect } from 'react-native-svg';
-import { useLibrary, Song } from '@/lib/libraryStore';
-import { useMusicPlayer, playSong, pauseSong, resetPlayer, togglePlay, formatTime } from '@/lib/musicPlayerStore';
+import { useLibrary, Song, syncUnlockedLibrary } from '@/lib/libraryStore';
+import { useMusicPlayer, playSong, pauseSong, resetPlayer, togglePlay, formatTime, seekTo } from '@/lib/musicPlayerStore';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -78,9 +78,14 @@ const LibraryScreen = () => {
   const player = useMusicPlayer();
 
   const [activeFilter, setActiveFilter] = useState('All');
-  const filters = ['All', 'Pop', 'Afrobeats', 'Upbeat', 'Chill'];
+  const filters = ['All', ...Array.from(new Set(songs.map(s => s.genre).filter(Boolean) as string[]))];
 
   const [now, setNow] = useState(Date.now());
+
+  // Sync unlocked library from backend on mount
+  useEffect(() => {
+    syncUnlockedLibrary();
+  }, []);
 
   // Live timer tick every second
   useEffect(() => {
@@ -97,14 +102,13 @@ const LibraryScreen = () => {
     ? songs
     : songs.filter(song => song.genre === activeFilter);
 
-  // Auto-play first active song on mount if no song is loaded
+  // Auto-play first active song on mount if no song is loaded and songs exist
   useEffect(() => {
     if (!player.currentSong && activeSongs.length > 0) {
-      // Load first song but keep it paused initially
       playSong(activeSongs[0]);
       pauseSong();
     }
-  }, [songs]);
+  }, [songs.length]);
 
   // Handle current song expiration
   useEffect(() => {
@@ -146,6 +150,20 @@ const LibraryScreen = () => {
       const randomIndex = Math.floor(Math.random() * filteredSongs.length);
       playSong(filteredSongs[randomIndex]);
     }
+  };
+
+  const handlePlayNext = () => {
+    if (activeSongs.length === 0) return;
+    const currentIndex = activeSongs.findIndex(s => s.id === player.currentSong?.id);
+    const nextIndex = (currentIndex + 1) % activeSongs.length;
+    playSong(activeSongs[nextIndex]);
+  };
+
+  const handlePlayPrevious = () => {
+    if (activeSongs.length === 0) return;
+    const currentIndex = activeSongs.findIndex(s => s.id === player.currentSong?.id);
+    const prevIndex = (currentIndex - 1 + activeSongs.length) % activeSongs.length;
+    playSong(activeSongs[prevIndex]);
   };
 
   const progressPercent = player.durationSeconds > 0 
@@ -203,7 +221,31 @@ const LibraryScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.songsListContent}
       >
-        {filteredSongs.map((song) => {
+        {songs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="musical-notes" size={44} color={PURPLE} />
+            </View>
+            <Text style={styles.emptyTitle}>Your Library is Empty</Text>
+            <Text style={styles.emptySubtitle}>
+              Only songs and albums you have unlocked will appear here.
+            </Text>
+            <TouchableOpacity
+              style={styles.exploreButton}
+              onPress={() => navigation.navigate('MusicScreen')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.exploreButtonText}>Explore Unreleased Music</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredSongs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No songs found</Text>
+            <Text style={styles.emptySubtitle}>No songs found in "{activeFilter}". Tap "All" to view all unlocked songs.</Text>
+          </View>
+        ) : (
+          filteredSongs.map((song) => {
           const isExpired = song.expiresAt ? song.expiresAt <= now : false;
           const isCurrent = player.currentSong?.id === song.id;
           const isThisPlaying = isCurrent && player.isPlaying;
@@ -248,7 +290,9 @@ const LibraryScreen = () => {
                   {isThisPlaying && <Equalizer isPlaying={true} />}
                 </View>
                 <View style={styles.artistRow}>
-                  <Text style={styles.songArtist}>By {song.artist}</Text>
+                  <Text style={styles.songArtist}>
+                    By {song.artist}{song.year ? ` • ${song.year}` : ''}
+                  </Text>
                   {song.expiresAt && (
                     <View style={[styles.expiryBadge, isExpired && styles.expiryBadgeExpired]}>
                       <Ionicons
@@ -288,13 +332,14 @@ const LibraryScreen = () => {
               </TouchableOpacity>
             </TouchableOpacity>
           );
-        })}
+        })
+      )}
       </ScrollView>
 
       {/* Bottom Floating Premium Player */}
       {player.currentSong && (
         <View style={styles.playerContainer}>
-          {/* â”€â”€ Row 1: album art + info + play/pause â”€â”€ */}
+          {/* ── Row 1: album art + info + play/pause ── */}
           <View style={styles.playerInner}>
             <View style={styles.playerLeft}>
               <Image source={player.currentSong.image} style={styles.playerImage} />
@@ -303,14 +348,17 @@ const LibraryScreen = () => {
                   {player.currentSong.title}
                 </Text>
                 <Text style={styles.playerArtistName} numberOfLines={1}>
-                  {player.currentSong.artist}
+                  {player.currentSong.artist}{player.currentSong.year ? ` • ${player.currentSong.year}` : ''}
                 </Text>
               </View>
             </View>
 
             {/* Controls */}
             <View style={styles.playerControls}>
-              <TouchableOpacity onPress={togglePlay} style={styles.playerPlayBtn}>
+              <TouchableOpacity onPress={handlePlayPrevious} style={styles.skipBtn} activeOpacity={0.7}>
+                <Ionicons name="play-skip-back" size={20} color="#111" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={togglePlay} style={styles.playerPlayBtn} activeOpacity={0.8}>
                 <Ionicons
                   name={player.isPlaying ? 'pause' : 'play'}
                   size={18}
@@ -318,13 +366,27 @@ const LibraryScreen = () => {
                   style={!player.isPlaying && { marginLeft: 2 }}
                 />
               </TouchableOpacity>
+              <TouchableOpacity onPress={handlePlayNext} style={styles.skipBtn} activeOpacity={0.7}>
+                <Ionicons name="play-skip-forward" size={20} color="#111" />
+              </TouchableOpacity>
             </View>
           </View>
 
           {/* â”€â”€ Row 2: Scrubber + timestamps â”€â”€ */}
           <View style={styles.scrubberSection}>
-            {/* Track bar */}
-            <View style={styles.scrubberTrack}>
+            {/* Track bar with touch seek */}
+            <TouchableOpacity
+              style={styles.scrubberTrack}
+              activeOpacity={0.9}
+              onPress={(e) => {
+                if (player.durationSeconds > 0) {
+                  const clickX = e.nativeEvent.locationX;
+                  const trackWidth = width - 60;
+                  const ratio = Math.max(0, Math.min(1, clickX / trackWidth));
+                  seekTo(Math.round(ratio * player.durationSeconds));
+                }
+              }}
+            >
               {/* Filled portion */}
               <View
                 style={[
@@ -339,7 +401,7 @@ const LibraryScreen = () => {
                   { left: `${progressPercent}%` },
                 ]}
               />
-            </View>
+            </TouchableOpacity>
 
             {/* Time labels */}
             <View style={styles.scrubberTimes}>
@@ -470,6 +532,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Poppins-Regular',
     color: '#7C7C7C',
+  },
+  yearBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
+  yearText: {
+    fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    color: '#6B7280',
   },
   playButtonCircle: {
     width: 32,
@@ -679,5 +752,58 @@ const styles = StyleSheet.create({
   albumButtonCircle: {
     backgroundColor: '#7126D0',
   },
-
+  skipBtn: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F0FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    maxWidth: 280,
+  },
+  exploreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PURPLE,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    elevation: 2,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  exploreButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
 });

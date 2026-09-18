@@ -19,40 +19,56 @@ import TabBar from '@/components/Tabbar';
 import { Ionicons } from '@expo/vector-icons';
 import { musicService, MusicReleaseItem } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { getSessionUser } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
 
-const upcomingReleases = [
-  { id: '1', title: "I don't want to loose your love i cannot afford to say you see me no forget me ogege choos cweeeh", artist: 'Justin Timberlake', price: 10.25, accesses: 3, image: require('@/assets/images/drop1.jpg') },
-  { id: '2', title: "I don't want to loose your love i cannot afford to say you see me no forget me ogege choos cweeeh", artist: 'Justin Timberlake', price: 10.25, accesses: 3, image: require('@/assets/images/storyItem.jpg') },
-];
 
-const songsData = [
-  { id: '0', name: 'If the world was ending ft T-Pain', artist: 'Justin Timberlake', price: 3.0, image: require('@/assets/images/products/product1.jpg'), artistImage: require('@/assets/images/prof.jpg') },
-  { id: '1', name: 'If the world was ending ft T-Pain', artist: 'Justin Timberlake', price: 3.0, image: require('@/assets/images/products/product2.jpg'), artistImage: require('@/assets/images/profile.jpg') },
-  { id: '2', name: 'If the world was ending ft T-Pain', artist: 'Justin Timberlake', price: 3.0, image: require('@/assets/images/products/product3.jpg'), artistImage: require('@/assets/images/black-man.png') },
-  { id: '3', name: 'If the world was ending ft T-Pain', artist: 'Justin Timberlake', price: 2.0, image: require('@/assets/images/products/product4.jpg'), artistImage: require('@/assets/images/prof.jpg') },
-];
 
-const featuredArtists = [
-  { id: '1', name: 'Chris Brown', image: require('@/assets/images/prof.jpg') },
-  { id: '2', name: 'Chris Brown', image: require('@/assets/images/profile.jpg') },
-  { id: '3', name: 'Chris Brown', image: require('@/assets/images/black-man.png') },
-  { id: '4', name: 'Chris Brown', image: require('@/assets/images/prof.jpg') },
-];
-
-const renderArtist = ({ item }: { item: typeof featuredArtists[0] }) => (
-  <TouchableOpacity style={styles.artistAvatarContainer}>
-    <Image source={item.image} style={styles.artistAvatar} />
-    <Text style={styles.artistNameText}>{item.name}</Text>
-  </TouchableOpacity>
-);
+interface FeaturedArtistItem {
+  id: string;
+  name: string;
+  username?: string;
+  image: any;
+}
 
 const MusicScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const sessionUser = getSessionUser();
+  const isArtist = sessionUser?.role === 'ARTIST' || sessionUser?.role === 'ADMIN';
   const [searchQuery, setSearchQuery] = useState('');
   const [realReleases, setRealReleases] = useState<MusicReleaseItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const handleArtistPress = (artist: FeaturedArtistItem) => {
+    const isOwn = sessionUser && (
+      String(sessionUser.id) === String(artist.id) ||
+      (sessionUser.username && artist.username && sessionUser.username.toLowerCase() === artist.username.toLowerCase())
+    );
+
+    navigation.navigate('MyProfile', {
+      isOtherUser: !isOwn,
+      userId: Number(artist.id),
+      username: artist.username || artist.name,
+      name: artist.name,
+      avatar: artist.image,
+      role: 'artist',
+      initialTab: 'Music',
+      activeTab: 'Music',
+      tab: 'Music',
+    });
+  };
+
+  const renderArtist = ({ item }: { item: FeaturedArtistItem }) => (
+    <TouchableOpacity
+      style={styles.artistAvatarContainer}
+      activeOpacity={0.8}
+      onPress={() => handleArtistPress(item)}
+    >
+      <Image source={item.image} style={styles.artistAvatar} />
+      <Text style={styles.artistNameText} numberOfLines={1}>{item.name}</Text>
+    </TouchableOpacity>
+  );
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -74,17 +90,39 @@ const MusicScreen = () => {
     }
   };
 
+  const featuredArtists = React.useMemo(() => {
+    const artistMap = new Map<string, FeaturedArtistItem>();
+    realReleases.forEach((rel) => {
+      const a = rel.artist;
+      if (a && a.id) {
+        const idStr = String(a.id);
+        if (!artistMap.has(idStr)) {
+          const name = a.artistName || a.fullName || a.username || 'Artist';
+          const username = a.username || '';
+          const img = a.profilePicture
+            ? { uri: resolveImageUrl(a.profilePicture) }
+            : require('@/assets/images/prof.jpg');
+          artistMap.set(idStr, { id: idStr, name, username, image: img });
+        }
+      }
+    });
+    return Array.from(artistMap.values());
+  }, [realReleases]);
+
   const filteredReleases = searchQuery.trim()
     ? realReleases.filter(
         item =>
           item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.artist?.username || item.artist?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
+          (item.artist?.artistName || item.artist?.username || item.artist?.fullName || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : realReleases;
 
   const renderUpcoming = ({ item }: { item: MusicReleaseItem }) => {
     const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
-    const artistName = item.artist?.username || item.artist?.fullName || 'Artist';
+    const artistName = item.artist?.artistName || item.artist?.fullName || item.artist?.username || 'Artist';
+    const releaseYear = item.releaseDate
+      ? new Date(item.releaseDate).getFullYear()
+      : (item.createdAt ? new Date(item.createdAt).getFullYear() : null);
 
     return (
       <TouchableOpacity
@@ -115,8 +153,10 @@ const MusicScreen = () => {
                 </Svg>
               </View>
               <View style={styles.upcomingFooter}>
-                <Text style={styles.upcomingDropType}>{item.releaseType || 'Single'}</Text>
-                <Text style={styles.upcomingAccesses}>{item.defaultPlayLimit || 10} Plays</Text>
+                <Text style={styles.upcomingDropType}>{item.releaseType || 'Single'}{releaseYear ? ` • ${releaseYear}` : ''}</Text>
+                <Text style={styles.upcomingAccesses}>
+                  {item.tracks?.length ? `${item.tracks.length} Track${item.tracks.length > 1 ? 's' : ''}` : 'Direct Access'}
+                </Text>
               </View>
             </View>
           </View>
@@ -127,7 +167,10 @@ const MusicScreen = () => {
 
   const renderSong = ({ item }: { item: MusicReleaseItem }) => {
     const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
-    const artistName = item.artist?.username || item.artist?.fullName || 'Artist';
+    const artistName = item.artist?.artistName || item.artist?.fullName || item.artist?.username || 'Artist';
+    const releaseYear = item.releaseDate
+      ? new Date(item.releaseDate).getFullYear()
+      : (item.createdAt ? new Date(item.createdAt).getFullYear() : null);
 
     return (
       <TouchableOpacity
@@ -142,7 +185,7 @@ const MusicScreen = () => {
         <View style={styles.songInfo}>
           <Text style={styles.songName} numberOfLines={2}>{item.title}</Text>
           <View style={styles.songArtistRow}>
-            <Text style={styles.songArtist}>{artistName}</Text>
+            <Text style={styles.songArtist}>{artistName}{releaseYear ? ` • ${releaseYear}` : ''}</Text>
             <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
               <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
             </Svg>
@@ -161,10 +204,12 @@ const MusicScreen = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Unreleased Music</Text>
         <View style={styles.headerRightActions}>
-          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('UploadMusic')}>
-            <Ionicons name="cloud-upload" size={22} color="#7126D0" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('MyMusic')}>
+          {isArtist && (
+            <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('UploadMusic')}>
+              <Ionicons name="cloud-upload" size={22} color="#7126D0" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('Library')}>
             <Ionicons name="library" size={22} color="#000" />
           </TouchableOpacity>
         </View>
@@ -194,17 +239,20 @@ const MusicScreen = () => {
         </View>
 
         {/* Featured Banner */}
-        {(() => {
-          const featured = filteredReleases.length > 0 ? filteredReleases[0] : null;
-          const bannerImg = featured && featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
-          const bannerArtistName = featured?.artist?.username || featured?.artist?.fullName || 'Featured Artist';
-          const bannerReleaseTitle = featured?.title || 'EXCLUSIVE UNRELEASED DROPS';
+        {filteredReleases.length > 0 && (() => {
+          const featured = filteredReleases[0];
+          const bannerImg = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
+          const bannerArtistName = featured.artist?.artistName || featured.artist?.fullName || featured.artist?.username || 'Featured Artist';
+          const bannerReleaseTitle = featured.title;
+          const bannerYear = featured.releaseDate
+            ? new Date(featured.releaseDate).getFullYear()
+            : (featured.createdAt ? new Date(featured.createdAt).getFullYear() : null);
 
           return (
             <TouchableOpacity
               style={styles.bannerContainer}
               activeOpacity={0.9}
-              onPress={() => featured && navigation.navigate('MusicDetail' as any, { id: featured.id })}
+              onPress={() => navigation.navigate('MusicDetail' as any, { id: featured.id })}
             >
               <ImageBackground
                 source={bannerImg ? { uri: bannerImg } : require('@/assets/images/drop1.jpg')}
@@ -213,7 +261,7 @@ const MusicScreen = () => {
               >
                 <View style={styles.bannerOverlay}>
                   <View style={styles.bannerArtistRow}>
-                    <Text style={styles.bannerArtist}>{bannerArtistName}</Text>
+                    <Text style={styles.bannerArtist}>{bannerArtistName}{bannerYear ? ` • ${bannerYear}` : ''}</Text>
                     <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" style={{ marginLeft: 4 }}>
                       <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                     </Svg>
@@ -253,18 +301,21 @@ const MusicScreen = () => {
         </View>
 
         {/* Featured Artists */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Artists</Text>
-          <TouchableOpacity><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
-        </View>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={featuredArtists}
-          keyExtractor={(item, index) => item.id + index}
-          renderItem={renderArtist}
-          contentContainerStyle={styles.artistsList}
-        />
+        {featuredArtists.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Featured Artists</Text>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={featuredArtists}
+              keyExtractor={(item) => item.id}
+              renderItem={renderArtist}
+              contentContainerStyle={styles.artistsList}
+            />
+          </>
+        )}
       </ScrollView>
 
       {/* Floating TabBar at the bottom */}

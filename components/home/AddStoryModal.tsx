@@ -14,7 +14,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { storiesService } from '@/lib/storiesService';
+import { uploadFileToBackend } from '@/lib/apiClient';
 
 const PURPLE = '#7126D0';
 
@@ -30,15 +32,34 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
   onStoryCreated,
 }) => {
   const [mediaType, setMediaType] = useState<'IMAGE' | 'VIDEO'>('IMAGE');
+  const [selectedUri, setSelectedUri] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [visibility, setVisibility] = useState<'PUBLIC' | 'FOLLOWERS' | 'CLOSE_FRIENDS'>('PUBLIC');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handlePickMedia = (type: 'IMAGE' | 'VIDEO') => {
+  const handlePickMedia = async (type: 'IMAGE' | 'VIDEO') => {
     setMediaType(type);
-    if (type === 'VIDEO') {
-      Alert.alert('Video Story', 'Videos will be trimmed automatically to a maximum duration of 30 seconds.');
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Please allow photo gallery access to pick story media.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: type === 'IMAGE' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.8,
+        videoMaxDuration: 30,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.warn('Media picking error:', err);
     }
   };
 
@@ -57,8 +78,22 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
     }, 200);
 
     try {
+      let finalMediaUrl: string;
+      if (selectedUri) {
+        const isVid = mediaType === 'VIDEO';
+        finalMediaUrl = await uploadFileToBackend(
+          selectedUri,
+          `story_${Date.now()}.${isVid ? 'mp4' : 'jpg'}`,
+          isVid ? 'video/mp4' : 'image/jpeg'
+        );
+      } else {
+        finalMediaUrl = mediaType === 'IMAGE'
+          ? 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800'
+          : 'https://assets.mixkit.co/videos/preview/mixkit-concert-crowd-raising-hands-41484-large.mp4';
+      }
+
       await storiesService.createStory({
-        mediaUrl: mediaType === 'IMAGE' ? require('../../assets/images/storyItem.jpg') : require('../../assets/images/feed6.jpg'),
+        mediaUrl: finalMediaUrl,
         mediaType,
         caption: caption.trim(),
         visibility,
@@ -71,12 +106,13 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
         setIsUploading(false);
         setUploadProgress(0);
         setCaption('');
+        setSelectedUri(null);
         onStoryCreated();
         onClose();
       }, 300);
-    } catch {
+    } catch (err: any) {
       setIsUploading(false);
-      Alert.alert('Upload Failed', 'Failed to upload story. Please check connection and try again.');
+      Alert.alert('Upload Failed', err?.message || 'Failed to upload story. Please check connection and try again.');
     }
   };
 
@@ -140,21 +176,31 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
             </View>
 
             {/* Media Preview Box */}
-            <View style={styles.previewBox}>
+            <TouchableOpacity
+              style={styles.previewBox}
+              activeOpacity={0.8}
+              onPress={() => handlePickMedia(mediaType)}
+            >
               <Image
                 source={
-                  mediaType === 'IMAGE'
+                  selectedUri
+                    ? { uri: selectedUri }
+                    : mediaType === 'IMAGE'
                     ? require('../../assets/images/storyItem.jpg')
                     : require('../../assets/images/feed6.jpg')
                 }
                 style={styles.previewMedia}
               />
+              <View style={styles.changeOverlay}>
+                <Ionicons name="camera-reverse" size={20} color="#FFF" />
+                <Text style={styles.changeOverlayText}>Tap to choose from library</Text>
+              </View>
               {mediaType === 'VIDEO' && (
                 <View style={styles.playIconOverlay}>
                   <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Caption Input */}
             <Text style={styles.sectionLabel}>Add Caption</Text>
@@ -304,7 +350,11 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   playIconOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.25)',
@@ -348,5 +398,23 @@ const styles = StyleSheet.create({
   privacyTextSelected: {
     color: '#FFF',
     fontFamily: 'Poppins-Bold',
+  },
+  changeOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    gap: 6,
+  },
+  changeOverlayText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontFamily: 'Poppins-Medium',
   },
 });

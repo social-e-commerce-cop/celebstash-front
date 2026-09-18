@@ -1,4 +1,4 @@
-import { apiClient, API_BASE_URL } from './apiClient';
+import { apiClient, API_BASE_URL, uploadFileToBackend } from './apiClient';
 import { getSessionToken, setSessionUser } from './session';
 
 export interface UserProfile {
@@ -74,34 +74,9 @@ export const profileService = {
 
   /** Upload a profile picture and return the URL */
   uploadProfilePicture: async (imageUri: string): Promise<string> => {
-    const token = getSessionToken();
-    const formData = new FormData();
-
-    const fileName = imageUri.split('/').pop() || 'avatar.jpg';
+    const fileName = imageUri.split('/').pop() || `avatar_${Date.now()}.jpg`;
     const mimeType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-
-    // React Native requires this shape for FormData file appending
-    formData.append('file', {
-      uri: imageUri,
-      name: fileName,
-      type: mimeType,
-    } as any);
-
-    const response = await fetch(`${API_BASE_URL}/api/files/upload`, {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`Profile picture upload failed with status ${response.status}: ${errorText}`);
-    }
-
-    // Backend returns the file URL as a plain string
-    return response.text();
+    return await uploadFileToBackend(imageUri, fileName, mimeType);
   },
 
   /** Get any user's public profile by their ID */

@@ -1,13 +1,17 @@
 import React, { useEffect } from 'react';
 import { Platform, LogBox } from 'react-native';
 
-// Ignore the harmless Expo keep-awake warning in development/web
-LogBox.ignoreLogs(['Unable to activate keep awake']);
+// Ignore harmless Expo development warnings
+LogBox.ignoreLogs([
+  'Unable to activate keep awake',
+  'setLayoutAnimationEnabledExperimental is currently a no-op',
+  'Due to changes in Android',
+]);
 
 import * as NavigationBar from 'expo-navigation-bar';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 
-import { useNavigation } from '@react-navigation/native';
+import { NavigationContainer, NavigationIndependentTree, useNavigation } from '@react-navigation/native';
 
 import Onboarding from '@/pages/Onboarding';
 import SplashScreen from '@/pages/SplashScreen';
@@ -216,80 +220,84 @@ export default function App() {
   }, []);
 
   return (
-    <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Splash" component={SplashScreenWrapper} />
-        <Stack.Screen name="OnBoarding" component={Onboarding} />
-        <Stack.Screen name="Signin" component={Signin} />
-        <Stack.Screen name="Signup" component={Signup} />
-        <Stack.Screen name="Verify" component={VerifyAccount} />
-        <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
-        <Stack.Screen name="Email" component={EmailAdressScreen} />
-        <Stack.Screen name="Verification" component={CodeVerification} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-        <Stack.Screen name="CreatePassword" component={CreatePassword} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="Browse" component={BrowseScreen} />
-        <Stack.Screen name="Music" component={MusicScreen} />
-        <Stack.Screen name="MusicScreen" component={MusicScreen} />
-        <Stack.Screen name="MusicDetail" component={MusicDetailScreen} />
-        <Stack.Screen name="UploadMusic" component={UploadMusicScreen} />
-        <Stack.Screen name="MyMusic" component={MyMusicScreen} />
-        <Stack.Screen name="Drops" component={Drops} />
-        <Stack.Screen name="Shop" component={ShopScreen} />
-        <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
-        <Stack.Screen name="ProductDetails" component={ProductDetails} />
-        <Stack.Screen name="CreateProduct" component={CreateProduct} />
-        <Stack.Screen name="ProductReviews" component={ProductReviews} />
-        <Stack.Screen name="CartScreen" component={Cart} />
-        <Stack.Screen name="ActivePage" component={ActivePage} />
-        <Stack.Screen name="CompletePage" component={CompletePage} />
-        <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
-        <Stack.Screen name="PaymentMethods" component={PaymentMethods} />
-        <Stack.Screen name="PinEntry" component={PinEntry} />
-        <Stack.Screen name="TrackOrder" component={TrackOrder} />
-        <Stack.Screen name="Ewallet" component={EwalletScreen} />
-        <Stack.Screen name="TransactionSearch" component={TransactionsSearch} />
-        <Stack.Screen name="TransactionDetails" component={TransactionsDetails} />
-        <Stack.Screen name="TopupWallet" component={TopUpScreen} />
-        <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
-        <Stack.Screen name="AddWalletScreen" component={AddWalletScreen} />
-        <Stack.Screen name="ManageCards" component={ManageCardsScreen} />
-        <Stack.Screen name="AddCard" component={AddCardScreen} />
-        <Stack.Screen name="Messages" component={Messages} />
-        <Stack.Screen name="Notifications" component={Notifications} />
-        <Stack.Screen name="MyProfile" component={MyProfile} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="ArtSettings" component={ArtSettingsScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfile} />
-        <Stack.Screen name="FieldEdit" component={FieldEdit} />
-        <Stack.Screen name="AddressSetting" component={Address} />
-        <Stack.Screen name="AddAddress" component={AddAddressForm} />
-        <Stack.Screen name="NotificationSettings" component={NotificationScreen} />
-        <Stack.Screen name="Security" component={Security} />
-        <Stack.Screen name="Wallet" component={Wallet} />
-        <Stack.Screen name="Privacy" component={PrivacyScreen} />
-        <Stack.Screen name="Language" component={LanguageScreen} />
-        <Stack.Screen name="BecomeArtist" component={BecomeArtist} />
-        <Stack.Screen name="AdminArtistApplications" component={AdminArtistApplications} />
-        <Stack.Screen name="CreatePost" component={CreatePostScreen} />
-        <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
-        <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />
-        <Stack.Screen name="ArtProfile" component={ArtProfile} />
-        <Stack.Screen name="Post" component={Post} />
-        <Stack.Screen name="Available" component={Available} />
-        <Stack.Screen name="Soldout" component={SoldOut} />
-        <Stack.Screen name="Dashboard" component={Dashboard} />
-        <Stack.Screen name="MessagesScreen" component={MessagesScreen} />
-        <Stack.Screen name="ChatScreen" component={ChatScreen} />
-        <Stack.Screen name="CreateGroupScreen" component={require('../pages/messages/CreateGroupScreen').default} />
-        <Stack.Screen name="ChatInfoScreen" component={require('../pages/messages/ChatInfoScreen').default} />
-        <Stack.Screen name="GroupSettingsScreen" component={require('../pages/messages/GroupSettingsScreen').default} />
-        <Stack.Screen name="SharedMediaScreen" component={require('../pages/messages/SharedMediaScreen').default} />
-        <Stack.Screen name="VoiceCallScreen" component={require('../pages/messages/VoiceCallScreen').default} />
-        <Stack.Screen name="VideoCallScreen" component={require('../pages/messages/VideoCallScreen').default} />
+    <NavigationIndependentTree>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Splash" component={SplashScreenWrapper} />
+          <Stack.Screen name="OnBoarding" component={Onboarding} />
+          <Stack.Screen name="Signin" component={Signin} />
+          <Stack.Screen name="Signup" component={Signup} />
+          <Stack.Screen name="Verify" component={VerifyAccount} />
+          <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
+          <Stack.Screen name="Email" component={EmailAdressScreen} />
+          <Stack.Screen name="Verification" component={CodeVerification} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+          <Stack.Screen name="CreatePassword" component={CreatePassword} />
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Browse" component={BrowseScreen} />
+          <Stack.Screen name="Music" component={MusicScreen} />
+          <Stack.Screen name="MusicScreen" component={MusicScreen} />
+          <Stack.Screen name="MusicDetail" component={MusicDetailScreen} />
+          <Stack.Screen name="UploadMusic" component={UploadMusicScreen} />
+          <Stack.Screen name="MyMusic" component={MyMusicScreen} />
+          <Stack.Screen name="Drops" component={Drops} />
+          <Stack.Screen name="Shop" component={ShopScreen} />
+          <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
+          <Stack.Screen name="ProductDetails" component={ProductDetails} />
+          <Stack.Screen name="CreateProduct" component={CreateProduct} />
+          <Stack.Screen name="ProductReviews" component={ProductReviews} />
+          <Stack.Screen name="CartScreen" component={Cart} />
+          <Stack.Screen name="ActivePage" component={ActivePage} />
+          <Stack.Screen name="CompletePage" component={CompletePage} />
+          <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+          <Stack.Screen name="PaymentMethods" component={PaymentMethods} />
+          <Stack.Screen name="PinEntry" component={PinEntry} />
+          <Stack.Screen name="TrackOrder" component={TrackOrder} />
+          <Stack.Screen name="Ewallet" component={EwalletScreen} />
+          <Stack.Screen name="TransactionSearch" component={TransactionsSearch} />
+          <Stack.Screen name="TransactionDetails" component={TransactionsDetails} />
+          <Stack.Screen name="TopupWallet" component={TopUpScreen} />
+          <Stack.Screen name="TopupConfirmation" component={TopupPinEntry} />
+          <Stack.Screen name="AddWalletScreen" component={AddWalletScreen} />
+          <Stack.Screen name="ManageCards" component={ManageCardsScreen} />
+          <Stack.Screen name="AddCard" component={AddCardScreen} />
+          <Stack.Screen name="Messages" component={Messages} />
+          <Stack.Screen name="Notifications" component={Notifications} />
+          <Stack.Screen name="MyProfile" component={MyProfile} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="ArtSettings" component={ArtSettingsScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfile} />
+          <Stack.Screen name="FieldEdit" component={FieldEdit} />
+          <Stack.Screen name="AddressSetting" component={Address} />
+          <Stack.Screen name="AddAddress" component={AddAddressForm} />
+          <Stack.Screen name="NotificationSettings" component={NotificationScreen} />
+          <Stack.Screen name="Security" component={Security} />
+          <Stack.Screen name="Wallet" component={Wallet} />
+          <Stack.Screen name="Privacy" component={PrivacyScreen} />
+          <Stack.Screen name="Language" component={LanguageScreen} />
+          <Stack.Screen name="BecomeArtist" component={BecomeArtist} />
+          <Stack.Screen name="AdminArtistApplications" component={AdminArtistApplications} />
+          <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+          <Stack.Screen name="CreateTribe" component={CreateTribeScreen} />
+          <Stack.Screen name="ArtHome" component={ArtistHomeScreen} />
+          <Stack.Screen name="ArtProfile" component={ArtProfile} />
+          <Stack.Screen name="Post" component={Post} />
+          <Stack.Screen name="Available" component={Available} />
+          <Stack.Screen name="Soldout" component={SoldOut} />
+          <Stack.Screen name="Dashboard" component={Dashboard} />
+          <Stack.Screen name="MessagesScreen" component={MessagesScreen} />
+          <Stack.Screen name="ChatScreen" component={ChatScreen} />
+          <Stack.Screen name="CreateGroupScreen" component={require('../pages/messages/CreateGroupScreen').default} />
+          <Stack.Screen name="ChatInfoScreen" component={require('../pages/messages/ChatInfoScreen').default} />
+          <Stack.Screen name="GroupSettingsScreen" component={require('../pages/messages/GroupSettingsScreen').default} />
+          <Stack.Screen name="SharedMediaScreen" component={require('../pages/messages/SharedMediaScreen').default} />
+          <Stack.Screen name="VoiceCallScreen" component={require('../pages/messages/VoiceCallScreen').default} />
+          <Stack.Screen name="VideoCallScreen" component={require('../pages/messages/VideoCallScreen').default} />
 
-        <Stack.Screen name="AllReleases" component={AllReleasesScreen} />
-        <Stack.Screen name="Library" component={LibraryScreen} />
-      </Stack.Navigator>
+          <Stack.Screen name="AllReleases" component={AllReleasesScreen} />
+          <Stack.Screen name="Library" component={LibraryScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </NavigationIndependentTree>
   );
 }

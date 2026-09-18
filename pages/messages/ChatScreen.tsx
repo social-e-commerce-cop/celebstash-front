@@ -7,7 +7,6 @@
  */
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -21,6 +20,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ChatHeader } from '@/components/messages/ChatHeader';

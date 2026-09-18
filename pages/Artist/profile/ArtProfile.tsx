@@ -110,14 +110,14 @@ const ArtProfile: React.FC = () => {
         const releases = await musicService.getReleases();
         if (Array.isArray(releases)) {
           const artistReleases = releases.filter(r => {
-            if (!r.artist) return true;
+            if (!r.artist) return false;
             if (targetArtistId && String(r.artist.id) === String(targetArtistId)) return true;
             if (currentUsername && r.artist.username && r.artist.username.toLowerCase() === currentUsername) return true;
             if (currentEmail && (r.artist as any).email && (r.artist as any).email.toLowerCase() === currentEmail) return true;
             if (currentFullName && (r.artist as any).fullName && (r.artist as any).fullName.toLowerCase() === currentFullName) return true;
             return false;
           });
-          setMusicReleases(artistReleases.length > 0 ? artistReleases : releases);
+          setMusicReleases(artistReleases);
         } else {
           setMusicReleases([]);
         }
@@ -143,7 +143,7 @@ const ArtProfile: React.FC = () => {
 
   const displayName = profileData?.fullName || sessionUser?.fullName || 'Artist';
   const displayHandle = profileData?.username ? `@${profileData.username}` : (sessionUser?.username ? `@${sessionUser.username}` : '@artist');
-  const avatarSource = profileData?.profilePicture ? { uri: profileData.profilePicture } : require('../../../assets/images/black-man.png');
+  const avatarSource = profileData?.profilePicture ? { uri: resolveImageUrl(profileData.profilePicture) } : require('../../../assets/images/black-man.png');
 
   return (
     <View style={styles.container}>

@@ -18,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { getSessionUser } from "@/lib/session";
 import { profileService } from "@/lib/profileService";
+import { resolveImageUrl } from "@/lib/apiClient";
 
 const { width, height } = Dimensions.get("window");
 const PURPLE = "#7126D0";
@@ -182,7 +183,7 @@ const EditProfile = () => {
         <View style={styles.avatarContainer}>
           <View style={styles.avatarWrapper}>
             {displayedAvatar ? (
-              <Image source={{ uri: displayedAvatar }} style={styles.avatarImage} />
+              <Image source={{ uri: resolveImageUrl(displayedAvatar) }} style={styles.avatarImage} />
             ) : (
               <View style={[styles.avatarImage, { backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" }]}>
                 <Ionicons name="person" size={40} color="#9CA3AF" />
