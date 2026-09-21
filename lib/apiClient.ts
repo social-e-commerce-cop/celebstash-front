@@ -160,24 +160,35 @@ async function request<T = any>(
 
   let lastError: any = null;
   const usesRender = candidateUrls.some((url) => url.includes(RENDER_HOST));
+  // A free-tier Render service suspends when idle and can take well over a minute to wake, so
+  // the first request after a quiet period must be allowed to outlive a normal timeout —
+  // otherwise the very first login always fails while the server is still booting.
   const timeoutMs = usesRender
-    ? 25000
+    ? 90000
     : ((options.method && options.method !== 'GET') ? 15000 : 8000);
   for (const targetUrl of candidateUrls) {
-    try {
-      const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
-      if (!endpoint.startsWith('http')) {
-        const urlObj = targetUrl.replace(endpoint, '');
-        if (urlObj && urlObj.startsWith('http')) {
-          cachedWorkingBaseUrl = urlObj;
+    // One retry for a cold start: the first attempt wakes the instance, the retry lands on it.
+    const attempts = targetUrl.includes(RENDER_HOST) ? 2 : 1;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
+        if (!endpoint.startsWith('http')) {
+          const urlObj = targetUrl.replace(endpoint, '');
+          if (urlObj && urlObj.startsWith('http')) {
+            cachedWorkingBaseUrl = urlObj;
+          }
+        }
+        return result;
+      } catch (err: any) {
+        // A real HTTP response (401, 404, 500, ...) is an answer, not a connectivity problem.
+        if (err instanceof ApiError && err.status !== 0 && err.status !== 408) {
+          throw err;
+        }
+        lastError = err;
+        if (attempt < attempts) {
+          console.warn(`[api] ${targetUrl} did not respond (attempt ${attempt}/${attempts}); retrying — the server may be waking up.`);
         }
       }
-      return result;
-    } catch (err: any) {
-      if (err instanceof ApiError && err.status !== 0 && err.status !== 408) {
-        throw err;
-      }
-      lastError = err;
     }
   }
 
@@ -293,12 +304,17 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
   let attemptLogs: string[] = [];
 
   for (const targetUrl of candidateUrls) {
+    // Uploads need the same cold-start allowance as ordinary requests: a suspended free-tier
+    // instance can take minutes to wake, and the upload previously gave up after 25s while the
+    // server was still booting. One retry covers the case where attempt 1 did the waking.
+    const uploadAttempts = targetUrl.includes(RENDER_HOST) ? 2 : 1;
+    for (let attempt = 1; attempt <= uploadAttempts; attempt++) {
     try {
       console.log(`[Upload] Attempting upload to ${targetUrl} (URI: ${fileUri})`);
       const result = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', targetUrl);
-        xhr.timeout = targetUrl.includes(RENDER_HOST) ? 25000 : 15000;
+        xhr.timeout = targetUrl.includes(RENDER_HOST) ? 120000 : 15000;
 
         if (token) {
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -343,11 +359,16 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
 
       return result;
     } catch (err: any) {
-      console.warn(`[Upload Attempt Failed] ${targetUrl}:`, err.message);
-      attemptLogs.push(`${targetUrl} -> ${err.message}`);
+      console.warn(`[Upload Attempt Failed] ${targetUrl} (attempt ${attempt}/${uploadAttempts}):`, err.message);
+      // A real HTTP status is an answer from the server, not a cold start — do not retry it.
       if (err.message && err.message.startsWith('HTTP')) {
+        attemptLogs.push(`${targetUrl} -> ${err.message}`);
         throw err;
       }
+      if (attempt >= uploadAttempts) {
+        attemptLogs.push(`${targetUrl} -> ${err.message}`);
+      }
+    }
     }
   }
 
@@ -356,10 +377,34 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
   throw new Error(detailedMsg);
 }
 
+/**
+ * Ensures a Cloudinary delivery URL carries the `f_auto` transformation.
+ *
+ * Phones upload in their native format (iOS sends HEIC), which Android and browsers cannot
+ * decode. `f_auto` lets Cloudinary transcode per request and `q_auto` trims the payload. Applied
+ * defensively so URLs already stored without a transformation still render.
+ */
+function withCloudinaryAutoFormat(url: string): string {
+  if (!url.includes('res.cloudinary.com')) return url;
+
+  const marker = '/upload/';
+  const idx = url.indexOf(marker);
+  if (idx < 0) return url;
+
+  const insertAt = idx + marker.length;
+  const rest = url.slice(insertAt);
+  if (/^[^/]*(^|,)(f_auto|f_)/.test(rest)) return url;
+
+  return `${url.slice(0, insertAt)}f_auto,q_auto/${rest}`;
+}
+
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (url.startsWith('file:') || url.startsWith('content:') || url.startsWith('data:')) {
     return url;
+  }
+  if (url.includes('res.cloudinary.com')) {
+    return withCloudinaryAutoFormat(url);
   }
   const workingHost = cachedWorkingBaseUrl || API_BASE_URL;
   if (url.includes('/api/files/')) {
