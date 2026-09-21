@@ -1,6 +1,7 @@
 import CartCard from '@/components/cart/InCartCard';
 import React, { useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path } from 'react-native-svg';

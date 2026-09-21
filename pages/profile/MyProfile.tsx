@@ -17,7 +17,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import TabBar from '@/components/Tabbar';
 import { FollowListModal } from '@/components/Profile/FollowListModal';
 import Post from '@/components/home/Post';
-import { fetchMyPosts, fetchSavedPosts, fetchRepostedPosts, BackendPost } from '@/lib/postService';
+import { RepostIcon } from '@/components/home/PostCard';
+import { fetchMyPosts, fetchSavedPosts, fetchRepostedPosts, fetchUserPosts, fetchUserReposts, BackendPost } from '@/lib/postService';
 import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
@@ -40,8 +41,6 @@ const getTabIconName = (tabName: string, isActive: boolean): keyof typeof Ionico
       return isActive ? 'bookmark' : 'bookmark-outline';
     case 'Orders':
       return isActive ? 'receipt' : 'receipt-outline';
-    case 'Tribes':
-      return isActive ? 'people' : 'people-outline';
     case 'Reposts':
       return isActive ? 'repeat' : 'repeat-outline';
     case 'Auction':
@@ -110,24 +109,6 @@ const ARTIST_PRODUCTS: ProductItem[] = [
     artist: 'by Anelia',
     price: '$38',
     image: require('../../assets/images/product4.jpg'),
-  },
-];
-
-const USER_SAVED_ITEMS: ProductItem[] = [
-  {
-    id: 's1',
-    title: 'Vintage Tour Hoodie',
-    artist: 'by Kenny K Shot',
-    price: '$59',
-    badge: 'NEW',
-    image: require('../../assets/images/product2.png'),
-  },
-  {
-    id: 's2',
-    title: 'Signed Vinyl LP',
-    artist: 'by Kenny K Shot',
-    price: '$45',
-    image: require('../../assets/images/drop1.jpg'),
   },
 ];
 
@@ -244,14 +225,14 @@ const MyProfile: React.FC = () => {
             const currentFullName = (route.params?.name || profileData?.fullName || user?.fullName || '').toLowerCase();
 
             const artistReleases = releases.filter(r => {
-              if (!r.artist) return true;
+              if (!r.artist) return false;
               if (currentUserId && String(r.artist.id) === String(currentUserId)) return true;
               if (currentUsername && r.artist.username && r.artist.username.toLowerCase() === currentUsername) return true;
               if (currentEmail && (r.artist as any).email && (r.artist as any).email.toLowerCase() === currentEmail) return true;
               if (currentFullName && (r.artist as any).fullName && (r.artist as any).fullName.toLowerCase() === currentFullName) return true;
               return false;
             });
-            setMusicReleases(artistReleases.length > 0 ? artistReleases : releases);
+            setMusicReleases(artistReleases);
           } else {
             setMusicReleases([]);
           }
@@ -347,24 +328,36 @@ const MyProfile: React.FC = () => {
     }, [route.params?.userId, isOtherUser])
   );
 
-  // Determine role based on session and route params
+  // Determine requested tab & role based on session and route params
+  const requestedTab = (route.params?.initialTab || route.params?.tab || route.params?.activeTab) as any;
+  const isMusicTabRequested = requestedTab === 'Music';
+
   const targetRole = isOtherUser
-    ? (route.params?.role || 'user')
-    : (sessionUser.role === 'ARTIST' ? 'artist' : (route.params?.role || 'user'));
+    ? (isMusicTabRequested ? 'artist' : (route.params?.role || 'user'))
+    : (sessionUser.role === 'ARTIST' || isMusicTabRequested ? 'artist' : (route.params?.role || 'user'));
 
   const [role, setRole] = useState<UserRole>(targetRole);
 
+  // Active Tab per role
+  const [artistTab, setArtistTab] = useState<'Feed' | 'Shop' | 'Music' | 'Concerts' | 'Analytics' | 'Saved' | 'Reposts'>(
+    isMusicTabRequested ? 'Music' : 'Feed'
+  );
+  const [userTab, setUserTab] = useState<'Feed' | 'Saved' | 'Orders' | 'Reposts'>('Feed');
+
   React.useEffect(() => {
-    if (!isOtherUser) {
+    const tabParam = route.params?.initialTab || route.params?.tab || route.params?.activeTab;
+    if (tabParam === 'Music') {
+      setRole('artist');
+      setArtistTab('Music');
+    } else if (tabParam && ['Feed', 'Shop', 'Music', 'Concerts', 'Analytics', 'Saved', 'Reposts'].includes(tabParam)) {
+      setArtistTab(tabParam as any);
+      if (route.params?.role) setRole(route.params.role);
+    } else if (!isOtherUser) {
       setRole(sessionUser.role === 'ARTIST' ? 'artist' : 'user');
     } else if (route.params?.role) {
       setRole(route.params.role);
     }
-  }, [sessionUser.role, route.params?.role, isOtherUser]);
-
-  // Active Tab per role
-  const [artistTab, setArtistTab] = useState<'Feed' | 'Shop' | 'Music' | 'Concerts' | 'Analytics' | 'Reposts'>('Feed');
-  const [userTab, setUserTab] = useState<'Feed' | 'Saved' | 'Orders' | 'Tribes' | 'Reposts'>('Feed');
+  }, [sessionUser.role, route.params?.role, route.params?.initialTab, route.params?.tab, route.params?.activeTab, isOtherUser]);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
@@ -381,27 +374,46 @@ const MyProfile: React.FC = () => {
     setFollowModalVisible(true);
   };
 
-  // Load own posts, saved posts & reposted posts from real backend API
+  // The numeric user ID for API calls
+  const targetUserId: number = isOtherUser
+    ? (Number(route.params?.userId) || 0)
+    : (sessionUser?.id || 0);
+
+  // Load own posts or target artist posts, saved posts & reposted posts from real backend API
   useFocusEffect(
     React.useCallback(() => {
-      fetchMyPosts(0, 20)
-        .then((res) => {
-          if (res?.content) setMyRealPosts(res.content);
-        })
-        .catch((err) => console.error('Error fetching my posts:', err));
+      if (isOtherUser && targetUserId > 0) {
+        fetchUserPosts(targetUserId, 0, 20)
+          .then((res) => {
+            if (res?.content) setMyRealPosts(res.content);
+          })
+          .catch((err) => console.error('Error fetching artist posts:', err));
 
-      fetchSavedPosts(0, 20)
-        .then((res) => {
-          if (res?.content) setSavedRealPosts(res.content);
-        })
-        .catch((err) => console.error('Error fetching saved posts:', err));
+        fetchUserReposts(targetUserId, 0, 20)
+          .then((res) => {
+            if (res?.content) setRepostedRealPosts(res.content);
+          })
+          .catch((err) => console.error('Error fetching user reposts:', err));
+      } else {
+        fetchMyPosts(0, 20)
+          .then((res) => {
+            if (res?.content) setMyRealPosts(res.content);
+          })
+          .catch((err) => console.error('Error fetching my posts:', err));
 
-      fetchRepostedPosts(0, 20)
-        .then((res) => {
-          if (res?.content) setRepostedRealPosts(res.content);
-        })
-        .catch((err) => console.error('Error fetching reposted posts:', err));
-    }, [])
+        fetchSavedPosts(0, 20)
+          .then((res) => {
+            if (res?.content) setSavedRealPosts(res.content);
+          })
+          .catch((err) => console.error('Error fetching saved posts:', err));
+
+        fetchRepostedPosts(0, 20)
+          .then((res) => {
+            if (res?.content) setRepostedRealPosts(res.content);
+          })
+          .catch((err) => console.error('Error fetching reposted posts:', err));
+      }
+    }, [isOtherUser, targetUserId])
   );
 
   // Use real profile data when available, fallback to params/session
@@ -412,17 +424,14 @@ const MyProfile: React.FC = () => {
     ? `@${profileData.username}`
     : (isOtherUser ? `@${route.params?.username || 'user'}` : `@${sessionUser.username || 'user'}`);
 
-  const profilePictureUri = profileData?.profilePicture || null;
+  const profilePictureUri = profileData?.profilePicture ? resolveImageUrl(profileData.profilePicture) : null;
   const avatarSource = profilePictureUri
     ? { uri: profilePictureUri }
     : (isOtherUser
-      ? (route.params?.avatar || require('../../assets/images/feed6.jpg'))
+      ? (route.params?.avatar
+        ? (typeof route.params.avatar === 'string' ? { uri: resolveImageUrl(route.params.avatar) } : route.params.avatar)
+        : require('../../assets/images/feed6.jpg'))
       : (role === 'artist' ? require('../../assets/images/black-man.png') : require('../../assets/images/profile.jpg')));
-
-  // The numeric user ID for API calls
-  const targetUserId: number = isOtherUser
-    ? (Number(route.params?.userId) || 0)
-    : (sessionUser?.id || 0);
 
   const handleShareStash = async () => {
     try {
@@ -457,14 +466,37 @@ const MyProfile: React.FC = () => {
     }
   };
 
+  const handleSavedPostToggle = (postId: number, isSaved: boolean) => {
+    if (!isSaved) {
+      setSavedRealPosts((prev) => prev.filter((p) => p.id !== postId));
+    } else if (isOwnProfile) {
+      fetchSavedPosts(0, 20)
+        .then((res) => {
+          if (res?.content) setSavedRealPosts(res.content);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleRepostedPostToggle = (postId: number, isReposted: boolean) => {
+    if (!isReposted && isOwnProfile) {
+      setRepostedRealPosts((prev) => prev.filter((p) => p.id !== postId));
+    } else if (isReposted && isOwnProfile) {
+      fetchRepostedPosts(0, 20)
+        .then((res) => {
+          if (res?.content) setRepostedRealPosts(res.content);
+        })
+        .catch(() => {});
+    }
+  };
 
   const artistTabList = isOwnProfile
-    ? (['Feed', 'Shop', 'Music', 'Analytics', 'Reposts'] as const)
+    ? (['Feed', 'Shop', 'Music', 'Analytics', 'Saved', 'Reposts'] as const)
     : (['Feed', 'Shop', 'Music', 'Reposts'] as const);
 
   const userTabList = isOwnProfile
-    ? (['Feed', 'Saved', 'Orders', 'Tribes', 'Reposts'] as const)
-    : (['Feed', 'Reposts', 'Tribes'] as const);
+    ? (['Feed', 'Saved', 'Orders', 'Reposts'] as const)
+    : (['Feed', 'Reposts'] as const);
 
   return (
     <View style={styles.container}>
@@ -513,7 +545,7 @@ const MyProfile: React.FC = () => {
 
                 <TouchableOpacity
                   activeOpacity={0.7}
-                  onPress={() => (role === 'artist' ? setArtistTab('Shop') : setUserTab(isOwnProfile ? 'Orders' : 'Tribes'))}
+                  onPress={() => (role === 'artist' ? setArtistTab('Shop') : setUserTab(isOwnProfile ? 'Orders' : 'Feed'))}
                 >
                   <Text style={styles.statText}>
                     <Text style={styles.statNumber}>{role === 'artist' ? myRealPosts.length : '0'}</Text> {role === 'artist' ? 'Posts' : 'Orders'}
@@ -590,31 +622,6 @@ const MyProfile: React.FC = () => {
               <Ionicons name="menu-outline" size={24} color="#111" />
             </TouchableOpacity>
           </View>
-
-          {/* Artist Exclusive Tribe Broadcast Channel */}
-          {role === 'artist' && profileData?.fandomName && (
-            <TouchableOpacity
-              style={styles.tribeChannelCard}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('MessagesScreen')}
-            >
-              <View style={styles.tribeIconContainer}>
-                <Ionicons name="people" size={20} color="#7126D0" />
-              </View>
-              <View style={styles.tribeInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.tribeTitle}>{profileData.fandomName} Tribe Channel</Text>
-                  <View style={styles.officialBadge}>
-                    <Text style={styles.officialBadgeText}>Official</Text>
-                  </View>
-                </View>
-                <Text style={styles.tribeSub}>Exclusive fan chatter & drops</Text>
-              </View>
-              <View style={styles.joinTribeBtn}>
-                <Text style={styles.joinTribeText}>Join</Text>
-              </View>
-            </TouchableOpacity>
-          )}
 
 
 
@@ -698,7 +705,11 @@ const MyProfile: React.FC = () => {
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
                     onPress={() => setArtistTab(tab as any)}
                   >
-                    <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    {tab === 'Reposts' ? (
+                      <RepostIcon size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    ) : (
+                      <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    )}
                   </TouchableOpacity>
                 );
               })
@@ -710,7 +721,11 @@ const MyProfile: React.FC = () => {
                     style={[styles.tabItem, isActive && styles.activeTabItem]}
                     onPress={() => setUserTab(tab as any)}
                   >
-                    <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    {tab === 'Reposts' ? (
+                      <RepostIcon size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    ) : (
+                      <Ionicons name={getTabIconName(tab, isActive)} size={22} color={isActive ? PURPLE : '#6B7280'} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -724,6 +739,8 @@ const MyProfile: React.FC = () => {
               onAddPostPress={() => navigation.navigate('CreatePost')}
               isArtist={isOwnProfile && role === 'artist'}
               emptyMessage={isOwnProfile ? "No posts yet. Share your first drop with your fans!" : "No posts yet."}
+              onSaveToggle={handleSavedPostToggle}
+              onRepostToggle={handleRepostedPostToggle}
             />
           </View>
         )}
@@ -811,41 +828,15 @@ const MyProfile: React.FC = () => {
           </View>
         )}
 
-        {/* 3. Saved Tab (User) */}
-        {role === 'user' && userTab === 'Saved' && (
-          <View style={{ width: '100%' }}>
-            {savedRealPosts.length > 0 ? (
-              <Post posts={savedRealPosts} />
-            ) : (
-              <View style={styles.shopGrid}>
-                {USER_SAVED_ITEMS.map(item => (
-                  <View key={item.id} style={styles.productCard}>
-                    <View style={styles.productImgWrap}>
-                      <Image source={item.image} style={styles.productImg} />
-                      {item.badge && (
-                        <View style={[styles.badgePill, styles.badgeNew]}>
-                          <Text style={styles.badgeText}>{item.badge}</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.productInfo}>
-                      <Text style={styles.productTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.productArtist}>{item.artist}</Text>
-
-                      <View style={styles.productPriceRow}>
-                        <Text style={styles.productPrice}>{item.price}</Text>
-                        <TouchableOpacity style={styles.cartIconBtn}>
-                          <Ionicons name="bag-handle-outline" size={16} color={PURPLE} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
+        {/* 3. Saved Tab (User & Artist Own Profile) */}
+        {isOwnProfile && ((role === 'user' && userTab === 'Saved') || (role === 'artist' && artistTab === 'Saved')) && (
+          <View style={styles.tabContent}>
+            <Post
+              posts={savedRealPosts}
+              emptyMessage="No saved posts yet. Posts you save will appear here."
+              onSaveToggle={handleSavedPostToggle}
+              onRepostToggle={handleRepostedPostToggle}
+            />
           </View>
         )}
 
@@ -979,28 +970,7 @@ const MyProfile: React.FC = () => {
           </View>
         )}
 
-        {/* 6. Tribes Tab (User) */}
-        {role === 'user' && userTab === 'Tribes' && (
-          <View style={styles.tabContent}>
-            {[
-              { name: 'CelebStash Collectors', members: '3.4k members', img: require('../../assets/images/drop1.jpg') },
-              { name: 'Ambient Soundscapes Club', members: '1.2k members', img: require('../../assets/images/product1.jpg') },
-            ].map((tribe, idx) => (
-              <View key={idx} style={styles.releaseRow}>
-                <Image source={tribe.img} style={styles.releaseThumb} />
-                <View style={styles.releaseInfo}>
-                  <Text style={styles.releaseTitle}>{tribe.name}</Text>
-                  <Text style={styles.releaseArtist}>{tribe.members}</Text>
-                </View>
-                <TouchableOpacity style={styles.streamBtn}>
-                  <Text style={styles.streamBtnText}>Joined</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* 7. Concerts Tab (Artist) */}
+        {/* 6. Concerts Tab (Artist) */}
         {role === 'artist' && artistTab === 'Concerts' && (
           <View style={styles.tabContent}>
             {[
@@ -1085,12 +1055,26 @@ const MyProfile: React.FC = () => {
           </View>
         )}
 
+        {/* 8.5. Saved Tab (Artist & User) */}
+        {((role === 'artist' && artistTab === 'Saved') || (role === 'user' && userTab === 'Saved')) && (
+          <View style={styles.tabContent}>
+            <Post
+              posts={savedRealPosts}
+              emptyMessage={isOwnProfile ? "No saved posts yet." : "This user hasn't saved any posts yet."}
+              onSaveToggle={handleSavedPostToggle}
+              onRepostToggle={handleRepostedPostToggle}
+            />
+          </View>
+        )}
+
         {/* 9. Reposts Tab (Artist & User) */}
         {((role === 'artist' && artistTab === 'Reposts') || (role === 'user' && userTab === 'Reposts')) && (
           <View style={styles.tabContent}>
             <Post
               posts={repostedRealPosts}
-              emptyMessage={isOwnProfile ? "No reposted posts yet." : "This user hasn't reposted any posts yet."}
+              emptyMessage={isOwnProfile ? "No reposts yet." : "This user hasn't reposted any posts yet."}
+              onSaveToggle={handleSavedPostToggle}
+              onRepostToggle={handleRepostedPostToggle}
             />
           </View>
         )}

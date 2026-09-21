@@ -16,8 +16,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { getSessionToken } from '@/lib/session';
-import { API_BASE_URL } from '@/lib/apiClient';
+import { getSessionToken, getSessionUser } from '@/lib/session';
+import { API_BASE_URL, getWorkingBaseUrl } from '@/lib/apiClient';
 
 const PURPLE = '#7126D0';
 
@@ -31,10 +31,20 @@ interface TrackItem {
   featuredArtists: string;
   trackStory: string;
   isExplicit: boolean;
+  isBonusTrack?: boolean;
 }
 
 export default function UploadMusicScreen() {
   const navigation = useNavigation<any>();
+
+  React.useEffect(() => {
+    const user = getSessionUser();
+    if (!user || (user.role !== 'ARTIST' && user.role !== 'ADMIN')) {
+      Alert.alert('Permission Denied', 'Only verified artists have permission to upload music releases.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    }
+  }, []);
 
   // Release Information
   const [releaseType, setReleaseType] = useState<'SINGLE' | 'EP' | 'ALBUM' | 'MULTIPLE_TRACKS'>('SINGLE');
@@ -47,6 +57,20 @@ export default function UploadMusicScreen() {
   const [publicReleaseDate, setPublicReleaseDate] = useState('October 30, 2026');
   const [copyrightInfo, setCopyrightInfo] = useState('');
   const [credits, setCredits] = useState('');
+
+  // Access Benefits Configuration
+  const [earlyAccessEnabled, setEarlyAccessEnabled] = useState(false);
+  const [earlyAccessDate, setEarlyAccessDate] = useState('October 15, 2026');
+  const [fullListeningEnabled, setFullListeningEnabled] = useState(true);
+  const [exclusiveContentEnabled, setExclusiveContentEnabled] = useState(false);
+  const [downloadAccessEnabled, setDownloadAccessEnabled] = useState(true);
+  const [communityAccessEnabled, setCommunityAccessEnabled] = useState(true);
+  const [merchAccessEnabled, setMerchAccessEnabled] = useState(false);
+  const [eventAccessEnabled, setEventAccessEnabled] = useState(false);
+  const [bonusTracksEnabled, setBonusTracksEnabled] = useState(false);
+  const [customBenefitEnabled, setCustomBenefitEnabled] = useState(false);
+  const [customBenefitName, setCustomBenefitName] = useState('');
+  const [customBenefitDesc, setCustomBenefitDesc] = useState('');
 
   // Access Package & Pricing
   const [albumPrice, setAlbumPrice] = useState('9.99');
@@ -68,6 +92,7 @@ export default function UploadMusicScreen() {
       featuredArtists: '',
       trackStory: '',
       isExplicit: false,
+      isBonusTrack: false,
     },
   ]);
   const [expandedTrackIdx, setExpandedTrackIdx] = useState<number | null>(0);
@@ -148,7 +173,7 @@ export default function UploadMusicScreen() {
     }
   };
 
-  const handleUpload = async () => {
+  const handleUpload = async (targetStatus: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED') => {
     if (!title.trim()) {
       Alert.alert('Missing Title', 'Please enter a release title');
       return;
@@ -181,6 +206,29 @@ export default function UploadMusicScreen() {
       formData.append('albumPrice', albumPrice);
       formData.append('defaultPlayLimit', String(defaultPlayLimit));
       formData.append('accessType', accessType);
+      formData.append('status', targetStatus);
+      formData.append('downloadAllowed', String(downloadAccessEnabled));
+
+      // Configured Benefits JSON
+      const benefitsList: any[] = [
+        { benefitType: 'EARLY_ACCESS', enabled: earlyAccessEnabled, configData: earlyAccessDate },
+        { benefitType: 'FULL_LISTENING', enabled: fullListeningEnabled },
+        { benefitType: 'EXCLUSIVE_CONTENT', enabled: exclusiveContentEnabled },
+        { benefitType: 'DOWNLOAD_ACCESS', enabled: downloadAccessEnabled },
+        { benefitType: 'COMMUNITY_ACCESS', enabled: communityAccessEnabled },
+        { benefitType: 'MERCH_ACCESS', enabled: merchAccessEnabled },
+        { benefitType: 'EVENT_ACCESS', enabled: eventAccessEnabled },
+        { benefitType: 'BONUS_TRACKS', enabled: bonusTracksEnabled },
+      ];
+      if (customBenefitEnabled && customBenefitName.trim()) {
+        benefitsList.push({
+          benefitType: 'CUSTOM',
+          enabled: true,
+          customName: customBenefitName.trim(),
+          customDescription: customBenefitDesc.trim(),
+        });
+      }
+      formData.append('benefitsJson', JSON.stringify(benefitsList));
 
       // Cover art file
       const coverExt = coverArtUri.split('.').pop() || 'jpg';
@@ -199,6 +247,7 @@ export default function UploadMusicScreen() {
         formData.append('trackFeaturedArtists', tr.featuredArtists || '');
         formData.append('trackStories', tr.trackStory || '');
         formData.append('trackExplicits', String(tr.isExplicit));
+        formData.append('trackIsBonus', String(tr.isBonusTrack || false));
 
         const audioExt = tr.fileName.split('.').pop() || 'mp3';
         formData.append('trackFiles', {
@@ -208,7 +257,8 @@ export default function UploadMusicScreen() {
         } as any);
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/music/releases/upload`, {
+      const baseUrl = getWorkingBaseUrl();
+      const response = await fetch(`${baseUrl}/api/music/releases/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -221,10 +271,16 @@ export default function UploadMusicScreen() {
         throw new Error(errJson.message || `Upload failed (${response.status})`);
       }
 
-      Alert.alert('Success!', 'Your unreleased music has been published directly to the marketplace.', [
-        { text: 'View Profile', onPress: () => navigation.navigate('ArtProfile' as any) },
-        { text: 'View Marketplace', onPress: () => navigation.navigate('MusicScreen' as any) },
-      ]);
+      Alert.alert(
+        targetStatus === 'DRAFT' ? 'Draft Saved!' : 'Release Published!',
+        targetStatus === 'DRAFT'
+          ? 'Your release has been saved as a draft. You can review and publish it from your Artist Studio.'
+          : 'Your music release has been published directly to fans!',
+        [
+          { text: 'Artist Studio', onPress: () => navigation.navigate('ArtProfile' as any) },
+          { text: 'View Releases', onPress: () => navigation.navigate('AllReleases' as any) },
+        ]
+      );
     } catch (err: any) {
       Alert.alert('Upload Failed', err.message || 'Something went wrong while uploading music');
     } finally {
@@ -553,20 +609,211 @@ export default function UploadMusicScreen() {
                       thumbColor="#FFF"
                     />
                   </View>
+
+                  <View style={[styles.switchRow, { marginTop: 6 }]}>
+                    <Text style={styles.switchLabel}>Bonus Track (Exclusive Benefit)</Text>
+                    <Switch
+                      value={tr.isBonusTrack || false}
+                      onValueChange={(val) => {
+                        const updated = [...tracks];
+                        updated[idx].isBonusTrack = val;
+                        setTracks(updated);
+                      }}
+                      trackColor={{ false: '#D1D5DB', true: PURPLE }}
+                      thumbColor="#FFF"
+                    />
+                  </View>
                 </View>
               )}
             </View>
           );
         })}
 
-        {/* Submit Button */}
-        <TouchableOpacity style={styles.submitBtn} onPress={handleUpload} disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.submitBtnText}>Publish Release</Text>
-          )}
-        </TouchableOpacity>
+        {/* Direct-to-Fan Access Benefits Configuration Matrix */}
+        <View style={styles.sectionDivider} />
+        <Text style={styles.sectionHeading}>Access Benefits Configuration</Text>
+        <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#6B7280', marginTop: 2, marginBottom: 12 }}>
+          Choose what fans unlock when they purchase Access to this release.
+        </Text>
+
+        {/* 1. Full Audio Streaming */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Full Audio Streaming</Text>
+            <Text style={styles.benefitToggleSub}>Unlimited full-length streaming for Access holders</Text>
+          </View>
+          <Switch
+            value={fullListeningEnabled}
+            onValueChange={setFullListeningEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 2. Download Access */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>High-Quality Downloads</Text>
+            <Text style={styles.benefitToggleSub}>Allow fans to download uncompressed audio tracks</Text>
+          </View>
+          <Switch
+            value={downloadAccessEnabled}
+            onValueChange={setDownloadAccessEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 3. Early Access */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Early Access Streaming</Text>
+            <Text style={styles.benefitToggleSub}>Provide access before official public launch date</Text>
+          </View>
+          <Switch
+            value={earlyAccessEnabled}
+            onValueChange={setEarlyAccessEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+        {earlyAccessEnabled && (
+          <View style={styles.benefitSubConfigBox}>
+            <Text style={styles.fieldLabel}>Early Access Date</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. October 15, 2026"
+              value={earlyAccessDate}
+              onChangeText={setEarlyAccessDate}
+            />
+          </View>
+        )}
+
+        {/* 4. Community Access */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Artist Fan Community</Text>
+            <Text style={styles.benefitToggleSub}>Automatic entry to the private release discussion channel</Text>
+          </View>
+          <Switch
+            value={communityAccessEnabled}
+            onValueChange={setCommunityAccessEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 5. Exclusive Media Content */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Exclusive Media & BTS</Text>
+            <Text style={styles.benefitToggleSub}>Behind-the-scenes videos, photo sets, and studio footage</Text>
+          </View>
+          <Switch
+            value={exclusiveContentEnabled}
+            onValueChange={setExclusiveContentEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 6. Merchandise Access */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Exclusive Merch Access</Text>
+            <Text style={styles.benefitToggleSub}>Connect your stash products with special access</Text>
+          </View>
+          <Switch
+            value={merchAccessEnabled}
+            onValueChange={setMerchAccessEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 7. Event & Concert Access */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Event & Concert Tickets</Text>
+            <Text style={styles.benefitToggleSub}>Priority tickets or passes to your concerts</Text>
+          </View>
+          <Switch
+            value={eventAccessEnabled}
+            onValueChange={setEventAccessEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 8. Bonus Tracks */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Bonus Tracks</Text>
+            <Text style={styles.benefitToggleSub}>Mark tracks in the tracklist as unreleased bonus tracks</Text>
+          </View>
+          <Switch
+            value={bonusTracksEnabled}
+            onValueChange={setBonusTracksEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+
+        {/* 9. Custom Benefit */}
+        <View style={styles.benefitToggleCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.benefitToggleTitle}>Custom Artist Benefit</Text>
+            <Text style={styles.benefitToggleSub}>Offer a unique custom experience or perk</Text>
+          </View>
+          <Switch
+            value={customBenefitEnabled}
+            onValueChange={setCustomBenefitEnabled}
+            trackColor={{ false: '#D1D5DB', true: PURPLE }}
+            thumbColor="#FFF"
+          />
+        </View>
+        {customBenefitEnabled && (
+          <View style={styles.benefitSubConfigBox}>
+            <Text style={styles.fieldLabel}>Custom Benefit Title</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. Free VIP Meet & Greet Pass"
+              value={customBenefitName}
+              onChangeText={setCustomBenefitName}
+            />
+            <Text style={styles.fieldLabel}>Benefit Description</Text>
+            <TextInput
+              style={[styles.textInput, { height: 60 }]}
+              placeholder="Details on how fans can claim this benefit..."
+              multiline
+              value={customBenefitDesc}
+              onChangeText={setCustomBenefitDesc}
+            />
+          </View>
+        )}
+
+        {/* Dual Actions: Save as Draft vs Publish Release */}
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 40 }}>
+          <TouchableOpacity
+            style={[styles.submitBtn, { flex: 1, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#D1D5DB' }]}
+            onPress={() => handleUpload('DRAFT')}
+            disabled={submitting}
+          >
+            <Text style={[styles.submitBtnText, { color: '#374151' }]}>Save as Draft</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.submitBtn, { flex: 1.5 }]}
+            onPress={() => handleUpload('PUBLISHED')}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>Publish Release</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -784,14 +1031,45 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     backgroundColor: PURPLE,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 20,
+    justifyContent: 'center',
   },
   submitBtnText: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Poppins-Bold',
+  },
+  benefitToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+    marginBottom: 8,
+  },
+  benefitToggleTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+  },
+  benefitToggleSub: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  benefitSubConfigBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+    marginTop: -4,
+    marginBottom: 8,
   },
 });

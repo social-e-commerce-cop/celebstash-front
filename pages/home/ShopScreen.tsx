@@ -21,6 +21,7 @@ import LatestDrops from '@/components/home/LatestDrops';
 import UpcomingDrops from '@/components/home/UpcomingDrops';
 import { productsService, ProductItem } from '@/lib/productsService';
 import { formatPrice } from '@/lib/currency';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
 const H_PAD = 20;
@@ -80,12 +81,17 @@ export default function ShopScreen() {
   }, [products, activeCategory, search]);
 
   const navigateToProduct = (product?: ProductItem) => {
-    const mainImg = product?.imageUrls && product.imageUrls.length > 0 ? product.imageUrls[0] : product?.imageUrl;
+    const imageUrls = product?.imageUrls;
+    const rawMainImg = imageUrls && imageUrls.length > 0 ? imageUrls[0] : product?.imageUrl;
+    const mainImg = rawMainImg ? resolveImageUrl(rawMainImg) : null;
+    const resolvedImageUrls = Array.isArray(imageUrls) && imageUrls.length > 0
+      ? imageUrls.map(u => resolveImageUrl(u))
+      : (mainImg ? [mainImg] : []);
     navigation.navigate('ProductDetails', {
       name: product?.name ?? 'Indorerwamo Collection',
       price: product?.price ?? 30,
       image: mainImg ? { uri: mainImg } : require('../../assets/images/products/product1.jpg'),
-      imageUrls: Array.isArray(product?.imageUrls) && product.imageUrls.length > 0 ? product.imageUrls : (mainImg ? [mainImg] : []),
+      imageUrls: resolvedImageUrls,
       description: product?.description || 'Exclusive limited merchandise from your favorite artist.',
       artistName: product?.sellerName ?? 'Kenny K Shot',
       verified: true,
@@ -97,10 +103,12 @@ export default function ShopScreen() {
   };
 
   const renderProduct = ({ item, index }: { item: ProductItem; index: number }) => {
-    const prodImg = (item.imageUrls && item.imageUrls.length > 0)
-      ? { uri: item.imageUrls[0] }
-      : item.imageUrl
-      ? { uri: item.imageUrl }
+    const rawImg = (item.imageUrls && item.imageUrls.length > 0)
+      ? item.imageUrls[0]
+      : item.imageUrl;
+    const resolvedUri = rawImg ? resolveImageUrl(rawImg) : null;
+    const prodImg = resolvedUri
+      ? { uri: resolvedUri }
       : require('../../assets/images/products/product1.jpg');
 
     return (

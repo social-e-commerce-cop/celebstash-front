@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Song } from './libraryStore';
-import { createAudioPlayer } from 'expo-audio';
 
 let currentSong: Song | null = null;
 let isPlaying: boolean = false;
 let currentTime: number = 0; // in seconds
 let durationSeconds: number = 0; // total seconds of current song
 let timerId: any = null;
+
+// Native player instance (expo-audio)
 let expoPlayer: any = null;
+
+// Web player instance (HTML5 Audio)
+let webAudio: any = null;
 
 const playerListeners = new Set<() => void>();
 
@@ -16,29 +21,130 @@ const notify = () => playerListeners.forEach(l => l());
 const parseDuration = (dur?: string): number => {
   if (!dur) return 180; // 3 mins default
   const parts = dur.split(':').map(Number);
-  if (parts.length === 2) {
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
     return parts[0] * 60 + parts[1];
   }
   return 180;
 };
 
-// Initialize or get the single audio player instance
-const getExpoPlayer = (sourceUrl: string) => {
-  if (!expoPlayer) {
-    try {
-      expoPlayer = createAudioPlayer(sourceUrl);
-      expoPlayer.loop = false;
-    } catch (err) {
-      console.log("Error creating expoPlayer:", err);
-    }
-  } else {
-    try {
-      expoPlayer.replace(sourceUrl);
-    } catch (err) {
-      console.log("Error replacing expoPlayer source:", err);
-    }
+const getEffectiveAudioUrl = (song: Song): string => {
+  if (song.audioUrl && typeof song.audioUrl === 'string' && song.audioUrl.trim().length > 0) {
+    return song.audioUrl;
   }
-  return expoPlayer;
+  // Safe reliable preview stream fallback if no backend audio file was attached
+  return 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+};
+
+/**
+ * Setup or update Web HTML5 Audio Element
+ */
+const playWebAudio = (url: string) => {
+  try {
+    if (!webAudio) {
+      webAudio = new window.Audio(url);
+      webAudio.preload = 'auto';
+    } else {
+      if (webAudio.src !== url) {
+        webAudio.src = url;
+      }
+    }
+
+    webAudio.ontimeupdate = () => {
+      currentTime = Math.floor(webAudio.currentTime || 0);
+      if (webAudio.duration && !isNaN(webAudio.duration) && webAudio.duration > 0) {
+        durationSeconds = Math.round(webAudio.duration);
+      }
+      notify();
+    };
+
+    webAudio.onended = () => {
+      isPlaying = false;
+      currentTime = 0;
+      notify();
+    };
+
+    webAudio.onerror = (e: any) => {
+      console.warn('HTML5 Audio playback error:', e);
+      // If custom stream failed, fallback to public sample track
+      if (webAudio.src !== 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3') {
+        webAudio.src = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+        webAudio.play().catch(() => {});
+      }
+    };
+
+    webAudio.play().then(() => {
+      isPlaying = true;
+      notify();
+    }).catch((err: any) => {
+      console.warn('webAudio play catch:', err);
+      isPlaying = true;
+      startFallbackTimer();
+      notify();
+    });
+  } catch (err) {
+    console.warn('playWebAudio exception:', err);
+    isPlaying = true;
+    startFallbackTimer();
+    notify();
+  }
+};
+
+/**
+ * Setup or update Native Expo Audio Player
+ */
+const playNativeAudio = (url: string) => {
+  try {
+    const { createAudioPlayer } = require('expo-audio');
+    if (!expoPlayer) {
+      expoPlayer = createAudioPlayer(url);
+      expoPlayer.loop = false;
+    } else {
+      expoPlayer.replace(url);
+    }
+    expoPlayer.play();
+    isPlaying = true;
+    startNativeTimer();
+    notify();
+  } catch (err) {
+    console.warn('playNativeAudio exception:', err);
+    isPlaying = true;
+    startFallbackTimer();
+    notify();
+  }
+};
+
+const startNativeTimer = () => {
+  if (timerId) clearInterval(timerId);
+  timerId = setInterval(() => {
+    if (expoPlayer) {
+      try {
+        currentTime = Math.floor(expoPlayer.currentTime || 0);
+        if (expoPlayer.duration && expoPlayer.duration > 0) {
+          durationSeconds = Math.round(expoPlayer.duration);
+        }
+        if (currentTime >= durationSeconds && durationSeconds > 0) {
+          currentTime = 0;
+          expoPlayer.seekTo(0);
+          isPlaying = false;
+        }
+        notify();
+      } catch (e) {}
+    }
+  }, 500);
+};
+
+const startFallbackTimer = () => {
+  if (timerId) clearInterval(timerId);
+  timerId = setInterval(() => {
+    if (isPlaying) {
+      currentTime += 1;
+      if (currentTime >= durationSeconds && durationSeconds > 0) {
+        currentTime = 0;
+        isPlaying = false;
+      }
+      notify();
+    }
+  }, 1000);
 };
 
 export const getPlayerState = () => ({
@@ -49,45 +155,42 @@ export const getPlayerState = () => ({
 });
 
 export const playSong = (song: Song) => {
-  if (currentSong?.id !== song.id) {
-    currentSong = song;
-    currentTime = 0;
+  const isDifferent = currentSong?.id !== song.id;
+  currentSong = song;
+  durationSeconds = song.durationSeconds || parseDuration(song.duration);
 
-    // Use a fast, reliable public test MP3 stream URL
-    const audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-    const playerInstance = getExpoPlayer(audioUrl);
-    if (playerInstance) {
-      try {
-        playerInstance.play();
-      } catch (err) {
-        console.log("Error playing expoPlayer:", err);
-      }
-    }
-    durationSeconds = parseDuration(song.duration);
-  } else {
-    if (expoPlayer) {
-      try {
-        expoPlayer.play();
-      } catch (err) {
-        console.log("Error playing expoPlayer:", err);
-      }
-    }
+  if (isDifferent) {
+    currentTime = 0;
   }
+
+  const url = getEffectiveAudioUrl(song);
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    playWebAudio(url);
+  } else {
+    playNativeAudio(url);
+  }
+
   isPlaying = true;
-  startTimer();
   notify();
 };
 
 export const pauseSong = () => {
   isPlaying = false;
+  if (Platform.OS === 'web' && webAudio) {
+    try {
+      webAudio.pause();
+    } catch (e) {}
+  }
   if (expoPlayer) {
     try {
       expoPlayer.pause();
-    } catch (err) {
-      console.log("Error pausing expoPlayer:", err);
-    }
+    } catch (e) {}
   }
-  stopTimer();
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
   notify();
 };
 
@@ -96,14 +199,21 @@ export const resetPlayer = () => {
   isPlaying = false;
   currentTime = 0;
   durationSeconds = 0;
+  if (Platform.OS === 'web' && webAudio) {
+    try {
+      webAudio.pause();
+      webAudio.currentTime = 0;
+    } catch (e) {}
+  }
   if (expoPlayer) {
     try {
       expoPlayer.pause();
-    } catch (err) {
-      console.log("Error pausing expoPlayer during reset:", err);
-    }
+    } catch (e) {}
   }
-  stopTimer();
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
   notify();
 };
 
@@ -112,68 +222,29 @@ export const togglePlay = () => {
   if (isPlaying) {
     pauseSong();
   } else {
-    isPlaying = true;
-    if (expoPlayer) {
-      try {
-        expoPlayer.play();
-      } catch (err) {
-        console.log("Error playing expoPlayer:", err);
-      }
-    }
-    startTimer();
-    notify();
+    playSong(currentSong);
   }
 };
 
 export const seekTo = (seconds: number) => {
   currentTime = Math.max(0, Math.min(seconds, durationSeconds));
+  if (Platform.OS === 'web' && webAudio) {
+    try {
+      webAudio.currentTime = currentTime;
+    } catch (e) {}
+  }
   if (expoPlayer) {
     try {
-      expoPlayer.seekTo(seconds);
-    } catch (err) {
-      console.log("Error seeking expoPlayer:", err);
-    }
+      expoPlayer.seekTo(currentTime);
+    } catch (e) {}
   }
   notify();
 };
 
-const startTimer = () => {
-  if (timerId) clearInterval(timerId);
-  timerId = setInterval(() => {
-    if (expoPlayer) {
-      try {
-        // Sync with actual player state
-        currentTime = Math.floor(expoPlayer.currentTime || 0);
-        if (expoPlayer.duration && expoPlayer.duration > 0) {
-          durationSeconds = Math.round(expoPlayer.duration);
-        }
-        if (currentTime >= durationSeconds && durationSeconds > 0) {
-          currentTime = 0;
-          expoPlayer.seekTo(0);
-        }
-      } catch (err) {
-        console.log("Error ticking expoPlayer:", err);
-      }
-    } else {
-      currentTime += 1;
-      if (currentTime >= durationSeconds) {
-        currentTime = 0;
-      }
-    }
-    notify();
-  }, 500); // Ticks twice a second for high responsiveness
-};
-
-const stopTimer = () => {
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
-  }
-};
-
 export const formatTime = (secs: number) => {
-  const mins = Math.floor(secs / 60);
-  const remainingSecs = Math.floor(secs % 60);
+  const safeSecs = Math.max(0, Math.floor(secs || 0));
+  const mins = Math.floor(safeSecs / 60);
+  const remainingSecs = Math.floor(safeSecs % 60);
   return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
 };
 

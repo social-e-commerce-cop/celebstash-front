@@ -9,10 +9,29 @@ import {
   Dimensions,
   StatusBar
 } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+import { Platform } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+
+let MapView: any = null;
+let Marker: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+  } catch (e) {
+    console.warn('Could not load react-native-maps', e);
+  }
+}
+
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
 
 const { width, height } = Dimensions.get('window');
 const mapHeight = height * 0.3;
@@ -134,13 +153,19 @@ const AddAddressForm: React.FC = () => {
 
       {/* Map */}
       <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          region={region}
-          onRegionChangeComplete={(newRegion) => setRegion(newRegion)}
-        >
-          <Marker coordinate={region} pinColor="orange" />
-        </MapView>
+        {Platform.OS !== 'web' && MapView ? (
+          <MapView
+            style={styles.map}
+            region={region}
+            onRegionChangeComplete={(newRegion: any) => setRegion(newRegion)}
+          >
+            {Marker && <Marker coordinate={region} pinColor="orange" />}
+          </MapView>
+        ) : (
+          <View style={[styles.map, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }]}>
+            <Text style={{ color: '#64748b' }}>Map view is available on mobile devices</Text>
+          </View>
+        )}
       </View>
 
       {/* Add Address Button */}

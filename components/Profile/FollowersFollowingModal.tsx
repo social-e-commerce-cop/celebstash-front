@@ -18,6 +18,7 @@ import { useNavigation, StackActions } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { followService, FollowUser } from '@/lib/followService';
 import { getSessionUser } from '@/lib/session';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { height, width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -112,7 +113,7 @@ const FollowersFollowingModal: React.FC<FollowersFollowingModalProps> = ({
       id: user.id,
       fullName: user.fullName || user.username,
       username: user.username,
-      avatar: user.profilePicture ? { uri: user.profilePicture } : require('../../assets/images/profile.jpg'),
+      avatar: user.profilePicture ? { uri: resolveImageUrl(user.profilePicture) } : require('../../assets/images/profile.jpg'),
       verified: user.accountVerified,
       relationship: (user.relationship as RelationshipStatus) || 'NONE',
       isReal: true,

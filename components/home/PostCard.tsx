@@ -11,6 +11,7 @@ import { PostData } from '@/lib/postsData';
 import { BackendPost, likePostApi, unlikePostApi, repostPostApi, unrepostPostApi, savePostApi, unsavePostApi } from '@/lib/postService';
 import { followService } from '@/lib/followService';
 import { getSessionUser } from '@/lib/session';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width } = Dimensions.get('window');
 
@@ -45,7 +46,7 @@ const CommentIcon = ({ color = "#000", size = 20 }: { color?: string; size?: num
   </Svg>
 );
 
-const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: number }) => (
+export const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M17 1l4 4-4 4" />
     <Path d="M3 11V9a4 4 0 0 1 4-4h14" />
@@ -54,17 +55,14 @@ const RepostIcon = ({ color = "#000", size = 22 }: { color?: string; size?: numb
   </Svg>
 );
 
-const RepostedIcon = ({ size = 22 }: { size?: number }) => (
-  <View style={{
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    backgroundColor: '#7126D0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  }}>
-    <Ionicons name="checkmark-sharp" size={16} color="#FFFFFF" />
-  </View>
+export const RepostedIcon = ({ color = "#7126D0", size = 22 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M17 1l4 4-4 4" />
+    <Path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <Path d="M7 23l-4-4 4-4" />
+    <Path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    <Path d="M8.5 12l2.5 2.5 4.5-5" strokeWidth="2.2" />
+  </Svg>
 );
 
 const formatCount = (n: number): string => {
@@ -73,18 +71,27 @@ const formatCount = (n: number): string => {
   return String(n);
 };
 
-interface PostCardProps {
+export interface PostCardProps {
   post: BackendPost | PostData | any;
+  onSaveToggle?: (postId: number, isSaved: boolean) => void;
+  onRepostToggle?: (postId: number, isReposted: boolean) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle }) => {
   const navigation = useNavigation<StackNavigationProp<any>>();
 
   const isBackend = 'likesCount' in post || 'description' in post;
 
   const postId = post.id;
-  const rawUsername = post.userUsername || (post.user && post.user.username) || post.username;
-  const userName = rawUsername || post.userName || 'Artist';
+  const rawUsername =
+    post.userUsername ||
+    (post.user && post.user.username) ||
+    post.username ||
+    (post.userName && !post.userName.includes(' ') ? post.userName : (post.userName ? post.userName.toLowerCase().replace(/\s+/g, '') : 'artist'));
+  const cleanUsername = (rawUsername || 'artist').replace(/^@+/, '');
+  const displayUsername = cleanUsername;
+  const fullName = post.userName || rawUsername || 'Artist';
+  const userName = displayUsername;
   const postText = isBackend ? post.description : post.postText;
   const userVerified = isBackend ? (post.userVerified || post.userRole === 'ARTIST') : post.verified;
   
@@ -92,10 +99,12 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const defaultAvatar = require('../../assets/images/black-man.png');
   const defaultPostImg = require('../../assets/images/feed6.jpg');
 
-  const userImage = post.userImageUrl ? { uri: post.userImageUrl } : (post.userImage || defaultAvatar);
+  const userImage = post.userImageUrl
+    ? { uri: resolveImageUrl(post.userImageUrl) }
+    : (typeof post.userImage === 'string' ? { uri: resolveImageUrl(post.userImage) } : (post.userImage || defaultAvatar));
   const mainImage = (post.imageUrls && post.imageUrls.length > 0)
-    ? { uri: post.imageUrls[0] }
-    : (post.mainImage || defaultPostImg);
+    ? { uri: resolveImageUrl(post.imageUrls[0]) }
+    : (typeof post.mainImage === 'string' ? { uri: resolveImageUrl(post.mainImage) } : (post.mainImage || defaultPostImg));
 
   const price = post.attachedPrice || post.price || (post.product?.price ? `$${post.product.price}` : '$150');
 
@@ -113,11 +122,18 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
     image: post.product.imageUrls?.[0] ? { uri: post.product.imageUrls[0] } : mainImage,
   } : undefined));
 
-  const [liked, setLiked] = useState<boolean>(isBackend ? post.isLiked : post.likedByMe);
-  const [likeCount, setLikeCount] = useState<number>(isBackend ? post.likesCount : post.likes || 0);
+  const [liked, setLiked] = useState<boolean>(
+    Boolean(isBackend ? (post.isLiked ?? post.liked ?? false) : (post.likedByMe ?? false))
+  );
+  const [likeCount, setLikeCount] = useState<number>(
+    Number(isBackend ? (post.likesCount ?? 0) : (post.likes || 0))
+  );
   const [reposted, setReposted] = useState<boolean>(isBackend ? post.isReposted : false);
   const [repostCount, setRepostCount] = useState<number>(isBackend ? post.repostsCount : 0);
   const [saved, setSaved] = useState<boolean>(isBackend ? post.isSaved : false);
+  const [saveCount, setSaveCount] = useState<number>(
+    Number(isBackend ? (post.savesCount ?? 0) : (post.saves ?? 0))
+  );
   const [mated, setMated] = useState<boolean>(false);
   const [commentsOpen, setCommentsOpen] = useState<boolean>(false);
   const [likesOpen, setLikesOpen] = useState<boolean>(false);
@@ -147,19 +163,62 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
     }
   }, [targetId]);
 
+  React.useEffect(() => {
+    const postLiked = Boolean(
+      post.isLiked ?? (post as any).liked ?? post.likedByMe ?? false
+    );
+    const postLikesCount = Number(
+      post.likesCount ?? post.likes ?? 0
+    );
+    setLiked(postLiked);
+    setLikeCount(postLikesCount);
+    if (isBackend) {
+      if (typeof post.isReposted === 'boolean') setReposted(post.isReposted);
+      if (typeof post.repostsCount === 'number') setRepostCount(post.repostsCount);
+      if (typeof post.isSaved === 'boolean') setSaved(post.isSaved);
+      if (typeof post.savesCount === 'number') setSaveCount(post.savesCount);
+    }
+  }, [
+    post.id,
+    post.isLiked,
+    (post as any).liked,
+    post.likesCount,
+    post.likedByMe,
+    post.likes,
+    post.isReposted,
+    post.repostsCount,
+    post.isSaved,
+    post.savesCount,
+  ]);
+
   const handleLikeToggle = async () => {
     const prevLiked = liked;
     const prevCount = likeCount;
 
-    setLiked(!prevLiked);
-    setLikeCount(prevLiked ? prevCount - 1 : prevCount + 1);
+    // Optimistic UI update: flip red state and increment/decrement count
+    const nextLiked = !prevLiked;
+    const nextCount = nextLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
 
-    if (isBackend && typeof postId === 'number') {
+    setLiked(nextLiked);
+    setLikeCount(nextCount);
+
+    const parsedPostId = typeof postId === 'number' ? postId : parseInt(String(postId), 10);
+    if (!isNaN(parsedPostId) && parsedPostId > 0) {
       try {
+        let updatedPost: BackendPost | null = null;
         if (prevLiked) {
-          await unlikePostApi(postId);
+          updatedPost = await unlikePostApi(parsedPostId);
         } else {
-          await likePostApi(postId);
+          updatedPost = await likePostApi(parsedPostId);
+        }
+
+        if (updatedPost) {
+          const serverLiked = updatedPost.isLiked ?? (updatedPost as any).liked ?? nextLiked;
+          const serverCount = typeof updatedPost.likesCount === 'number'
+            ? updatedPost.likesCount
+            : nextCount;
+          setLiked(serverLiked);
+          setLikeCount(serverCount);
         }
       } catch (err) {
         console.error('Failed to update like status:', err);
@@ -171,37 +230,72 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   const handleRepostToggle = async () => {
     const prevReposted = reposted;
-    setReposted(!prevReposted);
-    setRepostCount((prev: number) => prev + (prevReposted ? -1 : 1));
+    const prevCount = repostCount;
+    const nextReposted = !prevReposted;
+    const nextCount = nextReposted ? prevCount + 1 : Math.max(0, prevCount - 1);
+    setReposted(nextReposted);
+    setRepostCount(nextCount);
+
+    const parsedPostId = typeof postId === 'number' ? postId : parseInt(String(postId), 10);
+    if (!isNaN(parsedPostId) && parsedPostId > 0 && onRepostToggle) {
+      onRepostToggle(parsedPostId, nextReposted);
+    }
 
     if (isBackend && typeof postId === 'number') {
       try {
+        let updatedPost: BackendPost | null = null;
         if (prevReposted) {
-          await unrepostPostApi(postId);
+          updatedPost = await unrepostPostApi(postId);
         } else {
-          await repostPostApi(postId);
+          updatedPost = await repostPostApi(postId);
+        }
+        if (updatedPost) {
+          if (typeof updatedPost.isReposted === 'boolean') setReposted(updatedPost.isReposted);
+          if (typeof updatedPost.repostsCount === 'number') setRepostCount(updatedPost.repostsCount);
         }
       } catch (err) {
         console.error('Failed to update repost status:', err);
         setReposted(prevReposted);
+        setRepostCount(prevCount);
+        if (!isNaN(parsedPostId) && parsedPostId > 0 && onRepostToggle) {
+          onRepostToggle(parsedPostId, prevReposted);
+        }
       }
     }
   };
 
   const handleSaveToggle = async () => {
     const prevSaved = saved;
-    setSaved(!prevSaved);
+    const prevCount = saveCount;
+    const nextSaved = !prevSaved;
+    const nextCount = nextSaved ? prevCount + 1 : Math.max(0, prevCount - 1);
+    setSaved(nextSaved);
+    setSaveCount(nextCount);
+
+    const parsedPostId = typeof postId === 'number' ? postId : parseInt(String(postId), 10);
+    if (!isNaN(parsedPostId) && parsedPostId > 0 && onSaveToggle) {
+      onSaveToggle(parsedPostId, nextSaved);
+    }
 
     if (isBackend && typeof postId === 'number') {
       try {
+        let updatedPost: BackendPost | null = null;
         if (prevSaved) {
-          await unsavePostApi(postId);
+          updatedPost = await unsavePostApi(postId);
         } else {
-          await savePostApi(postId);
+          updatedPost = await savePostApi(postId);
+        }
+        if (updatedPost) {
+          if (typeof updatedPost.isSaved === 'boolean') setSaved(updatedPost.isSaved);
+          if (typeof updatedPost.savesCount === 'number') setSaveCount(updatedPost.savesCount);
         }
       } catch (err) {
         console.error('Failed to update save status:', err);
         setSaved(prevSaved);
+        setSaveCount(prevCount);
+        if (!isNaN(parsedPostId) && parsedPostId > 0 && onSaveToggle) {
+          onSaveToggle(parsedPostId, prevSaved);
+        }
       }
     }
   };
@@ -246,15 +340,15 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             const sessionUser = getSessionUser();
             if (
               (targetId && currentUserId && (targetId === currentUserId || String(targetId) === String(currentUserId))) ||
-              (post.userUsername && sessionUser?.username && post.userUsername.toLowerCase() === sessionUser.username.toLowerCase())
+              (displayUsername && sessionUser?.username && displayUsername.toLowerCase() === sessionUser.username.toLowerCase())
             ) {
               navigation.navigate('MyProfile', { isOtherUser: false });
             } else {
               navigation.navigate('MyProfile', {
                 isOtherUser: true,
                 userId: targetId,
-                name: userName,
-                username: post.userUsername || userName.toLowerCase().replace(/\s+/g, ''),
+                name: fullName,
+                username: displayUsername,
                 avatar: userImage,
                 role: post.userRole === 'ARTIST' ? 'artist' : 'user',
               });
@@ -264,7 +358,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           <Image source={userImage} style={styles.avatar} />
           <View style={styles.userInfo}>
             <View style={styles.userNameRow}>
-              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userName}>{displayUsername}</Text>
               {userVerified && <PurpleVerifiedBadge />}
             </View>
             <Text style={styles.timeAgo}>Active</Text>
@@ -302,7 +396,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         >
           <View style={styles.actionSheetContainer}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.actionSheetTitle}>@{post.userUsername || userName.toLowerCase().replace(/\s+/g, '')}</Text>
+            <Text style={styles.actionSheetTitle}>@{displayUsername}</Text>
 
             <TouchableOpacity
               style={styles.actionSheetOption}
@@ -372,7 +466,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               >
                 {post.imageUrls.map((imgUrl: string, idx: number) => (
                   <View key={idx}>
-                    <Image source={{ uri: imgUrl }} style={[styles.postImage, { width: width }]} />
+                    <Image source={{ uri: resolveImageUrl(imgUrl) }} style={[styles.postImage, { width: width }]} />
                   </View>
                 ))}
               </ScrollView>
@@ -420,7 +514,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
                 price: attachedProduct?.price ? `$${attachedProduct.price}` : (attachedItem.price || price),
                 image: attachedProduct?.imageUrls?.[0] ? { uri: attachedProduct.imageUrls[0] } : (attachedItem.image || mainImage),
                 description: attachedProduct?.description || postText,
-                artistName: userName,
+                artistName: fullName,
                 verified: userVerified,
                 sellerId: attachedProduct?.seller?.id || targetId,
               });
@@ -473,17 +567,12 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <View style={styles.statsLeft}>
           {/* Like */}
           <TouchableOpacity style={styles.statItem} onPress={handleLikeToggle} activeOpacity={0.7}>
-            <Svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill={liked ? '#7126D0' : 'none'}
-              stroke={liked ? '#7126D0' : '#000'}
-              strokeWidth="2"
-            >
-              <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-            </Svg>
-            <Text style={[styles.statNum, liked && styles.statNumLiked]}>
+            <Ionicons
+              name={liked ? "heart" : "heart-outline"}
+              size={22}
+              color={liked ? "#ED4956" : "#000"}
+            />
+            <Text style={styles.statNum}>
               {formatCount(likeCount)}
             </Text>
           </TouchableOpacity>
@@ -501,6 +590,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               size={20}
               color={saved ? '#7126D0' : '#000'}
             />
+            <Text style={styles.statNum}>{formatCount(saveCount)}</Text>
           </TouchableOpacity>
 
           {/* Share */}
@@ -513,36 +603,103 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         {/* Right Actions: Repost */}
         <View style={styles.rightActions}>
           <TouchableOpacity
-            style={styles.repostButton}
+            style={styles.statItem}
             onPress={handleRepostToggle}
             activeOpacity={0.7}
           >
             {reposted ? <RepostedIcon size={22} /> : <RepostIcon color="#000" size={22} />}
+            <Text style={styles.statNum}>{formatCount(repostCount)}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Instagram-style Liked By Section */}
-      {likeCount > 0 && (
-        <TouchableOpacity
-          style={styles.likedByContainer}
-          onPress={() => setLikesOpen(true)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.likedByAvatars}>
-            <Image source={userImage} style={[styles.likedAvatar, { zIndex: 3 }]} />
-            <Image source={require('../../assets/images/black-man.png')} style={[styles.likedAvatar, styles.likedAvatarOverlap, { zIndex: 2 }]} />
-          </View>
-          <Text style={styles.likedByText}>
-            Liked by <Text style={styles.likedByBold}>{liked ? 'you' : 'others'}</Text>{' '}
-            {likeCount > 1 && (
-              <>
-                and <Text style={styles.likedByBold}>{likeCount - (liked ? 1 : 0)} others</Text>
-              </>
-            )}
-          </Text>
-        </TouchableOpacity>
-      )}
+      {/* Instagram-style Liked By Section with real likers */}
+      {likeCount > 0 && (() => {
+        const sUser = getSessionUser();
+        const currentLoggedInAvatar = sUser?.profilePicture || sUser?.avatar;
+        const recentLikers: any[] = (isBackend && Array.isArray(post.recentLikers)) ? post.recentLikers : [];
+
+        const displayLikerAvatars: any[] = [];
+        if (liked) {
+          displayLikerAvatars.push(
+            currentLoggedInAvatar ? { uri: resolveImageUrl(currentLoggedInAvatar) } : defaultAvatar
+          );
+          const otherLiker = recentLikers.find((l: any) => l.id && currentUserId && l.id !== currentUserId);
+          if (otherLiker && likeCount > 1) {
+            displayLikerAvatars.push(
+              otherLiker.profilePicture ? { uri: resolveImageUrl(otherLiker.profilePicture) } : defaultAvatar
+            );
+          } else if (likeCount > 1 && recentLikers.length > 0 && (!currentUserId || recentLikers[0].id !== currentUserId)) {
+            displayLikerAvatars.push(
+              recentLikers[0].profilePicture ? { uri: resolveImageUrl(recentLikers[0].profilePicture) } : defaultAvatar
+            );
+          }
+        } else {
+          if (recentLikers.length > 0) {
+            displayLikerAvatars.push(
+              recentLikers[0].profilePicture ? { uri: resolveImageUrl(recentLikers[0].profilePicture) } : defaultAvatar
+            );
+            if (recentLikers.length > 1 && likeCount > 1) {
+              displayLikerAvatars.push(
+                recentLikers[1].profilePicture ? { uri: resolveImageUrl(recentLikers[1].profilePicture) } : defaultAvatar
+              );
+            }
+          } else {
+            displayLikerAvatars.push(defaultAvatar);
+          }
+        }
+        const finalAvatars = likeCount === 1 ? displayLikerAvatars.slice(0, 1) : displayLikerAvatars.slice(0, 2);
+
+        let primaryLikerText = 'you';
+        if (!liked) {
+          if (recentLikers.length > 0) {
+            const u = recentLikers[0];
+            primaryLikerText = u.username ? `@${u.username.replace(/^@+/, '')}` : (u.fullName || 'someone');
+          } else {
+            primaryLikerText = `${likeCount} ${likeCount === 1 ? 'person' : 'people'}`;
+          }
+        }
+        const othersCount = likeCount - 1;
+
+        return (
+          <TouchableOpacity
+            style={styles.likedByContainer}
+            onPress={() => setLikesOpen(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.likedByAvatars}>
+              {finalAvatars.map((src, idx) => (
+                <Image
+                  key={idx}
+                  source={src}
+                  style={[
+                    styles.likedAvatar,
+                    idx > 0 && styles.likedAvatarOverlap,
+                    { zIndex: finalAvatars.length - idx },
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.likedByText}>
+              {liked || recentLikers.length > 0 ? (
+                <>
+                  Liked by <Text style={styles.likedByBold}>{primaryLikerText}</Text>
+                  {othersCount > 0 && (
+                    <>
+                      {' and '}
+                      <Text style={styles.likedByBold}>
+                        {othersCount} {othersCount === 1 ? 'other' : 'others'}
+                      </Text>
+                    </>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.likedByBold}>{likeCount} {likeCount === 1 ? 'like' : 'likes'}</Text>
+              )}
+            </Text>
+          </TouchableOpacity>
+        );
+      })()}
 
       {/* Likes Modal */}
       <LikesModal
@@ -555,7 +712,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       {(() => {
         const sUser = getSessionUser();
         const loggedInUserAvatar = sUser?.profilePicture || sUser?.avatar;
-        const validPostId = post.id && !isNaN(Number(post.id)) ? Number(post.id) : undefined;
+        const parsedId = typeof post.id === 'number' ? post.id : parseInt(String(post.id || '').replace(/\D/g, ''), 10);
+        const validPostId = !isNaN(parsedId) && parsedId > 0 ? parsedId : 1;
         return (
           <CommentsModal
             visible={commentsOpen}
@@ -699,7 +857,7 @@ const styles = StyleSheet.create({
   statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   statNum: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#000' },
-  statNumLiked: { color: '#7126D0' },
+  statNumLiked: { color: '#ED4956' },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -868,7 +1026,7 @@ const styles = StyleSheet.create({
   likedByContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingTop: 4,
     paddingBottom: 10,
   },
@@ -894,5 +1052,18 @@ const styles = StyleSheet.create({
   likedByBold: {
     fontFamily: 'Poppins-Bold',
     color: '#111827',
+  },
+  repostBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 6,
+  },
+  repostBannerText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
   },
 });

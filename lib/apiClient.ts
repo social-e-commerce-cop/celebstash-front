@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { clearSession, getSessionToken } from './session';
+import { getSessionToken } from './session';
 
 /**
  * Auto-detect Base API URL for Spring Boot Backend:
@@ -34,14 +34,7 @@ const getBaseUrl = (): string => {
   return 'http://10.0.2.2:8080';
 };
 
-export const API_BASE_URL = getBaseUrl().replace(/\/$/, '');
-const USE_CONFIGURED_API = Boolean(process.env.EXPO_PUBLIC_API_URL);
-const AUTH_PUBLIC_PREFIX = '/api/v1/auth/';
-const RENDER_HOST = 'onrender.com';
-
-function isPublicAuthEndpoint(endpoint: string): boolean {
-  return endpoint.includes(AUTH_PUBLIC_PREFIX);
-}
+export const API_BASE_URL = getBaseUrl();
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -85,10 +78,6 @@ async function tryFetchUrl<T = any>(
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      if (response.status === 401 && !isPublicAuthEndpoint(fullUrl)) {
-        // Invalid/expired token: drop it and send the user back to sign-in.
-        clearSession('expired');
-      }
       let errorMessage = data?.message || data?.error;
       if (!errorMessage && data?.errors) {
         if (typeof data.errors === 'object') {
@@ -110,7 +99,7 @@ async function tryFetchUrl<T = any>(
   }
 }
 
-let cachedWorkingBaseUrl: string | null = null;
+export let cachedWorkingBaseUrl: string | null = null;
 
 async function request<T = any>(
   endpoint: string,
@@ -135,7 +124,7 @@ async function request<T = any>(
     : `${API_BASE_URL}${endpoint}`;
 
   const candidateUrls: string[] = [primaryUrl];
-  if (!endpoint.startsWith('http') && !USE_CONFIGURED_API) {
+  if (!endpoint.startsWith('http')) {
     const hostUri = Constants.expoConfig?.hostUri || Constants.experienceUrl;
     let detectedIp: string | null = null;
     if (hostUri) {
@@ -149,7 +138,6 @@ async function request<T = any>(
       ...(detectedIp ? [`http://${detectedIp}:8080${endpoint}`] : []),
       `http://10.0.2.2:8080${endpoint}`,
       `http://localhost:8080${endpoint}`,
-      `https://celebstash-back-3.onrender.com${endpoint}`,
     ];
     for (const fb of fallbacks) {
       if (!candidateUrls.includes(fb)) {
@@ -159,36 +147,22 @@ async function request<T = any>(
   }
 
   let lastError: any = null;
-  const usesRender = candidateUrls.some((url) => url.includes(RENDER_HOST));
-  // A free-tier Render service suspends when idle and can take well over a minute to wake, so
-  // the first request after a quiet period must be allowed to outlive a normal timeout —
-  // otherwise the very first login always fails while the server is still booting.
-  const timeoutMs = usesRender
-    ? 90000
-    : ((options.method && options.method !== 'GET') ? 15000 : 8000);
+  const timeoutMs = (options.method && options.method !== 'GET') ? 15000 : 8000;
   for (const targetUrl of candidateUrls) {
-    // One retry for a cold start: the first attempt wakes the instance, the retry lands on it.
-    const attempts = targetUrl.includes(RENDER_HOST) ? 2 : 1;
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      try {
-        const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
-        if (!endpoint.startsWith('http')) {
-          const urlObj = targetUrl.replace(endpoint, '');
-          if (urlObj && urlObj.startsWith('http')) {
-            cachedWorkingBaseUrl = urlObj;
-          }
-        }
-        return result;
-      } catch (err: any) {
-        // A real HTTP response (401, 404, 500, ...) is an answer, not a connectivity problem.
-        if (err instanceof ApiError && err.status !== 0 && err.status !== 408) {
-          throw err;
-        }
-        lastError = err;
-        if (attempt < attempts) {
-          console.warn(`[api] ${targetUrl} did not respond (attempt ${attempt}/${attempts}); retrying — the server may be waking up.`);
+    try {
+      const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
+      if (!endpoint.startsWith('http')) {
+        const urlObj = targetUrl.replace(endpoint, '');
+        if (urlObj && urlObj.startsWith('http')) {
+          cachedWorkingBaseUrl = urlObj;
         }
       }
+      return result;
+    } catch (err: any) {
+      if (err instanceof ApiError && err.status !== 0 && err.status !== 408) {
+        throw err;
+      }
+      lastError = err;
     }
   }
 
@@ -198,21 +172,8 @@ async function request<T = any>(
   throw new ApiError('Unable to connect to backend server. Please verify Spring Boot server is running.', 0);
 }
 
-export async function fetchWithAuth<T = any>(endpoint: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; json: () => Promise<T> }> {
-  try {
-    const data = await request<T>(endpoint, options);
-    return {
-      ok: true,
-      status: 200,
-      json: async () => data,
-    };
-  } catch (err: any) {
-    return {
-      ok: false,
-      status: err.status || 500,
-      json: async () => ({ message: err.message } as any),
-    };
-  }
+export async function fetchWithAuth<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  return await request<T>(endpoint, options);
 }
 
 export const apiClient = {
@@ -244,6 +205,10 @@ export const apiClient = {
     request<T>(endpoint, { method: 'DELETE', headers }),
 };
 
+export function getWorkingBaseUrl(): string {
+  return cachedWorkingBaseUrl || API_BASE_URL;
+}
+
 export async function uploadFileToBackend(fileUri: string, fileName?: string, fileType?: string): Promise<string> {
   const token = getSessionToken();
   const filename = fileName || fileUri.split('/').pop() || `file_${Date.now()}.jpg`;
@@ -262,6 +227,8 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
     mimeType = 'video/mp4';
   } else if (ext === 'mov') {
     mimeType = 'video/quicktime';
+  } else if (ext === 'mp3' || ext === 'wav' || ext === 'm4a' || ext === 'aac') {
+    mimeType = 'audio/mpeg';
   } else {
     mimeType = 'image/jpeg';
   }
@@ -281,17 +248,15 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
     rawCandidates.push(`${cachedWorkingBaseUrl}/api/files/upload`);
   }
 
-  rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
+  if (detectedIp) {
+    rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
+  }
 
-  if (!USE_CONFIGURED_API) {
-    if (detectedIp) {
-      rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
-    }
-    rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
-    rawCandidates.push(`https://celebstash-back-3.onrender.com/api/files/upload`);
-    if (Platform.OS === 'web') {
-      rawCandidates.push(`http://localhost:8080/api/files/upload`);
-    }
+  rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
+  rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
+
+  if (Platform.OS === 'web') {
+    rawCandidates.push(`http://localhost:8080/api/files/upload`);
   }
 
   const candidateUrls: string[] = Array.from(new Set(rawCandidates)).filter((url) => {
@@ -304,17 +269,12 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
   let attemptLogs: string[] = [];
 
   for (const targetUrl of candidateUrls) {
-    // Uploads need the same cold-start allowance as ordinary requests: a suspended free-tier
-    // instance can take minutes to wake, and the upload previously gave up after 25s while the
-    // server was still booting. One retry covers the case where attempt 1 did the waking.
-    const uploadAttempts = targetUrl.includes(RENDER_HOST) ? 2 : 1;
-    for (let attempt = 1; attempt <= uploadAttempts; attempt++) {
     try {
       console.log(`[Upload] Attempting upload to ${targetUrl} (URI: ${fileUri})`);
       const result = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', targetUrl);
-        xhr.timeout = targetUrl.includes(RENDER_HOST) ? 120000 : 15000;
+        xhr.timeout = 60000; // 60s timeout for large images and audio
 
         if (token) {
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -329,9 +289,6 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
             }
             resolve(xhr.responseText.trim());
           } else {
-            if (xhr.status === 401) {
-              clearSession('expired');
-            }
             console.error(`[Upload HTTP Error] ${targetUrl} status ${xhr.status}: ${xhr.responseText}`);
             reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
           }
@@ -359,16 +316,11 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
 
       return result;
     } catch (err: any) {
-      console.warn(`[Upload Attempt Failed] ${targetUrl} (attempt ${attempt}/${uploadAttempts}):`, err.message);
-      // A real HTTP status is an answer from the server, not a cold start — do not retry it.
+      console.warn(`[Upload Attempt Failed] ${targetUrl}:`, err.message);
+      attemptLogs.push(`${targetUrl} -> ${err.message}`);
       if (err.message && err.message.startsWith('HTTP')) {
-        attemptLogs.push(`${targetUrl} -> ${err.message}`);
         throw err;
       }
-      if (attempt >= uploadAttempts) {
-        attemptLogs.push(`${targetUrl} -> ${err.message}`);
-      }
-    }
     }
   }
 
@@ -377,45 +329,29 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
   throw new Error(detailedMsg);
 }
 
-/**
- * Ensures a Cloudinary delivery URL carries the `f_auto` transformation.
- *
- * Phones upload in their native format (iOS sends HEIC), which Android and browsers cannot
- * decode. `f_auto` lets Cloudinary transcode per request and `q_auto` trims the payload. Applied
- * defensively so URLs already stored without a transformation still render.
- */
-function withCloudinaryAutoFormat(url: string): string {
-  if (!url.includes('res.cloudinary.com')) return url;
-
-  const marker = '/upload/';
-  const idx = url.indexOf(marker);
-  if (idx < 0) return url;
-
-  const insertAt = idx + marker.length;
-  const rest = url.slice(insertAt);
-  if (/^[^/]*(^|,)(f_auto|f_)/.test(rest)) return url;
-
-  return `${url.slice(0, insertAt)}f_auto,q_auto/${rest}`;
-}
-
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (url.startsWith('file:') || url.startsWith('content:') || url.startsWith('data:')) {
     return url;
-  }
-  if (url.includes('res.cloudinary.com')) {
-    return withCloudinaryAutoFormat(url);
   }
   const workingHost = cachedWorkingBaseUrl || API_BASE_URL;
   if (url.includes('/api/files/')) {
     const fileSubpath = url.substring(url.indexOf('/api/files/'));
     return `${workingHost}${fileSubpath}`;
   }
-  if (url.startsWith('http://localhost:8080') || url.startsWith('http://127.0.0.1:8080')) {
-    return url.replace(/http:\/\/(localhost|127\.0\.0\.1):8080/, workingHost);
+  if (url.includes('/uploads/')) {
+    const fileSubpath = url.substring(url.indexOf('/uploads/'));
+    return `${workingHost}${fileSubpath}`;
+  }
+  if (url.match(/^https?:\/\/[^/]+:8080/)) {
+    return url.replace(/^https?:\/\/[^/]+:8080/, workingHost);
   }
   if (url.startsWith('/')) {
     return `${workingHost}${url}`;
+  }
+  // Plain filename stored in database (e.g. uuid.jpg)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `${workingHost}/api/files/${url}`;
   }
   return url;
 }

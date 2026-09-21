@@ -8,17 +8,18 @@ import {
   FlatList,
   Image,
   TextInput,
-  SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { followService, FollowUser } from '@/lib/followService';
 import { getSessionUser } from '@/lib/session';
+import { resolveImageUrl } from '@/lib/apiClient';
 
 const PURPLE = '#7126D0';
 
@@ -186,7 +187,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({
                     }}
                   >
                     {item.profilePicture ? (
-                      <Image source={{ uri: item.profilePicture }} style={styles.avatar} />
+                      <Image source={{ uri: resolveImageUrl(item.profilePicture) }} style={styles.avatar} />
                     ) : (
                       <View style={[styles.avatar, { backgroundColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' }]}>
                         <Ionicons name="person" size={22} color="#9CA3AF" />

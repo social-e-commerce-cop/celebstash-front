@@ -4,7 +4,7 @@ import {
   ScrollView, ActivityIndicator, Dimensions, FlatList, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { SelectedMedia, PURPLE } from './CreatePostTypes';
 
