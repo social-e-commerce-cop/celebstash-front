@@ -45,6 +45,19 @@ const ZikiiiInput: React.FC<ZikiiiInputProps> = ({
           onBlur={() => setIsFocused(false)}
           secureTextEntry={actualSecureTextEntry}
           placeholderTextColor="#999"
+          // A password field must never be auto-capitalised, autocorrected or spell-checked.
+          // iOS suppresses those only while secureTextEntry is true — the moment the eye toggle
+          // reveals the text the keyboard starts capitalising the first character, which silently
+          // changes the password being submitted and the login just fails as "Invalid
+          // credentials". Callers can still override any of these.
+          {...(isPassword
+            ? {
+                autoCapitalize: 'none' as const,
+                autoCorrect: false,
+                spellCheck: false,
+                textContentType: 'password' as const,
+              }
+            : null)}
           {...props}
         />
 

@@ -18,6 +18,7 @@ import * as Clipboard from 'expo-clipboard';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { followService, FollowUser } from '@/lib/followService';
+import { chatService } from '@/lib/chatService';
 import { getSessionUser } from '@/lib/session';
 import { resolveImageUrl } from '@/lib/apiClient';
 
@@ -28,6 +29,8 @@ interface ShareModalProps {
   onClose: () => void;
   postText: string;
   postId?: number | string;
+  /** What `postId` refers to, so the right kind of chat card is sent. Defaults to a post. */
+  shareKind?: 'post' | 'product';
   onPostShared?: () => void;
 }
 
@@ -36,6 +39,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   postText,
   postId,
+  shareKind = 'post',
   onPostShared,
 }) => {
   const [search, setSearch] = useState('');
@@ -43,6 +47,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [sendingTo, setSendingTo] = useState<number | null>(null);
+  const [sentTo, setSentTo] = useState<number[]>([]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -54,6 +60,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
   useEffect(() => {
     if (!visible) {
       setSearch('');
+      // Reset per-open state, otherwise reopening the sheet for a different post still shows
+      // "Sent" against everyone who received the previous one.
+      setSentTo([]);
+      setSendingTo(null);
       return;
     }
 
@@ -126,8 +136,36 @@ const ShareModal: React.FC<ShareModalProps> = ({
     return 'https://celebstash.app';
   };
 
-  const handleUserSendPress = (user: FollowUser) => {
-    showToast(`In-app chat coming soon! Tap 'Global Share' below to send to @${user.username || user.fullName}.`);
+  /**
+   * Sends the post (or product) into a direct conversation with this user.
+   *
+   * This used to answer "In-app chat coming soon!" — the chat backend existed, but nothing here
+   * called it. It opens (or reuses) the DM with that person and posts a reference message, so
+   * the recipient gets a real card backed by the live post rather than a pasted link.
+   */
+  const handleUserSendPress = async (user: FollowUser) => {
+    if (sendingTo !== null) return;
+    if (postId == null) {
+      showToast('This item cannot be shared to a chat yet.');
+      return;
+    }
+
+    try {
+      setSendingTo(user.id);
+      const conv = await chatService.startDirectConversation(user.id);
+      if (shareKind === 'product') {
+        await chatService.shareProduct(conv.id, Number(postId));
+      } else {
+        await chatService.sharePost(conv.id, Number(postId));
+      }
+      setSentTo(prev => [...prev, user.id]);
+      showToast(`Sent to @${user.username || user.fullName}`);
+      onPostShared?.();
+    } catch (e: any) {
+      showToast(e?.message ?? 'Could not send. Please try again.');
+    } finally {
+      setSendingTo(null);
+    }
   };
 
   const handleGlobalShare = async () => {
@@ -283,13 +321,25 @@ const ShareModal: React.FC<ShareModalProps> = ({
                   </View>
 
                   <TouchableOpacity
-                    style={styles.userSendBtn}
+                    style={[styles.userSendBtn, (sendingTo === item.id || sentTo.includes(item.id)) && styles.userSendBtnBusy]}
                     onPress={() => handleUserSendPress(item)}
                     activeOpacity={0.8}
+                    disabled={sendingTo !== null || sentTo.includes(item.id)}
                     accessibilityLabel={`Share to ${displayName}`}
                   >
-                    <Ionicons name="paper-plane-outline" size={14} color="#7126D0" style={{ marginRight: 4 }} />
-                    <Text style={styles.userSendBtnText}>Send</Text>
+                    {sendingTo === item.id ? (
+                      <ActivityIndicator size="small" color="#7126D0" />
+                    ) : sentTo.includes(item.id) ? (
+                      <>
+                        <Ionicons name="checkmark" size={14} color="#7126D0" style={{ marginRight: 4 }} />
+                        <Text style={styles.userSendBtnText}>Sent</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="paper-plane-outline" size={14} color="#7126D0" style={{ marginRight: 4 }} />
+                        <Text style={styles.userSendBtnText}>Send</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
               );
@@ -481,6 +531,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Regular',
     color: '#6B7280',
   },
+  userSendBtnBusy: { opacity: 0.6 },
   userSendBtn: {
     flexDirection: 'row',
     alignItems: 'center',

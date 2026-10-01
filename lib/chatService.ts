@@ -50,6 +50,28 @@ export interface ReactionDto {
   reactedByMe: boolean;
 }
 
+/**
+ * Live projection of a shared product. The backend reads this from the product system on every
+ * fetch rather than storing a copy on the message, so the card never shows a stale price.
+ */
+export interface SharedProductDto {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl: string | null;
+  sellerName: string | null;
+  status: string | null;
+}
+
+/** Live projection of a shared post — same reasoning as SharedProductDto. */
+export interface SharedPostDto {
+  id: number;
+  description: string | null;
+  imageUrl: string | null;
+  authorId: number | null;
+  authorName: string | null;
+}
+
 export interface MessageDto {
   id: number;
   conversationId: number;
@@ -71,6 +93,10 @@ export interface MessageDto {
   isDeleted: boolean;
   reactions: ReactionDto[];
   sentAt: string;
+  /** Set when type === 'PRODUCT'. */
+  sharedProduct: SharedProductDto | null;
+  /** Set when type === 'POST'. */
+  sharedPost: SharedPostDto | null;
 }
 
 export interface PagedMessages {
@@ -100,6 +126,10 @@ export interface SendMessageRequest {
   documentSize?: string;
   replyToId?: number;
   systemText?: string;
+  /** Required when type === 'PRODUCT'. Only the id travels — the server resolves the product. */
+  productId?: number;
+  /** Required when type === 'POST'. */
+  postId?: number;
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -110,6 +140,9 @@ export const chatService = {
 
   getConversations: (): Promise<ConversationDto[]> =>
     apiClient.get('/api/chat/conversations'),
+
+  getConversation: (conversationId: number): Promise<ConversationDto> =>
+    apiClient.get(`/api/chat/conversations/${conversationId}`),
 
   startDirectConversation: (targetUserId: number): Promise<ConversationDto> =>
     apiClient.post('/api/chat/conversations', { targetUserId }),
@@ -132,10 +165,38 @@ export const chatService = {
   toggleFavorite: (conversationId: number): Promise<void> =>
     apiClient.put(`/api/chat/conversations/${conversationId}/favorite`),
 
+  // ── Group membership ──────────────────────────────────────────────────────
+  // The caller's rights are re-checked server-side on each of these; the UI hides the controls
+  // for non-admins as a convenience only, never as the actual guard.
+
+  addMembers: (conversationId: number, userIds: number[]): Promise<ConversationDto> =>
+    apiClient.post(`/api/chat/conversations/${conversationId}/members`, { userIds }),
+
+  removeMember: (conversationId: number, userId: number): Promise<void> =>
+    apiClient.delete(`/api/chat/conversations/${conversationId}/members/${userId}`),
+
+  leaveGroup: (conversationId: number): Promise<void> =>
+    apiClient.post(`/api/chat/conversations/${conversationId}/leave`),
+
+  setMemberAdmin: (conversationId: number, userId: number, admin: boolean): Promise<ConversationDto> =>
+    apiClient.put(`/api/chat/conversations/${conversationId}/members/${userId}/admin?admin=${admin}`),
+
   // ── Messages ──────────────────────────────────────────────────────────────
 
   getMessages: (conversationId: number, page = 0, size = 40): Promise<PagedMessages> =>
     apiClient.get(`/api/chat/conversations/${conversationId}/messages?page=${page}&size=${size}`),
+
+  /**
+   * Attachments shared in a conversation. Separate from getMessages because opening the gallery
+   * must not mark the thread as read.
+   */
+  getSharedMedia: (
+    conversationId: number,
+    kind: 'media' | 'documents' | 'links' | 'products' = 'media',
+    page = 0,
+    size = 40,
+  ): Promise<PagedMessages> =>
+    apiClient.get(`/api/chat/conversations/${conversationId}/media?kind=${kind}&page=${page}&size=${size}`),
 
   sendMessage: (conversationId: number, req: SendMessageRequest): Promise<MessageDto> =>
     apiClient.post(`/api/chat/conversations/${conversationId}/messages`, req),
@@ -154,6 +215,20 @@ export const chatService = {
 
   reactToMessage: (messageId: number, emoji: string): Promise<MessageDto> =>
     apiClient.post(`/api/chat/messages/${messageId}/react?emoji=${encodeURIComponent(emoji)}`),
+
+  // ── Social sharing ────────────────────────────────────────────────────────
+  // Only the id is sent. The server validates it and the card is rendered from live product/post
+  // data, so a shared item never drifts out of sync with the catalogue or feed.
+
+  shareProduct: (conversationId: number, productId: number, note?: string): Promise<MessageDto> =>
+    apiClient.post(`/api/chat/conversations/${conversationId}/messages`, {
+      type: 'PRODUCT', productId, content: note,
+    }),
+
+  sharePost: (conversationId: number, postId: number, note?: string): Promise<MessageDto> =>
+    apiClient.post(`/api/chat/conversations/${conversationId}/messages`, {
+      type: 'POST', postId, content: note,
+    }),
 
   // Upload file and get back a URL to attach to a message
   uploadFile: async (uri: string, mimeType: string, filename: string): Promise<string> => {

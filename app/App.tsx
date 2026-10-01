@@ -195,9 +195,14 @@ const Stack = createStackNavigator<AppStackParamList>();
 const SplashScreenWrapper = () => {
   const navigation = useNavigation<StackNavigationProp<AppStackParamList>>();
 
+  // SplashScreen itself restores the session and routes after ~3s; this is only a backstop for
+  // the case where that never happens. It has to respect the session too — navigating straight
+  // to OnBoarding would throw an already-signed-in user back into the sign-up flow.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigation.replace('OnBoarding');
+    const timer = setTimeout(async () => {
+      const { restoreSession, getSessionToken } = await import('@/lib/session');
+      await restoreSession();
+      navigation.replace(getSessionToken() ? 'Home' : 'OnBoarding');
     }, 7000);
     return () => clearTimeout(timer);
   }, [navigation]);

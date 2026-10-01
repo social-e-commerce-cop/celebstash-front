@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Conversation } from '@/types/chatTypes';
-import { getConversationName, getConversationAvatar, getOtherUser } from '@/data/mockChatData';
+import { getConversationName, getConversationAvatar, getOtherUser } from '@/lib/chatMappers';
 
 const PURPLE = '#7126D0';
 

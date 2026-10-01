@@ -1,6 +1,7 @@
 /**
  * MessageScreen.tsx — Conversations list.
- * Fetches real conversations from the API, falls back to mock data on failure.
+ * Fetches real conversations from the API. No fixture fallback — a failure surfaces as an
+ * error with retry rather than sample data that looks real.
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
@@ -22,60 +23,21 @@ import SearchBar from '@/components/messages/SearchBar';
 import FilterTabBar from '@/components/messages/TabBar';
 import ConversationItem from '@/components/messages/Conversations';
 import { ChatFilterTab, Conversation } from '@/types/chatTypes';
-import { MOCK_CONVERSATIONS, getConversationName } from '@/data/mockChatData';
+import { getConversationName, toLocalConversation } from '@/lib/chatMappers';
 import { chatService, ConversationDto } from '@/lib/chatService';
-import { getSessionToken } from '@/lib/session';
+import { getSessionToken, getSessionUser } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
 const FILTER_TABS: ChatFilterTab[] = ['All', 'Unread', 'Favorites', 'Groups', 'Archived'];
 
-// ── Map backend DTO → local Conversation type ─────────────────────────────────
-function toLocalConversation(dto: ConversationDto, myId: number): Conversation {
-  const otherParticipants = dto.participants.filter(p => p.id !== myId);
-  const participants = dto.participants.map(p => ({
-    id: String(p.id),
-    name: p.fullName,
-    avatar: p.profilePicture ? { uri: p.profilePicture } : require('../../assets/images/storyItem.jpg'),
-    isOnline: false,
-  }));
-
-  return {
-    id: String(dto.id),
-    type: dto.type === 'GROUP' ? 'group' : 'direct',
-    participants,
-    lastMessage: dto.lastMessage
-      ? {
-          text: dto.lastMessage.text ?? '',
-          timestamp: dto.lastMessage.sentAt,
-          senderId: String(dto.lastMessage.senderId),
-          type: (dto.lastMessage.type?.toLowerCase() as any) ?? 'text',
-        }
-      : undefined,
-    unreadCount: dto.unreadCount,
-    isPinned: dto.isPinned,
-    isMuted: dto.isMuted,
-    isArchived: dto.isArchived,
-    isFavorite: dto.isFavorite,
-    hasStory: false,
-    isTyping: false,
-    groupInfo: dto.type === 'GROUP'
-      ? {
-          name: dto.groupName ?? 'Group',
-          avatar: dto.groupAvatar ? { uri: dto.groupAvatar } : undefined,
-          description: dto.groupDescription ?? '',
-          adminIds: dto.participants.filter(p => p.isAdmin).map(p => String(p.id)),
-          createdAt: dto.updatedAt,
-          createdBy: String(dto.createdById ?? ''),
-        }
-      : undefined,
-  };
-}
-
 const MessagesScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
-  const [loading, setLoading] = useState(false);
+  // Starts empty, never seeded with fixtures: showing sample conversations to a real user makes
+  // a backend failure look like working software.
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<ChatFilterTab>('All');
@@ -85,25 +47,38 @@ const MessagesScreen = () => {
   // Fetch conversations from API
   const fetchConversations = useCallback(async (isRefresh = false) => {
     const token = getSessionToken();
-    if (!token) return; // not logged in yet, keep mock
+    if (!token) {
+      setLoading(false);
+      setLoadError('Sign in to see your messages.');
+      return;
+    }
 
     try {
       isRefresh ? setRefreshing(true) : setLoading(true);
+      setLoadError(null);
       const dtos = await chatService.getConversations();
-      // We don't have the current user id easily here, use 0 as placeholder
-      // In a real app you'd read it from auth context
-      const mapped = dtos.map(d => toLocalConversation(d, 0));
-      if (mapped.length > 0) setConversations(mapped);
-    } catch (e) {
-      // Keep mock data on failure (offline / backend down)
+      // The real signed-in id: with a placeholder the "other participant" in a DM resolves to
+      // the wrong person, so the row shows your own name and avatar.
+      const myId = getSessionUser()?.id ?? 0;
+      // Assigned unconditionally — an empty result means "no conversations yet", which the
+      // empty state should say, not something to paper over with the previous list.
+      setConversations(dtos.map(d => toLocalConversation(d, myId)));
+    } catch (e: any) {
       console.warn('[MessagesScreen] Failed to load conversations:', e);
+      setLoadError(e?.message || 'Could not load conversations.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  // fetchConversations flips the loading flag straight away, so it is scheduled rather than
+  // called in the effect body — a state update during an effect breaks React's purity rules
+  // (react-hooks/set-state-in-effect). `loading` already starts true, so nothing flickers.
+  useEffect(() => {
+    const id = setTimeout(fetchConversations, 0);
+    return () => clearTimeout(id);
+  }, [fetchConversations]);
 
   // ── Badge counts ──
   const badgeCounts = useMemo(() => ({
@@ -184,7 +159,9 @@ const MessagesScreen = () => {
   }, []);
 
   const openChat = (conv: Conversation) => {
-    navigation.navigate('ChatScreen', { conversationId: conv.id });
+    // Pass the conversation the list already loaded so the chat header renders immediately
+    // instead of waiting on a second fetch (or falling back to placeholder details).
+    navigation.navigate('ChatScreen', { conversationId: conv.id, conversation: conv });
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => (
@@ -258,19 +235,38 @@ const MessagesScreen = () => {
             />
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconWrap}>
-                <Ionicons name="chatbubbles-outline" size={52} color={PURPLE} />
+            loadError ? (
+              // An error must read as an error. Previously a failed load fell back to fixture
+              // conversations, so the screen looked healthy while nothing was actually loading.
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrap}>
+                  <Ionicons name="cloud-offline-outline" size={52} color={PURPLE} />
+                </View>
+                <Text style={styles.emptyTitle}>Couldn&apos;t load messages</Text>
+                <Text style={styles.emptySubtitle}>{loadError}</Text>
+                <TouchableOpacity
+                  onPress={() => fetchConversations()}
+                  style={styles.retryBtn}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.retryBtnText}>Retry</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.emptyTitle}>
-                {activeTab === 'Archived' ? 'No archived chats' : 'No conversations yet'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {activeTab === 'Archived'
-                  ? 'Archived conversations will appear here'
-                  : 'Tap the pencil icon to start a new conversation'}
-              </Text>
-            </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrap}>
+                  <Ionicons name="chatbubbles-outline" size={52} color={PURPLE} />
+                </View>
+                <Text style={styles.emptyTitle}>
+                  {activeTab === 'Archived' ? 'No archived chats' : 'No conversations yet'}
+                </Text>
+                <Text style={styles.emptySubtitle}>
+                  {activeTab === 'Archived'
+                    ? 'Archived conversations will appear here'
+                    : 'Tap the pencil icon to start a new conversation'}
+                </Text>
+              </View>
+            )
           }
         />
       )}
@@ -335,6 +331,8 @@ const styles = StyleSheet.create({
   emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F8F5FF', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#374151' },
   emptySubtitle: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 40 },
+  retryBtn: { marginTop: 16, backgroundColor: PURPLE, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8 },
+  retryBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-Bold' },
   fab: { position: 'absolute', bottom: 28, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', shadowColor: PURPLE, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   menuSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, paddingTop: 12, paddingHorizontal: 20 },

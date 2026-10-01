@@ -2,8 +2,12 @@
 
 // ── User ──
 export interface ChatUser {
+  /** 'me' for the signed-in user, otherwise the backend id as a string. */
   id: string;
+  /** The real backend user id, kept even for 'me' so member APIs can be called with it. */
+  userId?: number;
   name: string;
+  username?: string;
   avatar: any; // require() image or { uri: string }
   isOnline: boolean;
   lastSeen?: string; // ISO timestamp
@@ -13,7 +17,7 @@ export interface ChatUser {
 }
 
 // ── Message Read Status ──
-export type ReadStatus = 'sending' | 'sent' | 'delivered' | 'read';
+export type ReadStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 // ── Message Content Types ──
 export type MessageContentType =

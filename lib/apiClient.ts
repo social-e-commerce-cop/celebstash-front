@@ -36,6 +36,12 @@ const getBaseUrl = (): string => {
 
 export const API_BASE_URL = getBaseUrl();
 
+/**
+ * True when EXPO_PUBLIC_API_URL names the backend explicitly. In that case the app must talk to
+ * that server and nothing else — see the fallback logic in request().
+ */
+const USE_CONFIGURED_API = Boolean(process.env.EXPO_PUBLIC_API_URL);
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -124,7 +130,12 @@ async function request<T = any>(
     : `${API_BASE_URL}${endpoint}`;
 
   const candidateUrls: string[] = [primaryUrl];
-  if (!endpoint.startsWith('http')) {
+  // Only guess at local backends when no API URL was configured. With EXPO_PUBLIC_API_URL set,
+  // falling back to a machine on the LAN silently moves the app to a DIFFERENT database: a slow
+  // response from the configured server (a sleeping free-tier instance can take minutes to wake)
+  // would otherwise reroute login to a local backend whose database has none of these accounts,
+  // and the user just sees "Invalid credentials". The configured server is the only valid target.
+  if (!endpoint.startsWith('http') && !USE_CONFIGURED_API) {
     const hostUri = Constants.expoConfig?.hostUri || Constants.experienceUrl;
     let detectedIp: string | null = null;
     if (hostUri) {
@@ -147,7 +158,12 @@ async function request<T = any>(
   }
 
   let lastError: any = null;
-  const timeoutMs = (options.method && options.method !== 'GET') ? 15000 : 8000;
+  // A sleeping free-tier host needs far longer than a normal request: the first call after an
+  // idle period both wakes it and waits for the boot.
+  const usesRemoteHost = candidateUrls.some((url) => url.startsWith('https://'));
+  const timeoutMs = usesRemoteHost
+    ? 90000
+    : ((options.method && options.method !== 'GET') ? 15000 : 8000);
   for (const targetUrl of candidateUrls) {
     try {
       const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
@@ -244,19 +260,26 @@ export async function uploadFileToBackend(fileUri: string, fileName?: string, fi
 
   let rawCandidates: string[] = [];
 
-  if (cachedWorkingBaseUrl) {
-    rawCandidates.push(`${cachedWorkingBaseUrl}/api/files/upload`);
-  }
+  if (USE_CONFIGURED_API) {
+    // Same rule as request(): an explicitly configured backend is the only valid upload target.
+    // Uploading to a different host would store the file somewhere the rest of the app cannot
+    // read it back from.
+    rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
+  } else {
+    if (cachedWorkingBaseUrl) {
+      rawCandidates.push(`${cachedWorkingBaseUrl}/api/files/upload`);
+    }
 
-  if (detectedIp) {
-    rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
-  }
+    if (detectedIp) {
+      rawCandidates.push(`http://${detectedIp}:8080/api/files/upload`);
+    }
 
-  rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
-  rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
+    rawCandidates.push(`${API_BASE_URL}/api/files/upload`);
+    rawCandidates.push(`http://10.0.2.2:8080/api/files/upload`);
 
-  if (Platform.OS === 'web') {
-    rawCandidates.push(`http://localhost:8080/api/files/upload`);
+    if (Platform.OS === 'web') {
+      rawCandidates.push(`http://localhost:8080/api/files/upload`);
+    }
   }
 
   const candidateUrls: string[] = Array.from(new Set(rawCandidates)).filter((url) => {

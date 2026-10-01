@@ -1,10 +1,25 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Switch, Alert } from 'react-native';
+/**
+ * ChatInfoScreen.tsx
+ * Contact info for a DM, group info for a group. Everything on this screen — participants,
+ * admin badges, mute state, shared media — is read from the backend for the conversation that
+ * was navigated to. There is no fixture fallback: if the conversation cannot be loaded the
+ * screen says so, because a screen that silently shows someone else's contact card is worse
+ * than one that reports an error.
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions,
+  Switch, Alert, ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { Conversation } from '@/types/chatTypes';
-import { MOCK_CONVERSATIONS, getConversationName, getConversationAvatar, getOtherUser, getSharedMedia } from '@/data/mockChatData';
-import ProductCard from '@/components/messages/ProductCard';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Conversation, SharedMediaItem } from '@/types/chatTypes';
+import {
+  toLocalConversation, toSharedMediaItem, getConversationName, getConversationAvatar,
+  getOtherUser, isGroupAdmin, ME,
+} from '@/lib/chatMappers';
+import { chatService } from '@/lib/chatService';
+import { getSessionUser } from '@/lib/session';
 
 const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -12,22 +27,109 @@ const PURPLE = '#7126D0';
 export default function ChatInfoScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const conversationId = route.params?.conversationId ?? 'c1';
-  const conv = MOCK_CONVERSATIONS.find(c => c.id === conversationId) ?? MOCK_CONVERSATIONS[0];
-  
-  const [isMuted, setIsMuted] = useState(conv.isMuted);
+  const conversationId = route.params?.conversationId;
+  const numericConvId = conversationId == null || isNaN(Number(conversationId))
+    ? null
+    : Number(conversationId);
+  const myId = getSessionUser()?.id ?? 0;
+
+  const [conv, setConv] = useState<Conversation | null>(null);
+  const [media, setMedia] = useState<SharedMediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!numericConvId) {
+      setError('No conversation was selected.');
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const dto = await chatService.getConversation(numericConvId);
+      setConv(toLocalConversation(dto, myId));
+      // A media failure must not blank the whole screen — the gallery strip just stays empty.
+      try {
+        const paged = await chatService.getSharedMedia(numericConvId, 'media', 0, 8);
+        setMedia(paged.content.map(m => toSharedMediaItem(m, myId)).filter(Boolean) as SharedMediaItem[]);
+      } catch {
+        setMedia([]);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load this conversation.');
+    } finally {
+      setLoading(false);
+    }
+  }, [numericConvId, myId]);
+
+  // Refetch on focus: coming back from group settings, membership may have changed.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const handleMuteToggle = async () => {
+    if (!numericConvId || !conv || busy) return;
+    const next = !conv.isMuted;
+    setConv({ ...conv, isMuted: next });   // optimistic
+    try {
+      setBusy(true);
+      await chatService.toggleMute(numericConvId);
+    } catch (e: any) {
+      setConv({ ...conv, isMuted: !next }); // roll back — the server is the source of truth
+      Alert.alert('Could not change notifications', e?.message ?? 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleLeaveGroup = () => {
+    if (!numericConvId) return;
+    Alert.alert('Leave Group', 'You will stop receiving messages from this group.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await chatService.leaveGroup(numericConvId);
+            navigation.navigate('MessagesScreen');
+          } catch (e: any) {
+            Alert.alert('Could not leave', e?.message ?? 'Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading && !conv) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={PURPLE} />
+      </View>
+    );
+  }
+
+  if (error || !conv) {
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="alert-circle-outline" size={40} color="#9CA3AF" />
+        <Text style={styles.errorTitle}>{error ?? 'Conversation unavailable'}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={load}>
+          <Text style={styles.retryText}>Try again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backLink}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const name = getConversationName(conv);
   const avatar = getConversationAvatar(conv);
   const isGroup = conv.type === 'group';
   const otherUser = !isGroup ? getOtherUser(conv) : null;
   const isOnline = otherUser?.isOnline ?? false;
-  
-  const sharedMedia = getSharedMedia(conversationId);
-  const photosAndVideos = sharedMedia.filter(m => m.type === 'photo' || m.type === 'video').slice(0, 4);
-  const products = sharedMedia.filter(m => m.type === 'product');
-
-  const handleMuteToggle = () => setIsMuted(!isMuted);
+  const iAmAdmin = isGroupAdmin(conv, ME);
 
   return (
     <View style={styles.container}>
@@ -37,11 +139,17 @@ export default function ChatInfoScreen() {
           <Ionicons name="arrow-back" size={24} color="#111" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isGroup ? 'Group Info' : 'Contact Info'}</Text>
-        <View style={styles.iconBtn} />
+        <View style={styles.iconBtn}>
+          {isGroup && iAmAdmin && (
+            <TouchableOpacity onPress={() => navigation.navigate('GroupSettingsScreen', { conversationId })}>
+              <Ionicons name="settings-outline" size={22} color="#111" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
+
         {/* ── Profile Section ── */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrap}>
@@ -50,14 +158,24 @@ export default function ChatInfoScreen() {
           </View>
           <Text style={styles.nameText}>{name}</Text>
           <Text style={styles.statusText}>
-            {isGroup ? `${conv.participants.length} members` : (otherUser?.bio ?? (isOnline ? 'Online' : 'Offline'))}
+            {isGroup
+              ? `${conv.participants.length} member${conv.participants.length === 1 ? '' : 's'}`
+              : (otherUser?.username ? '@' + otherUser.username : '')}
           </Text>
+          {isGroup && !!conv.groupInfo?.description && (
+            <Text style={styles.descriptionText}>{conv.groupInfo.description}</Text>
+          )}
 
           <View style={styles.quickActions}>
             <QuickAction icon="call-outline" label="Audio" onPress={() => navigation.navigate('VoiceCallScreen', { name, avatar })} />
             <QuickAction icon="videocam-outline" label="Video" onPress={() => navigation.navigate('VideoCallScreen', { name, avatar })} />
-            <QuickAction icon="search-outline" label="Search" onPress={() => { navigation.goBack(); /* trigger search from header ideally */ }} />
-            <QuickAction icon={isMuted ? 'volume-mute' : 'volume-high-outline'} label="Mute" onPress={handleMuteToggle} active={isMuted} />
+            <QuickAction icon="images-outline" label="Media" onPress={() => navigation.navigate('SharedMediaScreen', { conversationId })} />
+            <QuickAction
+              icon={conv.isMuted ? 'volume-mute' : 'volume-high-outline'}
+              label="Mute"
+              onPress={handleMuteToggle}
+              active={conv.isMuted}
+            />
           </View>
         </View>
         <View style={styles.divider} />
@@ -65,30 +183,42 @@ export default function ChatInfoScreen() {
         {/* ── Group Members ── */}
         {isGroup && (
           <>
-            <SectionHeader title={`${conv.participants.length} Members`} action="Add" onAction={() => {}} />
+            <SectionHeader
+              title={`${conv.participants.length} Member${conv.participants.length === 1 ? '' : 's'}`}
+              action={iAmAdmin ? 'Manage' : undefined}
+              onAction={() => navigation.navigate('GroupSettingsScreen', { conversationId })}
+            />
             {conv.participants.map(p => (
-              <TouchableOpacity key={p.id} style={styles.memberRow}>
+              <View key={p.id} style={styles.memberRow}>
                 <Image source={p.avatar} style={styles.memberAvatar} />
                 <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{p.id === 'me' ? 'You' : p.name}</Text>
-                  <Text style={styles.memberStatus}>{p.isOnline ? 'Online' : 'Offline'}</Text>
+                  <Text style={styles.memberName}>{p.name}</Text>
+                  {!!p.username && <Text style={styles.memberStatus}>@{p.username}</Text>}
                 </View>
-                {conv.groupInfo?.adminIds.includes(p.id) && (
+                {isGroupAdmin(conv, p.id) && (
                   <View style={styles.adminBadge}>
                     <Text style={styles.adminBadgeText}>Admin</Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             ))}
             <View style={styles.divider} />
           </>
         )}
 
         {/* ── Shared Media Preview ── */}
-        <SectionHeader title="Media, Links, and Docs" action="View All" onAction={() => navigation.navigate('SharedMediaScreen', { conversationId })} />
+        <SectionHeader
+          title="Media, Links, and Docs"
+          action="View All"
+          onAction={() => navigation.navigate('SharedMediaScreen', { conversationId })}
+        />
         <View style={styles.mediaGrid}>
-          {photosAndVideos.map((m, i) => (
-            <TouchableOpacity key={m.id} style={styles.mediaThumbWrap}>
+          {media.slice(0, 4).map(m => (
+            <TouchableOpacity
+              key={m.id}
+              style={styles.mediaThumbWrap}
+              onPress={() => navigation.navigate('SharedMediaScreen', { conversationId })}
+            >
               <Image source={m.uri} style={styles.mediaThumb} />
               {m.type === 'video' && (
                 <View style={styles.videoOverlay}>
@@ -97,74 +227,32 @@ export default function ChatInfoScreen() {
               )}
             </TouchableOpacity>
           ))}
-          {photosAndVideos.length === 0 && (
-            <Text style={styles.emptyText}>No shared media yet.</Text>
-          )}
+          {media.length === 0 && <Text style={styles.emptyText}>No shared media yet.</Text>}
         </View>
         <View style={styles.divider} />
-
-        {/* ── Shared Products ── */}
-        {products.length > 0 && (
-          <>
-            <SectionHeader title="Shared Products" action="View All" onAction={() => navigation.navigate('SharedMediaScreen', { conversationId, initialTab: 'Products' })} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productsScroll}>
-              {products.map(p => (
-                <View key={p.id} style={{ marginRight: 12 }}>
-                  <ProductCard product={p.product!} />
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.divider} />
-          </>
-        )}
 
         {/* ── Settings ── */}
         <View style={styles.settingsGroup}>
           <View style={styles.settingRow}>
             <View style={styles.settingIconWrap}><Ionicons name="notifications-outline" size={20} color="#374151" /></View>
             <Text style={styles.settingLabel}>Mute Notifications</Text>
-            <Switch value={isMuted} onValueChange={setIsMuted} trackColor={{ false: '#D1D5DB', true: PURPLE }} thumbColor="#fff" />
+            <Switch
+              value={conv.isMuted}
+              onValueChange={handleMuteToggle}
+              disabled={busy}
+              trackColor={{ false: '#D1D5DB', true: PURPLE }}
+              thumbColor="#fff"
+            />
           </View>
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingIconWrap}><Ionicons name="musical-notes-outline" size={20} color="#374151" /></View>
-            <Text style={styles.settingLabel}>Custom Sound</Text>
-            <Text style={styles.settingValue}>Default</Text>
-            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.settingRow}>
-            <View style={styles.settingIconWrap}><Ionicons name="color-palette-outline" size={20} color="#374151" /></View>
-            <Text style={styles.settingLabel}>Chat Theme</Text>
-            <View style={styles.themeCircle} />
-            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
         </View>
         <View style={styles.divider} />
 
         {/* ── Danger Zone ── */}
         <View style={styles.dangerGroup}>
-          {isGroup ? (
-            <TouchableOpacity style={styles.dangerRow} onPress={() => Alert.alert('Leave Group', 'Are you sure?')}>
+          {isGroup && (
+            <TouchableOpacity style={styles.dangerRow} onPress={handleLeaveGroup}>
               <Ionicons name="exit-outline" size={22} color="#EF4444" />
               <Text style={styles.dangerText}>Leave Group</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.dangerRow} onPress={() => Alert.alert('Block User', 'Are you sure?')}>
-              <Ionicons name="ban-outline" size={22} color="#EF4444" />
-              <Text style={styles.dangerText}>Block {name}</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.dangerRow}>
-            <Ionicons name="trash-outline" size={22} color="#EF4444" />
-            <Text style={styles.dangerText}>Clear Chat History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.dangerRow}>
-            <Ionicons name="download-outline" size={22} color="#374151" />
-            <Text style={[styles.dangerText, { color: '#374151' }]}>Export Chat to PDF</Text>
-          </TouchableOpacity>
-          {!isGroup && (
-            <TouchableOpacity style={styles.dangerRow}>
-              <Ionicons name="flag-outline" size={22} color="#EF4444" />
-              <Text style={styles.dangerText}>Report {name}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -186,14 +274,21 @@ const QuickAction = ({ icon, label, onPress, active }: any) => (
 const SectionHeader = ({ title, action, onAction }: any) => (
   <View style={styles.sectionHeader}>
     <Text style={styles.sectionTitle}>{title}</Text>
-    <TouchableOpacity onPress={onAction}>
-      <Text style={styles.sectionAction}>{action}</Text>
-    </TouchableOpacity>
+    {!!action && (
+      <TouchableOpacity onPress={onAction}>
+        <Text style={styles.sectionAction}>{action}</Text>
+      </TouchableOpacity>
+    )}
   </View>
 );
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', padding: 24, gap: 12 },
+  errorTitle: { fontSize: 15, fontFamily: 'Poppins-Medium', color: '#374151', textAlign: 'center' },
+  retryBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: PURPLE },
+  retryText: { color: '#fff', fontFamily: 'Poppins-Medium', fontSize: 14 },
+  backLink: { color: '#6B7280', fontFamily: 'Poppins-Regular', fontSize: 13, marginTop: 4 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, backgroundColor: '#fff',
@@ -202,7 +297,7 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#111' },
   scrollContent: { paddingBottom: 60 },
-  
+
   // Profile
   profileSection: { alignItems: 'center', paddingTop: 24, paddingHorizontal: 20 },
   avatarWrap: { position: 'relative', marginBottom: 16 },
@@ -213,6 +308,7 @@ const styles = StyleSheet.create({
   },
   nameText: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#111', marginBottom: 4 },
   statusText: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#6B7280', textAlign: 'center' },
+  descriptionText: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#6B7280', textAlign: 'center', marginTop: 8 },
   quickActions: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 24, width: '100%' },
   actionItem: { alignItems: 'center', gap: 8 },
   actionIconWrap: {
@@ -227,16 +323,13 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
   sectionTitle: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#111' },
   sectionAction: { fontSize: 13, fontFamily: 'Poppins-Medium', color: PURPLE },
-  
+
   // Media Grid
   mediaGrid: { flexDirection: 'row', paddingHorizontal: 20, gap: 8 },
   mediaThumbWrap: { width: (width - 40 - 24) / 4, aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
   mediaThumb: { width: '100%', height: '100%', resizeMode: 'cover' },
   videoOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#9CA3AF' },
-  
-  // Products
-  productsScroll: { paddingHorizontal: 20 },
 
   // Group Members
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10 },
@@ -252,8 +345,6 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
   settingIconWrap: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   settingLabel: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Medium', color: '#111' },
-  settingValue: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#9CA3AF', marginRight: 8 },
-  themeCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: PURPLE, marginRight: 8 },
 
   // Danger Zone
   dangerGroup: { paddingHorizontal: 20, paddingBottom: 20 },

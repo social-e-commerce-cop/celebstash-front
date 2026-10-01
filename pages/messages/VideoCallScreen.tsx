@@ -1,158 +1,84 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * VideoCallScreen.tsx
+ *
+ * The video call UI, kept ready for a real calling provider — but it places no call and does
+ * not pretend to. There is no WebRTC layer, signalling server or calling provider in this
+ * project, so the screen says so instead of simulating a session.
+ *
+ * It previously flipped itself to "connected" on a three-second timer, ran a fake duration
+ * counter with a recording dot, showed a stock photo as the "local camera" feed, claimed the
+ * call was end-to-end encrypted, and on exit pushed a "Video Call • 1:07" system message into
+ * the conversation that was never sent to the backend and disappeared on refresh.
+ *
+ * To integrate a provider later, drive the state below from its session and render its tracks
+ * in the two video surfaces — the layout and controls need no changes.
+ */
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
-import { getConversationAvatar } from '@/data/mockChatData';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 export default function VideoCallScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { name, avatar } = route.params;
-
-  const [callState, setCallState] = useState<'calling' | 'connected' | 'ended'>('calling');
-  const [duration, setDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isCameraReversed, setIsCameraReversed] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(true);
-
-  useEffect(() => {
-    // Simulate connection
-    const t = setTimeout(() => setCallState('connected'), 3000);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    let t: any;
-    if (callState === 'connected') {
-      t = setInterval(() => setDuration(d => d + 1), 1000);
-    }
-    return () => clearInterval(t);
-  }, [callState]);
-
-  // Auto-hide controls after 5 seconds in connected state
-  useEffect(() => {
-    let t: any;
-    if (callState === 'connected' && controlsVisible) {
-      t = setTimeout(() => setControlsVisible(false), 5000);
-    }
-    return () => clearTimeout(t);
-  }, [callState, controlsVisible]);
-
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const handleEndCall = () => {
-    setCallState('ended');
-    setTimeout(() => {
-      navigation.navigate({
-        name: 'ChatScreen',
-        params: {
-          newCallMessage: {
-            id: String(Date.now()),
-            conversationId: route.params.conversationId ?? 'c1',
-            senderId: 'me',
-            type: 'system',
-            systemText: `Video Call • ${formatTime(duration)}`,
-            timestamp: new Date().toISOString(),
-            readStatus: 'read',
-            reactions: [],
-            isEdited: false,
-            isDeleted: false,
-            isPinned: false,
-            isStarred: false,
-          }
-        },
-        merge: true
-      });
-    }, 1000);
-  };
+  const { name, avatar } = route.params ?? {};
 
   return (
     <View style={styles.container}>
-      {/* Remote Video Placeholder (Other user) */}
+      {/* Remote video surface — a provider's remote track renders here. */}
       <View style={styles.remoteVideo}>
-        <Image source={avatar} style={styles.videoPlaceholder} />
-        {callState === 'calling' && (
-          <BlurView intensity={100} style={StyleSheet.absoluteFill} tint="dark">
-            <View style={styles.callingOverlay}>
-              <Image source={avatar} style={styles.avatarLarge} />
-              <Text style={styles.nameLarge}>{name}</Text>
-              <Text style={styles.statusText}>Ringing...</Text>
-            </View>
-          </BlurView>
-        )}
+        {!!avatar && <Image source={avatar} style={styles.videoPlaceholder} />}
+        <BlurView intensity={100} style={StyleSheet.absoluteFill} tint="dark">
+          <View style={styles.callingOverlay}>
+            {!!avatar && <Image source={avatar} style={styles.avatarLarge} />}
+            <Text style={styles.nameLarge}>{name ?? 'Call'}</Text>
+            <Text style={styles.statusText}>Video calling isn&apos;t available yet</Text>
+            <Text style={styles.subStatus}>
+              This screen is ready for a calling provider. No call is placed and nothing is
+              recorded in the conversation.
+            </Text>
+          </View>
+        </BlurView>
       </View>
 
-      {/* Local Video Picture-in-Picture */}
-      {callState === 'connected' && !isVideoOff && (
-        <View style={styles.localVideoWrap}>
-          <Image source={require('../../assets/images/storyItem.jpg')} style={styles.localVideo} />
+      {/* Top Header */}
+      <SafeAreaView style={styles.topControls}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-down" size={28} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.encryption} />
+          <View style={styles.iconBtn} />
         </View>
-      )}
+      </SafeAreaView>
 
-      <TouchableOpacity 
-        activeOpacity={1} 
-        style={StyleSheet.absoluteFill} 
-        onPress={() => callState === 'connected' && setControlsVisible(p => !p)}
-      >
-        {/* Top Header */}
-        {controlsVisible && (
-          <SafeAreaView style={styles.topControls}>
-            <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-                <Ionicons name="chevron-down" size={28} color="#fff" />
-              </TouchableOpacity>
-              <View style={styles.encryption}>
-                <Ionicons name="lock-closed" size={12} color="#fff" />
-                <Text style={styles.encryptionText}>End-to-end encrypted</Text>
-              </View>
-              <TouchableOpacity style={styles.iconBtn} onPress={() => setIsCameraReversed(!isCameraReversed)}>
-                <Ionicons name="camera-reverse" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            {callState === 'connected' && (
-              <View style={styles.durationBadge}>
-                <View style={styles.redDot} />
-                <Text style={styles.durationText}>{formatTime(duration)}</Text>
-              </View>
-            )}
-          </SafeAreaView>
-        )}
+      {/* Bottom Controls — inert until a provider is wired in, and visibly so. */}
+      <SafeAreaView style={styles.bottomControls}>
+        <View style={styles.controlsRow}>
+          <TouchableOpacity style={[styles.controlBtn, styles.controlBtnDisabled]} disabled>
+            <Ionicons name="videocam" size={26} color="#6B7280" />
+          </TouchableOpacity>
 
-        {/* Bottom Controls */}
-        {controlsVisible && (
-          <SafeAreaView style={styles.bottomControls}>
-            <View style={styles.controlsRow}>
-              <TouchableOpacity style={[styles.controlBtn, isVideoOff && styles.controlBtnActive]} onPress={() => setIsVideoOff(!isVideoOff)}>
-                <Ionicons name={isVideoOff ? "videocam-off" : "videocam"} size={26} color={isVideoOff ? '#000' : '#fff'} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={[styles.controlBtn, isMuted && styles.controlBtnActive]} onPress={() => setIsMuted(!isMuted)}>
-                <Ionicons name={isMuted ? "mic-off" : "mic"} size={26} color={isMuted ? '#000' : '#fff'} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.endCallBtn} onPress={handleEndCall}>
-                <Ionicons name="call" size={28} color="#fff" style={{ transform: [{ rotate: '135deg' }] }} />
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity style={[styles.controlBtn, styles.controlBtnDisabled]} disabled>
+            <Ionicons name="mic" size={26} color="#6B7280" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.endCallBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="call" size={28} color="#fff" style={{ transform: [{ rotate: '135deg' }] }} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  
+
   // Videos
   remoteVideo: { flex: 1, backgroundColor: '#111' },
   videoPlaceholder: { width: '100%', height: '100%', resizeMode: 'cover' },
@@ -160,28 +86,17 @@ const styles = StyleSheet.create({
   avatarLarge: { width: 140, height: 140, borderRadius: 70, marginBottom: 24, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)' },
   nameLarge: { fontSize: 24, fontFamily: 'Poppins-Bold', color: '#fff', marginBottom: 8 },
   statusText: { fontSize: 16, fontFamily: 'Poppins-Regular', color: '#9CA3AF' },
-  
-  localVideoWrap: {
-    position: 'absolute', top: 120, right: 20, width: 100, height: 140,
-    borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#fff',
-    backgroundColor: '#333', zIndex: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
-  },
-  localVideo: { width: '100%', height: '100%', resizeMode: 'cover' },
+  subStatus: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#6B7280', marginTop: 8, textAlign: 'center', paddingHorizontal: 40 },
 
   // Controls
   topControls: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, backgroundColor: 'rgba(0,0,0,0.3)', paddingBottom: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 10 },
   iconBtn: { padding: 8, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   encryption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  encryptionText: { fontSize: 11, fontFamily: 'Poppins-Regular', color: '#fff' },
-  durationBadge: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, gap: 6, marginTop: 8 },
-  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
-  durationText: { fontSize: 12, fontFamily: 'Poppins-Bold', color: '#fff' },
 
   bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20, paddingBottom: 30, paddingTop: 20, paddingHorizontal: 30, backgroundColor: 'rgba(0,0,0,0.4)' },
   controlsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 10 },
   controlBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  controlBtnActive: { backgroundColor: '#fff' },
+  controlBtnDisabled: { opacity: 0.4 },
   endCallBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
 });

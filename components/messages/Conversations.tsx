@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Conversation, MessageContentType } from '@/types/chatTypes';
-import { getOtherUser, getConversationName, getConversationAvatar } from '@/data/mockChatData';
+import { getOtherUser, getConversationName, getConversationAvatar } from '@/lib/chatMappers';
 
 const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';

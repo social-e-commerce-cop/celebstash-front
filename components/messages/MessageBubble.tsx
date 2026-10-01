@@ -231,6 +231,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       case 'sent': return 'Sent';
       case 'delivered': return 'Delivered';
       case 'read': return 'Seen';
+      // A send that failed must say so. It used to be shown as "Sent", which left the user
+      // believing a message had been delivered when it never reached the server.
+      case 'failed': return 'Not sent — tap to retry';
       default: return null;
     }
   };
@@ -329,6 +332,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <Text style={[
               styles.readStatusText,
               message.readStatus === 'read' && styles.readStatusSeen,
+              message.readStatus === 'failed' && styles.readStatusFailed,
             ]}>
               {getReadStatusText()}
             </Text>
@@ -502,6 +506,10 @@ const styles = StyleSheet.create({
   },
   readStatusSeen: {
     color: '#7126D0',
+    fontFamily: 'Poppins-Bold',
+  },
+  readStatusFailed: {
+    color: '#EF4444',
     fontFamily: 'Poppins-Bold',
   },
 

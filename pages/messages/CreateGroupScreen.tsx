@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { MOCK_USERS } from '@/data/mockChatData';
 import MemberListItem from '@/components/messages/MemberListItem';
 import { chatService, UserSearchResult } from '@/lib/chatService';
 import { getSessionToken } from '@/lib/session';
@@ -30,49 +29,54 @@ function toLocalUser(u: UserSearchResult) {
   };
 }
 
+type LocalUser = ReturnType<typeof toLocalUser>;
+
 export default function CreateGroupScreen() {
   const navigation = useNavigation<any>();
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [selectedUsers, setSelectedUsers] = useState<ReturnType<typeof toLocalUser>[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<LocalUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [groupName, setGroupName] = useState('');
-  const [searchResults, setSearchResults] = useState(MOCK_USERS);
+  const [searchResults, setSearchResults] = useState<LocalUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = !!getSessionToken();
 
+  // "No query" and "signed out" are facts about current state, not events, so they are derived
+  // at render rather than pushed into state from an effect. That leaves the effect below doing
+  // only the one thing it must: the debounced network call.
+  const hasQuery = searchQuery.trim().length > 0;
+  const visibleResults = isAuthenticated && hasQuery ? searchResults : [];
+  const displayError = !isAuthenticated ? 'Sign in to start a conversation.' : error;
+
   // ── Search users from API ─────────────────────────────────────────────────
+  // There is no offline user list to fall back to: showing invented people would let someone
+  // "start a chat" with an account that does not exist. A failed search says so instead.
   useEffect(() => {
-    if (!isAuthenticated) {
-      // Fallback to mock users
-      const q = searchQuery.toLowerCase();
-      setSearchResults(MOCK_USERS.filter(u => u.name.toLowerCase().includes(q)));
-      return;
-    }
+    if (!isAuthenticated || !hasQuery) return;
 
-    if (!searchQuery.trim()) {
-      // Show all mock users as suggestions when empty
-      setSearchResults(MOCK_USERS);
-      return;
-    }
-
+    let cancelled = false;
     const timer = setTimeout(async () => {
       try {
         setSearching(true);
+        setError(null);
         const results = await chatService.searchUsers(searchQuery);
-        setSearchResults(results.map(toLocalUser) as any);
-      } catch {
-        const q = searchQuery.toLowerCase();
-        setSearchResults(MOCK_USERS.filter(u => u.name.toLowerCase().includes(q)));
+        if (cancelled) return;
+        setSearchResults(results.map(toLocalUser));
+      } catch (e: any) {
+        if (cancelled) return;
+        setSearchResults([]);
+        setError(e?.message ?? 'Could not search for people. Check your connection.');
       } finally {
-        setSearching(false);
+        if (!cancelled) setSearching(false);
       }
     }, 400); // debounce
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, isAuthenticated]);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, isAuthenticated, hasQuery]);
 
   const toggleUser = (id: string, user: any) => {
     setSelectedUserIds(prev => {
@@ -105,39 +109,33 @@ export default function CreateGroupScreen() {
     }
   };
 
+  // A failure here must not navigate anywhere: sending the user into some other conversation
+  // would look like the chat was created when it was not.
   const createDirectMessage = async (userId: string) => {
-    if (!isAuthenticated) {
-      navigation.navigate('ChatScreen', { conversationId: 'c1' });
-      return;
-    }
     try {
       setCreating(true);
+      setError(null);
       const conv = await chatService.startDirectConversation(Number(userId));
       navigation.replace('ChatScreen', { conversationId: String(conv.id) });
-    } catch (e) {
-      console.warn('[CreateGroup] DM failed:', e);
-      navigation.navigate('ChatScreen', { conversationId: 'c1' });
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not start this conversation. Please try again.');
     } finally {
       setCreating(false);
     }
   };
 
   const createGroup = async () => {
-    if (!isAuthenticated) {
-      navigation.navigate('MessagesScreen');
-      return;
-    }
     try {
       setCreating(true);
+      setError(null);
       const conv = await chatService.createGroup(
         groupName.trim(),
         '',
         selectedUserIds.map(Number)
       );
       navigation.replace('ChatScreen', { conversationId: String(conv.id) });
-    } catch (e) {
-      console.warn('[CreateGroup] Group create failed:', e);
-      navigation.navigate('MessagesScreen');
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not create the group. Please try again.');
     } finally {
       setCreating(false);
     }
@@ -185,6 +183,13 @@ export default function CreateGroupScreen() {
             {searching && <ActivityIndicator size="small" color={PURPLE} />}
           </View>
 
+          {!!displayError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={16} color="#B91C1C" />
+              <Text style={styles.errorText}>{displayError}</Text>
+            </View>
+          )}
+
           {selectedUsers.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedScroll} contentContainerStyle={styles.selectedContent}>
               {selectedUsers.map(user => (
@@ -200,7 +205,7 @@ export default function CreateGroupScreen() {
           )}
 
           <FlatList
-            data={searchResults}
+            data={visibleResults}
             keyExtractor={item => String(item.id)}
             renderItem={({ item }) => (
               <MemberListItem
@@ -211,11 +216,13 @@ export default function CreateGroupScreen() {
               />
             )}
             ListEmptyComponent={
-              <View style={styles.emptySearch}>
-                <Text style={styles.emptySearchText}>
-                  {searchQuery ? 'No users found' : 'Type to search for people'}
-                </Text>
-              </View>
+              searching ? null : (
+                <View style={styles.emptySearch}>
+                  <Text style={styles.emptySearchText}>
+                    {displayError ? '' : hasQuery ? 'No users found' : 'Type to search for people'}
+                  </Text>
+                </View>
+              )
             }
           />
         </>
@@ -272,6 +279,8 @@ const styles = StyleSheet.create({
   selectedAvatar: { width: 48, height: 48, borderRadius: 24 },
   removeSelectedBtn: { position: 'absolute', top: 0, right: 0, width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   selectedName: { fontSize: 11, fontFamily: 'Poppins-Medium', color: '#374151', marginTop: 4, textAlign: 'center' },
+  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
+  errorText: { flex: 1, fontSize: 13, fontFamily: 'Poppins-Regular', color: '#B91C1C' },
   emptySearch: { alignItems: 'center', paddingTop: 40 },
   emptySearchText: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#9CA3AF' },
   step2Container: { alignItems: 'center', paddingTop: 30, paddingHorizontal: 20 },
