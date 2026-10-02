@@ -1,7 +1,7 @@
 // screens/EwalletScreen.tsx
 import { MenuIcon } from '@/assets/icons/Payment';
 import Header from '@/components/home/Header';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   Dimensions,
@@ -10,13 +10,14 @@ import {
   Text,
   TouchableOpacity,
   FlatList,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import BalanceCard from '@/components/ewallet/BalanceCard';
 import TabBar from '@/components/Tabbar';
-import { useWallet, WalletTransaction } from '@/lib/walletStore';
+import { useWallet, WalletTransaction, refreshWallet } from '@/lib/walletStore';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -28,40 +29,52 @@ const formatAmount = (num: number) => {
 };
 
 const getTransactionDisplay = (txn: WalletTransaction) => {
-  const isOutgoing = txn.direction ? txn.direction === 'up' : txn.type === 'purchase';
-  
+  const isOutgoing = txn.direction ? txn.direction === 'up' : txn.type === 'purchase' || txn.type === 'withdrawal' || txn.type === 'transfer_out';
+
   let title = txn.senderOrReceiver;
   let subtitle = txn.subtitle;
-  
+
   if (!title) {
     if (txn.type === 'top_up') {
       title = 'Added money to your wallet';
     } else if (txn.type === 'purchase') {
-      title = 'Purchased';
+      title = 'Purchase Payment';
     } else if (txn.type === 'refund') {
-      title = 'Refunded';
+      title = 'Refund Credited';
+    } else if (txn.type === 'withdrawal') {
+      title = 'Cash Out / Withdrawal';
+    } else if (txn.type === 'transfer_in') {
+      title = 'Transfer Received';
+    } else if (txn.type === 'transfer_out') {
+      title = 'Transfer Sent';
     } else {
       title = txn.description;
     }
   }
-  
+
   if (!subtitle) {
-    subtitle = `${isOutgoing ? 'Sent by you' : 'Received by you'} • ${txn.date}`;
+    subtitle = `${isOutgoing ? 'Debited' : 'Credited'} • ${txn.date}`;
   }
-  
+
   return { title, subtitle, isOutgoing };
 };
 
 const txnIconConfig = (type: WalletTransaction['type']) => {
   switch (type) {
     case 'top_up':
-      return { icon: 'wallet-outline' as const, color: '#16A34A', sign: '+' };
+      return { icon: 'arrow-down-circle' as const, color: '#16A34A', sign: '+' };
     case 'purchase':
-      return { icon: 'cart-outline' as const, color: '#1D1E20', sign: '-' };
+      return { icon: 'cart-outline' as const, color: '#DC2626', sign: '-' };
     case 'refund':
-      return { icon: 'refresh-outline' as const, color: '#2563EB', sign: '+' };
+      return { icon: 'refresh-circle' as const, color: '#2563EB', sign: '+' };
     case 'promo':
       return { icon: 'gift-outline' as const, color: '#D97706', sign: '+' };
+    case 'withdrawal':
+      return { icon: 'arrow-up-circle' as const, color: '#EA580C', sign: '-' };
+    case 'transfer_in':
+      return { icon: 'arrow-down-circle' as const, color: '#10B981', sign: '+' };
+    case 'transfer_out':
+      return { icon: 'arrow-up-circle' as const, color: '#8B5CF6', sign: '-' };
     default:
       return { icon: 'receipt-outline' as const, color: '#6B7280', sign: '' };
   }
@@ -69,11 +82,13 @@ const txnIconConfig = (type: WalletTransaction['type']) => {
 
 // ─── Inline Transaction Row ────────────────────────────────────────────────────
 
-const TxnRow: React.FC<{ txn: WalletTransaction; onPress: () => void }> = ({
-  txn,
-  onPress,
-}) => {
-  const { title, subtitle } = getTransactionDisplay(txn);
+interface TxnRowProps {
+  txn: WalletTransaction;
+  onPress: () => void;
+}
+
+const TxnRow: React.FC<TxnRowProps> = ({ txn, onPress }) => {
+  const { title, subtitle, isOutgoing } = getTransactionDisplay(txn);
   const cfg = txnIconConfig(txn.type);
 
   return (
@@ -86,7 +101,7 @@ const TxnRow: React.FC<{ txn: WalletTransaction; onPress: () => void }> = ({
         <Text style={styles.txnSubtitle}>{subtitle}</Text>
       </View>
       <View style={styles.txnRight}>
-        <Text style={[styles.txnAmount, { color: txn.type === 'purchase' ? '#1D1E20' : '#16A34A' }]}>
+        <Text style={[styles.txnAmount, { color: isOutgoing ? '#DC2626' : '#16A34A' }]}>
           {cfg.sign}{formatAmount(txn.amount)}
         </Text>
       </View>
@@ -99,7 +114,20 @@ const TxnRow: React.FC<{ txn: WalletTransaction; onPress: () => void }> = ({
 const EwalletScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const { transactions } = useWallet();
+  const [refreshing, setRefreshing] = useState(false);
   const recent = transactions.slice(0, 5);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshWallet();
+    }, [])
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshWallet();
+    setRefreshing(false);
+  };
 
   return (
     <>
@@ -107,17 +135,20 @@ const EwalletScreen = () => {
       <View style={styles.container}>
         {/* Sticky Header — sits above the scrollable list */}
         <View style={styles.header}>
-           <Header
-          title="My Wallet"
-          onRightPress={() => navigation.navigate('ManageCards')}
-          RightIcon={<MenuIcon />}
-        />
+          <Header
+            title="My Wallet"
+            onRightPress={() => navigation.navigate('ManageCards')}
+            RightIcon={<MenuIcon />}
+          />
         </View>
         <FlatList
           data={recent}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[PURPLE]} />
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
@@ -130,24 +161,50 @@ const EwalletScreen = () => {
               {/* Balance card */}
               <BalanceCard />
 
-              {/* Quick action buttons */}
-              <View style={styles.actionsRow}>
+              {/* 4-Item Action Bar */}
+              <View style={styles.actionsGrid}>
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={styles.actionItem}
                   onPress={() => navigation.navigate('TopupWallet')}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Top Up Wallet</Text>
+                  <View style={[styles.actionIconBox, { backgroundColor: '#7126D0' }]}>
+                    <Ionicons name="add" size={22} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>Top Up</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.secondaryBtn}
-                  onPress={() => navigation.navigate('ManageCards')}
-                  activeOpacity={0.85}
+                  style={styles.actionItem}
+                  onPress={() => navigation.navigate('WithdrawWallet')}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons name="card-outline" size={20} color={PURPLE} />
-                  <Text style={styles.secondaryBtnText}>Manage Cards</Text>
+                  <View style={[styles.actionIconBox, { backgroundColor: '#EA580C' }]}>
+                    <Ionicons name="arrow-up" size={20} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>Cash Out</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={() => navigation.navigate('TransferWallet')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: '#2563EB' }]}>
+                    <Ionicons name="paper-plane" size={18} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>Send</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={() => navigation.navigate('ManageCards')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: '#4F46E5' }]}>
+                    <Ionicons name="card" size={19} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>Cards</Text>
                 </TouchableOpacity>
               </View>
 
@@ -195,48 +252,42 @@ const styles = StyleSheet.create({
     paddingTop: height * 0.04,
   },
 
-  // ── Quick actions ──
-  actionsRow: {
+  // ── Quick actions grid ──
+  actionsGrid: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  primaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: PURPLE,
-    borderRadius:  8,
-    paddingVertical: 10,
-    shadowColor: PURPLE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
-  secondaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: PURPLE,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  secondaryBtnText: {
-    color: PURPLE,
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
+  actionItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  actionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    color: '#374151',
   },
 
   // ── Section header ──
@@ -262,10 +313,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -284,13 +335,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   txnTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Poppins-Bold',
     color: '#1D1E20',
     marginBottom: 2,
   },
   txnSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Poppins-Regular',
     color: '#8A8A8A',
   },
@@ -301,13 +352,7 @@ const styles = StyleSheet.create({
   txnAmount: {
     fontSize: 15,
     fontFamily: 'Poppins-Bold',
-    color: '#1D1E20',
     marginBottom: 2,
-  },
-  txnSecondaryAmount: {
-    fontSize: 12,
-    fontFamily: 'Poppins-Regular',
-    color: '#8A8A8A',
   },
 
   // ── Empty state ──

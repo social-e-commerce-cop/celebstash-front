@@ -20,6 +20,7 @@ import Post from '@/components/home/Post';
 import { RepostIcon } from '@/components/home/PostCard';
 import { fetchMyPosts, fetchSavedPosts, fetchRepostedPosts, fetchUserPosts, fetchUserReposts, BackendPost } from '@/lib/postService';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { useWallet } from '@/lib/walletStore';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -197,6 +198,7 @@ const MyProfile: React.FC = () => {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(true);
+  const { balance: walletBalance, heldBalance: walletHeldBalance } = useWallet();
 
   // Real posts state
   const [feedPosts, setFeedPosts] = useState<PostItem[]>([]);
@@ -845,59 +847,9 @@ const MyProfile: React.FC = () => {
           <View style={styles.tabContent}>
             {musicReleases.length > 0 ? (
               <>
-                {/* Featured LP Player Hero */}
-                {(() => {
-                  const featured = musicReleases[0];
-                  const coverUri = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
-                  const trackCount = featured.tracks?.length || 1;
-                  const artistName = featured.artist?.username || featured.artist?.fullName || profileData?.username || displayName;
-
-                  return (
-                    <View style={styles.lpCard}>
-                      <Image
-                        source={coverUri ? { uri: coverUri } : require('../../assets/images/drop1.jpg')}
-                        style={styles.lpHeroImg}
-                      />
-                      <View style={styles.lpOverlay}>
-                        <TouchableOpacity
-                          style={styles.lpPlayCircle}
-                          onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
-                        >
-                          <Ionicons name="play" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-
-                        <View style={styles.lpFooter}>
-                          <View style={styles.lpTextWrap}>
-                            <Text style={styles.lpTitle}>{featured.title}</Text>
-                            <Text style={styles.lpSub}>
-                              {artistName} • {trackCount} {trackCount === 1 ? 'track' : 'tracks'} • {featured.releaseType || 'RELEASE'}
-                            </Text>
-                          </View>
-
-                          <TouchableOpacity
-                            style={styles.streamBtn}
-                            onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
-                          >
-                            <Text style={styles.streamBtnText}>STREAM</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })()}
-
-                {/* Releases Section */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
-                  <Text style={styles.sectionHeading}>ALL RELEASES ({musicReleases.length})</Text>
-                  {isOwnProfile && (
-                    <TouchableOpacity
-                      style={{ backgroundColor: PURPLE, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
-                      onPress={() => navigation.navigate('UploadMusic')}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
-                    </TouchableOpacity>
-                  )}
+                {/* Songs Section */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }}>
+                  <Text style={styles.sectionHeading}>SONGS ({musicReleases.length})</Text>
                 </View>
                 <View style={styles.releasesList}>
                   {musicReleases.map((rel) => {
@@ -1000,14 +952,18 @@ const MyProfile: React.FC = () => {
               <View style={styles.walletHeaderRow}>
                 <View>
                   <Text style={styles.walletLabel}>ARTIST WALLET BALANCE</Text>
-                  <Text style={styles.walletAmount}>$4,820.50</Text>
+                  <Text style={styles.walletAmount}>${walletBalance.toFixed(2)}</Text>
                 </View>
                 <View style={styles.walletBadge}>
                   <Ionicons name="checkmark-circle" size={14} color="#10B981" />
                   <Text style={styles.walletBadgeText}>Verified</Text>
                 </View>
               </View>
-              <Text style={styles.walletSub}>+ $640.00 pending payout from merch & ticket sales this week.</Text>
+              <Text style={styles.walletSub}>
+                {walletHeldBalance > 0
+                  ? `+ $${walletHeldBalance.toFixed(2)} pending payout from merch & ticket sales.`
+                  : 'Direct payouts enabled via Rwanda MTN MoMo & Airtel Money.'}
+              </Text>
               <TouchableOpacity
                 style={styles.payoutBtn}
                 onPress={() => navigation.navigate('Ewallet')}
@@ -1098,7 +1054,7 @@ const MyProfile: React.FC = () => {
         if (role === 'artist') {
           if (artistTab === 'Feed' && hasPosts) shouldShowFab = true;
           if (artistTab === 'Shop' && hasProducts) shouldShowFab = true;
-          if (artistTab === 'Music' && hasMusic) shouldShowFab = true;
+          if (artistTab === 'Music') shouldShowFab = true;
         } else {
           if (userTab === 'Feed' && hasPosts) shouldShowFab = true;
         }

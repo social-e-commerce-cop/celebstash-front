@@ -11,12 +11,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
 import TopupSucessModal from '@/components/ewallet/TopupSucessModal';
-import { topUpWallet } from '@/lib/walletStore';
+import { topUpWallet, topUpMomoWallet } from '@/lib/walletStore';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
@@ -96,23 +97,28 @@ const TopupConfirmation: React.FC = () => {
     }
   };
 
-  const processTopUp = (methodDescription: string) => {
+  const processTopUp = async (methodDescription: string) => {
     setSubmitted(true);
     setLoading(true);
-    setLoadingText('Verifying provider...');
+    setLoadingText('Connecting to payment provider...');
 
-    setTimeout(() => {
-      setLoadingText('Authorizing transfer...');
-      setTimeout(() => {
-        setLoadingText('Crediting wallet...');
-        setTimeout(() => {
-          const txn = topUpWallet(parseFloat(amount), `Wallet top-up via ${methodDescription}`, cardLast4);
-          setTransactionId(txn.id);
-          setLoading(false);
-          setModalVisible(true);
-        }, 800);
-      }, 1000);
-    }, 1000);
+    try {
+      let txn;
+      if (paymentMethodType === 'momo') {
+        setLoadingText(`Requesting ${momoProvider} push payment...`);
+        txn = await topUpMomoWallet(parseFloat(amount), phoneNumber, momoProvider);
+      } else {
+        setLoadingText('Processing card top-up...');
+        txn = await topUpWallet(parseFloat(amount), `Wallet top-up via ${methodDescription}`, cardLast4);
+      }
+      setTransactionId(txn.id);
+      setLoading(false);
+      setModalVisible(true);
+    } catch (err: any) {
+      setLoading(false);
+      setSubmitted(false);
+      Alert.alert('Top-Up Failed', err.message || 'Unable to complete wallet top-up. Please try again.');
+    }
   };
 
   const handleModalClose = () => {

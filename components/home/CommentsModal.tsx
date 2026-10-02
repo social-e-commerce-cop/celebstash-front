@@ -13,65 +13,13 @@ import {
 } from '@/lib/postService';
 import { getSessionUser } from '@/lib/session';
 import { resolveImageUrl, apiClient } from '@/lib/apiClient';
+import { formatRealTimeAgo } from '@/lib/dateUtils';
 
 const { height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
 const TAG_SEARCH_DEBOUNCE_MS = 250;
 const CHAR_WARN_THRESHOLD = 900;
 const DEFAULT_AVATAR = require('@/assets/images/black-man.png');
-
-// ── tiny helpers ────────────────────────────────────────────────────────────
-const HeartIcon = ({ filled, size = 16 }: { filled: boolean; size?: number }) => (
-  <Ionicons name={filled ? 'heart' : 'heart-outline'} size={size} color={filled ? '#ED4956' : '#888'} />
-);
-
-function formatRealTimeAgo(dateStr?: string, currentNow: number = Date.now()): string {
-  if (!dateStr) return '';
-  try {
-    let str = String(dateStr).trim();
-    if (!str) return '';
-
-    let time: number;
-    const hasExplicitTz = str.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(str);
-    if (hasExplicitTz) {
-      time = new Date(str).getTime();
-    } else {
-      // Backend sent datetime without explicit timezone offset.
-      // Check both UTC interpretation and local device interpretation, picking the closest to currentNow.
-      const normalizedStr = str.replace(' ', 'T');
-      const utcTime = new Date(normalizedStr.endsWith('Z') ? normalizedStr : `${normalizedStr}Z`).getTime();
-      const localTime = new Date(normalizedStr).getTime();
-
-      const absUtc = Math.abs(currentNow - utcTime);
-      const absLocal = Math.abs(currentNow - localTime);
-
-      time = absUtc < absLocal ? utcTime : localTime;
-    }
-
-    if (isNaN(time)) return '';
-
-    const diffSec = Math.floor((currentNow - time) / 1000);
-    // If posted within the last 60 seconds (or slight device/server clock difference), display 'now'
-    if (diffSec < 60) return 'now';
-
-    const mins = Math.floor(diffSec / 60);
-    if (mins < 60) return mins === 1 ? '1min' : `${mins}mins`;
-
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d`;
-
-    const weeks = Math.floor(days / 7);
-    if (weeks < 52) return `${weeks}w`;
-
-    const years = Math.floor(days / 365);
-    return `${years}y`;
-  } catch {
-    return '';
-  }
-}
 
 function normalizeComment(c: any): BackendComment {
   if (!c) return c;

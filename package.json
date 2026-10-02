@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "node --max-old-space-size=4096 node_modules/expo/bin/cli start",
+    "start": "node --max-old-space-size=2048 node_modules/expo/bin/cli start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

@@ -55,6 +55,8 @@ import TopUpScreen from '@/pages/wallet/TopupWallet';
 import TopupPinEntry from '@/pages/wallet/TopupConfirmation';
 import ManageCardsScreen from '@/pages/wallet/ManageCardsScreen';
 import AddCardScreen from '@/pages/wallet/AddCardScreen';
+import WithdrawScreen from '@/pages/wallet/WithdrawScreen';
+import TransferScreen from '@/pages/wallet/TransferScreen';
 
 import Messages from '@/pages/message/Messages';
 import Notifications from '@/pages/message/Notifications';
@@ -82,6 +84,7 @@ import SoldOut from '@/pages/Artist/profile/SoldOut';
 import CreateTribeScreen from '@/pages/Artist/profile/AddTribe';
 import ArtSettingsScreen from '@/pages/Artist/ArtSettings';
 import Dashboard from '@/pages/Artist/Dashboard/Dashboard';
+import ArtistSongDetailScreen from '@/pages/Artist/ArtistSongDetailScreen';
 
 import MessagesScreen from '@/pages/messages/MessageScreen';
 import ChatScreen from '@/pages/messages/ChatScreen';
@@ -141,19 +144,19 @@ type AppStackParamList = {
   TopupConfirmation: {
     amount: string;
     paymentMethodType: 'card' | 'momo';
-    // Card params
     cardId?: string;
     cardLast4?: string;
     cardBrand?: string;
     cardHolder?: string;
     maskedNumber?: string;
-    // MoMo params
     momoProvider?: 'MTN' | 'Airtel';
     phoneNumber?: string;
   } | undefined;
   AddWalletScreen: undefined;
   ManageCards: undefined;
   AddCard: { returnTo?: string } | undefined;
+  WithdrawWallet: undefined;
+  TransferWallet: undefined;
   Messages: undefined;
   Notifications: undefined;
   MyProfile: undefined;
@@ -188,6 +191,7 @@ type AppStackParamList = {
   VideoCallScreen: { name: string; avatar: any };
   AllReleases: undefined;
   Library: undefined;
+  ArtistSongDetail: { id?: number; releaseId?: number } | undefined;
 };
 
 const Stack = createStackNavigator<AppStackParamList>();
@@ -261,6 +265,8 @@ export default function App() {
           <Stack.Screen name="AddWalletScreen" component={AddWalletScreen} />
           <Stack.Screen name="ManageCards" component={ManageCardsScreen} />
           <Stack.Screen name="AddCard" component={AddCardScreen} />
+          <Stack.Screen name="WithdrawWallet" component={WithdrawScreen} />
+          <Stack.Screen name="TransferWallet" component={TransferScreen} />
           <Stack.Screen name="Messages" component={Messages} />
           <Stack.Screen name="Notifications" component={Notifications} />
           <Stack.Screen name="MyProfile" component={MyProfile} />
@@ -285,6 +291,7 @@ export default function App() {
           <Stack.Screen name="Available" component={Available} />
           <Stack.Screen name="Soldout" component={SoldOut} />
           <Stack.Screen name="Dashboard" component={Dashboard} />
+          <Stack.Screen name="ArtistSongDetail" component={ArtistSongDetailScreen} />
           <Stack.Screen name="MessagesScreen" component={MessagesScreen} />
           <Stack.Screen name="ChatScreen" component={ChatScreen} />
           <Stack.Screen name="CreateGroupScreen" component={require('../pages/messages/CreateGroupScreen').default} />

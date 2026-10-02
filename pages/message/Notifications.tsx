@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { notificationService, NotificationResponse } from '@/lib/notificationService';
+import { parseTimestamp } from '@/lib/dateUtils';
 
 const { height, width } = Dimensions.get('window');
 

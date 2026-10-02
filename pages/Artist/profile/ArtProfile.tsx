@@ -301,59 +301,9 @@ const ArtProfile: React.FC = () => {
           <View style={styles.tabContent}>
             {musicReleases.length > 0 ? (
               <>
-                {/* Featured LP Player Hero */}
-                {(() => {
-                  const featured = musicReleases[0];
-                  const coverUri = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
-                  const trackCount = featured.tracks?.length || 1;
-                  const artistName = featured.artist?.username || featured.artist?.fullName || displayName;
-
-                  return (
-                    <View style={styles.lpCard}>
-                      <Image
-                        source={coverUri ? { uri: coverUri } : require('../../../assets/images/drop1.jpg')}
-                        style={styles.lpHeroImg}
-                      />
-                      <View style={styles.lpOverlay}>
-                        <TouchableOpacity
-                          style={styles.lpPlayCircle}
-                          onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
-                        >
-                          <Ionicons name="play" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-
-                        <View style={styles.lpFooter}>
-                          <View style={styles.lpTextWrap}>
-                            <Text style={styles.lpTitle}>{featured.title}</Text>
-                            <Text style={styles.lpSub}>
-                              {artistName} • {trackCount} {trackCount === 1 ? 'track' : 'tracks'} • {featured.releaseType || 'RELEASE'}
-                            </Text>
-                          </View>
-
-                          <TouchableOpacity
-                            style={styles.streamBtn}
-                            onPress={() => navigation.navigate('MusicDetail', { id: featured.id })}
-                          >
-                            <Text style={styles.streamBtnText}>STREAM</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })()}
-
-                {/* Releases Section */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 12 }}>
-                  <Text style={styles.sectionHeading}>ALL RELEASES ({musicReleases.length})</Text>
-                  {(sessionUser?.role === 'ARTIST' || sessionUser?.role === 'ADMIN') && (
-                    <TouchableOpacity
-                      style={{ backgroundColor: PURPLE, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 }}
-                      onPress={() => navigation.navigate('UploadMusic')}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontFamily: 'Poppins-Bold' }}>Upload Music</Text>
-                    </TouchableOpacity>
-                  )}
+                {/* Songs Section */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 12 }}>
+                  <Text style={styles.sectionHeading}>SONGS ({musicReleases.length})</Text>
                 </View>
                 <View style={styles.releasesList}>
                   {musicReleases.map((rel) => {
@@ -366,7 +316,7 @@ const ArtProfile: React.FC = () => {
                         key={rel.id}
                         style={styles.releaseRow}
                         activeOpacity={0.7}
-                        onPress={() => navigation.navigate('MusicDetail', { id: rel.id })}
+                        onPress={() => navigation.navigate('ArtistSongDetail', { id: rel.id })}
                       >
                         <Image
                           source={coverUri ? { uri: coverUri } : require('../../../assets/images/drop1.jpg')}
@@ -448,6 +398,17 @@ const ArtProfile: React.FC = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Create FAB for Music */}
+      {activeTab === 'Music' && (sessionUser?.role === 'ARTIST' || sessionUser?.role === 'ADMIN') && (
+        <TouchableOpacity
+          style={styles.floatingCreatePostBtn}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('UploadMusic')}
+        >
+          <Ionicons name="add" size={28} color="#FFF" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -459,6 +420,23 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
+  },
+  floatingCreatePostBtn: {
+    position: 'absolute',
+    bottom: 85,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: PURPLE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    zIndex: 99,
   },
 
   // ── Header ──

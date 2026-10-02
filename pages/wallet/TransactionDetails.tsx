@@ -24,6 +24,9 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   purchase: 'Purchase Payment',
   refund: 'Refund',
   promo: 'Promotional Credit',
+  withdrawal: 'Cash Out / Withdrawal',
+  transfer_in: 'Received Transfer',
+  transfer_out: 'Sent Transfer',
 };
 
 const TYPE_ICONS: Record<TransactionType, any> = {
@@ -31,6 +34,9 @@ const TYPE_ICONS: Record<TransactionType, any> = {
   purchase: 'cart',
   refund: 'refresh-circle',
   promo: 'gift',
+  withdrawal: 'arrow-up-circle',
+  transfer_in: 'arrow-down-circle',
+  transfer_out: 'arrow-up-circle',
 };
 
 const TYPE_COLORS: Record<TransactionType, string> = {
@@ -38,6 +44,9 @@ const TYPE_COLORS: Record<TransactionType, string> = {
   purchase: '#DC2626',
   refund: '#2563EB',
   promo: '#D97706',
+  withdrawal: '#EA580C',
+  transfer_in: '#10B981',
+  transfer_out: '#8B5CF6',
 };
 
 const TransactionDetails: React.FC = () => {

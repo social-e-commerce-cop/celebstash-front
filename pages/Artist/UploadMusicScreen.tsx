@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Switch,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -230,16 +231,40 @@ export default function UploadMusicScreen() {
       }
       formData.append('benefitsJson', JSON.stringify(benefitsList));
 
+      // Helper to append files safely across React Native and Web
+      const appendFile = async (
+        fd: FormData,
+        fieldName: string,
+        uri: string,
+        name: string,
+        mimeType: string
+      ) => {
+        if (Platform.OS === 'web') {
+          try {
+            const res = await fetch(uri);
+            const blob = await res.blob();
+            fd.append(fieldName, blob, name);
+            return;
+          } catch (e) {
+            console.warn(`[Web Blob fallback for ${fieldName}]:`, e);
+          }
+        }
+        // Native React Native FormData object
+        fd.append(fieldName, {
+          uri,
+          name,
+          type: mimeType,
+        } as any);
+      };
+
       // Cover art file
-      const coverExt = coverArtUri.split('.').pop() || 'jpg';
-      formData.append('coverArt', {
-        uri: coverArtUri,
-        name: `cover_${Date.now()}.${coverExt}`,
-        type: `image/${coverExt === 'png' ? 'png' : 'jpeg'}`,
-      } as any);
+      const coverExt = (coverArtUri.split('.').pop() || 'jpg').toLowerCase();
+      const coverMime = coverExt === 'png' ? 'image/png' : 'image/jpeg';
+      await appendFile(formData, 'coverArt', coverArtUri, `cover_${Date.now()}.${coverExt}`, coverMime);
 
       // Tracks
-      tracks.forEach((tr, i) => {
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
         formData.append('trackTitles', tr.title || `Track ${i + 1}`);
         formData.append('trackPrices', tr.price || '1.99');
         formData.append('trackProducers', tr.producer || '');
@@ -249,27 +274,56 @@ export default function UploadMusicScreen() {
         formData.append('trackExplicits', String(tr.isExplicit));
         formData.append('trackIsBonus', String(tr.isBonusTrack || false));
 
-        const audioExt = tr.fileName.split('.').pop() || 'mp3';
-        formData.append('trackFiles', {
-          uri: tr.fileUri,
-          name: tr.fileName || `track_${i + 1}.${audioExt}`,
-          type: 'audio/mpeg',
-        } as any);
-      });
+        const audioExt = (tr.fileName.split('.').pop() || 'mp3').toLowerCase();
+        let audioMime = 'audio/mpeg';
+        if (audioExt === 'wav') audioMime = 'audio/wav';
+        else if (audioExt === 'aac') audioMime = 'audio/aac';
+        else if (audioExt === 'flac') audioMime = 'audio/flac';
+        else if (audioExt === 'm4a') audioMime = 'audio/mp4';
+        else if (audioExt === 'ogg') audioMime = 'audio/ogg';
+
+        await appendFile(
+          formData,
+          'trackFiles',
+          tr.fileUri,
+          tr.fileName || `track_${i + 1}.${audioExt}`,
+          audioMime
+        );
+      }
 
       const baseUrl = getWorkingBaseUrl();
-      const response = await fetch(`${baseUrl}/api/music/releases/upload`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${baseUrl}/api/music/releases/upload`);
+        xhr.timeout = 180000; // 3 minutes timeout for music uploads
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.message || `Upload failed (${response.status})`);
-      }
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            let errorMsg = `Upload failed (${xhr.status})`;
+            try {
+              const errJson = JSON.parse(xhr.responseText);
+              if (errJson.message) errorMsg = errJson.message;
+            } catch (_) {}
+            reject(new Error(errorMsg));
+          }
+        };
+
+        xhr.onerror = (e) => {
+          console.error('[Upload Music Network Error]:', e);
+          reject(new Error('Network error occurred during release upload. Please check your connection.'));
+        };
+
+        xhr.ontimeout = () => {
+          reject(new Error('Upload timed out. Audio files may be too large for current network speed.'));
+        };
+
+        xhr.send(formData);
+      });
 
       Alert.alert(
         targetStatus === 'DRAFT' ? 'Draft Saved!' : 'Release Published!',

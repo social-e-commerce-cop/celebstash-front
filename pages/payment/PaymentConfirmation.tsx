@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import {
   View, Text, StyleSheet, Dimensions,
   TouchableOpacity, ActivityIndicator,
-  Modal, Image, TextInput,
+  Modal, Image, TextInput, Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -78,31 +78,35 @@ const PinEntry: React.FC = () => {
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (submitted) return;
     setSubmitted(true);
     setLoading(true);
     setLoadingText('Verifying…');
-    setTimeout(() => {
-      setLoadingText('Authorizing…');
-      setTimeout(() => {
-        setLoadingText('Processing payment…');
-        setTimeout(() => {
-          setLoading(false);
-          if (isMusic && musicItem) {
-            addSongToLibrary(musicItem);
-          }
-          if (paymentMethodRaw === 'My Wallet' && params.total) {
-            const { deductWallet } = require('@/lib/walletStore');
-            deductWallet(
-              parseFloat(params.total),
-              `Order payment — ${isMusic ? (musicItem?.title ?? 'Music') : 'Merchandise'}`,
-            );
-          }
-          setModalVisible(true);
-        }, 700);
-      }, 800);
-    }, 800);
+
+    try {
+      if (paymentMethodRaw === 'My Wallet' && params.total) {
+        setLoadingText('Processing wallet payment…');
+        const { deductWallet } = require('@/lib/walletStore');
+        const enteredPin = (isMoMo ? momoPin : pin).join('');
+        await deductWallet(
+          parseFloat(params.total),
+          `Payment for ${isMusic ? (musicItem?.title ?? 'Music') : 'Order'}`,
+          enteredPin || undefined
+        );
+      }
+
+      if (isMusic && musicItem) {
+        addSongToLibrary(musicItem);
+      }
+
+      setLoading(false);
+      setModalVisible(true);
+    } catch (err: any) {
+      setLoading(false);
+      setSubmitted(false);
+      Alert.alert('Payment Error', err.message || 'Unable to process wallet payment.');
+    }
   };
 
   // MoMo PIN input handler

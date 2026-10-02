@@ -22,8 +22,7 @@ import { resolveImageUrl } from '@/lib/apiClient';
 import { getSessionUser } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
-
-
+const PURPLE = '#7126D0';
 
 interface FeaturedArtistItem {
   id: string;
@@ -45,7 +44,6 @@ const MusicScreen = () => {
       String(sessionUser.id) === String(artist.id) ||
       (sessionUser.username && artist.username && sessionUser.username.toLowerCase() === artist.username.toLowerCase())
     );
-
     navigation.navigate('MyProfile', {
       isOtherUser: !isOwn,
       userId: Number(artist.id),
@@ -59,21 +57,8 @@ const MusicScreen = () => {
     });
   };
 
-  const renderArtist = ({ item }: { item: FeaturedArtistItem }) => (
-    <TouchableOpacity
-      style={styles.artistAvatarContainer}
-      activeOpacity={0.8}
-      onPress={() => handleArtistPress(item)}
-    >
-      <Image source={item.image} style={styles.artistAvatar} />
-      <Text style={styles.artistNameText} numberOfLines={1}>{item.name}</Text>
-    </TouchableOpacity>
-  );
-
   React.useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchMusicData();
-    });
+    const unsubscribe = navigation.addListener('focus', () => { fetchMusicData(); });
     fetchMusicData();
     return unsubscribe;
   }, [navigation]);
@@ -117,45 +102,63 @@ const MusicScreen = () => {
       )
     : realReleases;
 
+  const isSongOwner = (item: MusicReleaseItem) => {
+    if (!sessionUser || !item.artist) return false;
+    return (
+      String(item.artist.id) === String(sessionUser.id) ||
+      (sessionUser.username && item.artist.username && sessionUser.username.toLowerCase() === item.artist.username.toLowerCase())
+    );
+  };
+
+  const handleReleasePress = (item: MusicReleaseItem) => {
+    if (isSongOwner(item)) {
+      navigation.navigate('ArtistSongDetail', { id: item.id });
+    } else {
+      navigation.navigate('MusicDetail', { id: item.id });
+    }
+  };
+
+  // Horizontal card (Upcoming Exclusive Drops)
   const renderUpcoming = ({ item }: { item: MusicReleaseItem }) => {
     const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
     const artistName = item.artist?.artistName || item.artist?.fullName || item.artist?.username || 'Artist';
-    const releaseYear = item.releaseDate
-      ? new Date(item.releaseDate).getFullYear()
-      : (item.createdAt ? new Date(item.createdAt).getFullYear() : null);
+    const isOwner = isSongOwner(item);
+    const accessCount = item.tracks?.length || 0;
 
     return (
       <TouchableOpacity
         style={styles.upcomingCard}
         activeOpacity={0.9}
-        onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+        onPress={() => handleReleasePress(item)}
       >
         <ImageBackground
           source={coverUri ? { uri: coverUri } : require('@/assets/images/drop1.jpg')}
           style={styles.upcomingBg}
           imageStyle={styles.upcomingImageStyle}
         >
+          {/* Price / owner badge top-left */}
           <View style={styles.upcomingPriceBadge}>
-            <Text style={styles.upcomingPriceText}>${item.albumPrice?.toFixed(2) || '9.99'}</Text>
-          </View>
-          <View style={{ position: 'absolute', top: 10, left: 10, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, zIndex: 10 }}>
-            <Text style={{ color: '#FF6B00', fontSize: 10, fontFamily: 'Poppins-Bold' }}>
-              {item.availabilityStatus === 'EXCLUSIVE' ? '💎 EXCLUSIVE' : item.availabilityStatus === 'PRE_RELEASE' ? '⏳ PRE-RELEASE' : item.availabilityStatus === 'PUBLICLY_RELEASED' ? '🌐 PUBLIC' : '🔥 UNRELEASED'}
+            <Text style={styles.upcomingPriceText}>
+              {isOwner ? '👑 Yours' : `$${item.albumPrice?.toFixed(2) || '9.99'}`}
             </Text>
           </View>
+
+          {/* Dark gradient overlay at bottom */}
           <View style={styles.upcomingGradient}>
             <View style={styles.upcomingInfo}>
               <Text style={styles.upcomingTitle} numberOfLines={2}>{item.title}</Text>
               <View style={styles.upcomingArtistRow}>
                 <Text style={styles.upcomingArtist}>{artistName}</Text>
-                <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
+                <Svg width="12" height="12" viewBox="0 0 24 24" fill={PURPLE} style={{ marginLeft: 4 }}>
                   <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 </Svg>
               </View>
               <View style={styles.upcomingFooter}>
-                <Text style={styles.upcomingDropType}>{item.releaseType || 'Single'}{releaseYear ? ` • ${releaseYear}` : ''}</Text>
+                <Text style={styles.upcomingDropType}>
+                  {isOwner ? '📊 Analytics' : (item.releaseType || 'Single')}
+                </Text>
                 <Text style={styles.upcomingAccesses}>
-                  {item.tracks?.length ? `${item.tracks.length} Track${item.tracks.length > 1 ? 's' : ''}` : 'Direct Access'}
+                  {accessCount > 0 ? `${accessCount} Access` : 'Direct Access'}
                 </Text>
               </View>
             </View>
@@ -165,36 +168,55 @@ const MusicScreen = () => {
     );
   };
 
-  const renderSong = ({ item }: { item: MusicReleaseItem }) => {
+  // Numbered song row — matches the screenshot layout exactly:
+  // [number] [square-image] [title / artist] [price]
+  const renderSong = ({ item, index }: { item: MusicReleaseItem; index: number }) => {
     const coverUri = item.coverArtUrl ? resolveImageUrl(item.coverArtUrl) : null;
     const artistName = item.artist?.artistName || item.artist?.fullName || item.artist?.username || 'Artist';
-    const releaseYear = item.releaseDate
-      ? new Date(item.releaseDate).getFullYear()
-      : (item.createdAt ? new Date(item.createdAt).getFullYear() : null);
+    const isOwner = isSongOwner(item);
 
     return (
       <TouchableOpacity
         style={styles.songRow}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('MusicDetail', { id: item.id })}
+        onPress={() => handleReleasePress(item)}
       >
+        {/* Track Number */}
+        <Text style={styles.songNumber}>{index + 1}</Text>
+
+        {/* Square Thumbnail */}
         <Image
           source={coverUri ? { uri: coverUri } : require('@/assets/images/products/product1.jpg')}
           style={styles.songImage}
         />
+
+        {/* Title + Artist stacked */}
         <View style={styles.songInfo}>
-          <Text style={styles.songName} numberOfLines={2}>{item.title}</Text>
-          <View style={styles.songArtistRow}>
-            <Text style={styles.songArtist}>{artistName}{releaseYear ? ` • ${releaseYear}` : ''}</Text>
-            <Svg width="12" height="12" viewBox="0 0 24 24" fill="#7126D0" style={{marginLeft: 4}}>
-              <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-            </Svg>
-          </View>
+          <Text style={styles.songName} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.songArtist} numberOfLines={1}>{artistName}</Text>
         </View>
-        <Text style={styles.songPrice}>${item.albumPrice?.toFixed(2) || '1.99'}</Text>
+
+        {/* Price or owner badge */}
+        <Text style={[styles.songPrice, isOwner && { color: PURPLE }]}>
+          {isOwner ? '👑' : `$${item.albumPrice?.toFixed(2) || '1.99'}`}
+        </Text>
       </TouchableOpacity>
     );
   };
+
+  const renderArtist = ({ item }: { item: FeaturedArtistItem }) => (
+    <TouchableOpacity
+      style={styles.artistAvatarContainer}
+      activeOpacity={0.8}
+      onPress={() => handleArtistPress(item)}
+    >
+      {/* Ring border around avatar */}
+      <View style={styles.artistAvatarRing}>
+        <Image source={item.image} style={styles.artistAvatar} />
+      </View>
+      <Text style={styles.artistNameText} numberOfLines={1}>{item.name}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.screen}>
@@ -206,7 +228,7 @@ const MusicScreen = () => {
         <View style={styles.headerRightActions}>
           {isArtist && (
             <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('UploadMusic')}>
-              <Ionicons name="cloud-upload" size={22} color="#7126D0" />
+              <Ionicons name="cloud-upload" size={22} color={PURPLE} />
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.libraryHeaderBtn} onPress={() => navigation.navigate('Library')}>
@@ -216,7 +238,8 @@ const MusicScreen = () => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Search Bar */}
+
+        {/* ── Search Bar ── */}
         <View style={styles.searchRow}>
           <View style={styles.searchBar}>
             <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" style={styles.searchIcon}>
@@ -225,8 +248,8 @@ const MusicScreen = () => {
             </Svg>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search for merch, artist..."
-              placeholderTextColor="#666"
+              placeholder="Search for music, artist..."
+              placeholderTextColor="#999"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -238,45 +261,43 @@ const MusicScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Featured Banner */}
+        {/* ── Featured Banner (first release) ── */}
         {filteredReleases.length > 0 && (() => {
           const featured = filteredReleases[0];
           const bannerImg = featured.coverArtUrl ? resolveImageUrl(featured.coverArtUrl) : null;
           const bannerArtistName = featured.artist?.artistName || featured.artist?.fullName || featured.artist?.username || 'Featured Artist';
-          const bannerReleaseTitle = featured.title;
-          const bannerYear = featured.releaseDate
-            ? new Date(featured.releaseDate).getFullYear()
-            : (featured.createdAt ? new Date(featured.createdAt).getFullYear() : null);
 
           return (
             <TouchableOpacity
               style={styles.bannerContainer}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate('MusicDetail' as any, { id: featured.id })}
+              onPress={() => handleReleasePress(featured)}
             >
               <ImageBackground
                 source={bannerImg ? { uri: bannerImg } : require('@/assets/images/drop1.jpg')}
                 style={styles.bannerBg}
-                imageStyle={{ borderRadius: 12 }}
+                imageStyle={{ borderRadius: 14 }}
               >
                 <View style={styles.bannerOverlay}>
                   <View style={styles.bannerArtistRow}>
-                    <Text style={styles.bannerArtist}>{bannerArtistName}{bannerYear ? ` • ${bannerYear}` : ''}</Text>
-                    <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" style={{ marginLeft: 4 }}>
+                    <Text style={styles.bannerArtist}>{bannerArtistName}</Text>
+                    <Svg width="14" height="14" viewBox="0 0 24 24" fill={PURPLE} style={{ marginLeft: 4 }}>
                       <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                     </Svg>
                   </View>
-                  <Text style={styles.bannerTitle}>{bannerReleaseTitle}</Text>
+                  <Text style={styles.bannerTitle} numberOfLines={2}>{featured.title}</Text>
                 </View>
               </ImageBackground>
             </TouchableOpacity>
           );
         })()}
 
-        {/* Upcoming Release */}
+        {/* ── Upcoming Exclusive Drops (horizontal scroll) ── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Unreleased Exclusive Drops</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('AllReleases' as any)}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
+          <Text style={styles.sectionTitle}>Upcoming Release</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('AllReleases' as any)}>
+            <Text style={styles.seeAll}>See all</Text>
+          </TouchableOpacity>
         </View>
         <FlatList
           horizontal
@@ -287,24 +308,28 @@ const MusicScreen = () => {
           contentContainerStyle={styles.upcomingList}
         />
 
-        {/* Songs List */}
-        <View style={styles.songsList}>
-          {filteredReleases.length > 0 ? (
-            filteredReleases.map((item) => <React.Fragment key={item.id}>{renderSong({ item })}</React.Fragment>)
-          ) : (
-            <View style={styles.emptySearch}>
-              <Text style={styles.emptySearchText}>
-                {loading ? 'Loading releases...' : `No unreleased drops found ${searchQuery ? `for "${searchQuery}"` : ''}`}
-              </Text>
+        {/* ── Top Songs (numbered list matching screenshot) ── */}
+        {filteredReleases.length > 0 && (
+          <View style={styles.topSongsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Top Songs</Text>
             </View>
-          )}
-        </View>
+            <View style={styles.songsList}>
+              {filteredReleases.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  {renderSong({ item, index })}
+                </React.Fragment>
+              ))}
+            </View>
+          </View>
+        )}
 
-        {/* Featured Artists */}
+        {/* ── Featured Artists (circular avatars) ── */}
         {featuredArtists.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Featured Artists</Text>
+              <TouchableOpacity><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
             </View>
             <FlatList
               horizontal
@@ -316,9 +341,20 @@ const MusicScreen = () => {
             />
           </>
         )}
+
+        {/* Empty state */}
+        {filteredReleases.length === 0 && (
+          <View style={styles.emptySearch}>
+            <Ionicons name="musical-notes-outline" size={48} color="#D1D5DB" />
+            <Text style={styles.emptySearchText}>
+              {loading ? 'Loading releases...' : searchQuery ? `No results for "${searchQuery}"` : 'No releases yet'}
+            </Text>
+          </View>
+        )}
+
       </ScrollView>
 
-      {/* Floating TabBar at the bottom */}
+      {/* Floating TabBar */}
       <View style={styles.tabBarContainer}>
         <TabBar />
       </View>
@@ -357,44 +393,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerIcon: {
-    position: 'relative',
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: 4,
-    right: -2,
-    backgroundColor: '#7126D0',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontFamily: 'Poppins-Bold',
-  },
   scrollContent: {
-    paddingBottom: 120, // space for tab bar
+    paddingBottom: 120,
   },
+
+  // ── Search ──────────────────────────────────────
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
     height: 46,
     marginRight: 10,
@@ -413,27 +428,29 @@ const styles = StyleSheet.create({
     height: 46,
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // ── Featured Banner ──────────────────────────────
   bannerContainer: {
     paddingHorizontal: 20,
     marginBottom: 24,
   },
   bannerBg: {
     width: '100%',
-    height: 180,
-    justifyContent: 'center',
-    alignItems: 'center',
+    height: 190,
+    justifyContent: 'flex-end',
   },
   bannerOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.48)',
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 12,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   bannerArtistRow: {
     flexDirection: 'row',
@@ -444,14 +461,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontFamily: 'Poppins-Medium',
+    letterSpacing: 0.3,
   },
   bannerTitle: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    textTransform: 'uppercase',
   },
+
+  // ── Section Headers ──────────────────────────────
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -467,16 +488,18 @@ const styles = StyleSheet.create({
   seeAll: {
     fontSize: 14,
     fontFamily: 'Poppins-Medium',
-    color: '#7126D0',
+    color: PURPLE,
   },
+
+  // ── Horizontal Cards (Upcoming) ──────────────────
   upcomingList: {
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
   upcomingCard: {
-    width: width * 0.65,
-    height: 200,
-    marginRight: 16,
+    width: width * 0.62,
+    height: 210,
+    marginRight: 14,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -489,20 +512,20 @@ const styles = StyleSheet.create({
   upcomingGradient: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.52)',
   },
   upcomingPriceBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: '#fff',
-    paddingHorizontal: 8,
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 12,
     zIndex: 1,
   },
   upcomingPriceText: {
-    color: '#111',
+    color: '#fff',
     fontFamily: 'Poppins-Bold',
     fontSize: 12,
   },
@@ -514,12 +537,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Poppins-Bold',
     lineHeight: 18,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   upcomingArtistRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   upcomingArtist: {
     color: '#ccc',
@@ -532,7 +555,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   upcomingDropType: {
-    color: '#7126D0',
+    color: PURPLE,
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
   },
@@ -541,20 +564,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Poppins-Medium',
   },
+
+  // ── Top Songs (numbered list) ────────────────────
+  topSongsSection: {
+    marginBottom: 8,
+  },
   songsList: {
     paddingHorizontal: 20,
-    marginBottom: 24,
   },
   songRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
+  songNumber: {
+    width: 20,
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#111',
+    textAlign: 'center',
+    marginRight: 12,
+  },
   songImage: {
-    width: 50,
-    height: 50,
+    width: 48,
+    height: 48,
     borderRadius: 6,
-    marginRight: 14,
+    marginRight: 12,
+    backgroundColor: '#F3F4F6',
   },
   songInfo: {
     flex: 1,
@@ -566,38 +602,54 @@ const styles = StyleSheet.create({
     color: '#111',
     marginBottom: 2,
   },
-  songArtistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   songArtist: {
     fontSize: 12,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: 'Poppins-Regular',
     color: '#666',
   },
   songPrice: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Poppins-Bold',
-    color: '#7126D0',
+    color: PURPLE,
+    minWidth: 40,
+    textAlign: 'right',
   },
+
+  // ── Featured Artists ─────────────────────────────
   artistsList: {
     paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   artistAvatarContainer: {
     alignItems: 'center',
-    marginRight: 20,
+    marginRight: 18,
+  },
+  artistAvatarRing: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    borderWidth: 2.5,
+    borderColor: PURPLE,
+    padding: 2,
+    marginBottom: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   artistAvatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    marginBottom: 8,
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#E5E7EB',
   },
   artistNameText: {
     fontSize: 12,
     fontFamily: 'Poppins-Medium',
     color: '#111',
+    maxWidth: 70,
+    textAlign: 'center',
   },
+
+  // ── Tab Bar ──────────────────────────────────────
   tabBarContainer: {
     position: 'absolute',
     bottom: 0,
@@ -605,14 +657,17 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'transparent',
   },
+
+  // ── Empty State ───────────────────────────────────
   emptySearch: {
-    paddingVertical: 30,
+    paddingVertical: 48,
     alignItems: 'center',
+    gap: 12,
   },
   emptySearchText: {
     fontSize: 14,
     fontFamily: 'Poppins-Medium',
-    color: '#999',
+    color: '#9CA3AF',
     textAlign: 'center',
   },
 });

@@ -12,6 +12,7 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -131,7 +132,7 @@ export default function AllReleasesScreen() {
                     </View>
                     <View style={styles.exclusiveBadge}>
                       <Ionicons name="sparkles" size={12} color="#FFF" style={{ marginRight: 4 }} />
-                      <Text style={styles.exclusiveBadgeText}>DIRECT TO FAN</Text>
+                      <Text style={styles.exclusiveBadgeText}></Text>
                     </View>
                   </View>
 
@@ -253,11 +254,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
   },
   header: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 48 : (StatusBar.currentHeight || 24) + 10,
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',

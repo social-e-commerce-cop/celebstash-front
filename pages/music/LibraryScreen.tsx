@@ -235,7 +235,6 @@ const LibraryScreen = () => {
               onPress={() => navigation.navigate('MusicScreen')}
               activeOpacity={0.8}
             >
-              <Ionicons name="sparkles" size={16} color="#fff" style={{ marginRight: 6 }} />
               <Text style={styles.exploreButtonText}>Explore Unreleased Music</Text>
             </TouchableOpacity>
           </View>
@@ -344,9 +343,16 @@ const LibraryScreen = () => {
             <View style={styles.playerLeft}>
               <Image source={player.currentSong.image} style={styles.playerImage} />
               <View style={styles.playerInfo}>
-                <Text style={styles.playerSongTitle} numberOfLines={1}>
-                  {player.currentSong.title}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.playerSongTitle} numberOfLines={1}>
+                    {player.currentSong.title}
+                  </Text>
+                  {player.currentSong.isPreview && (
+                    <View style={{ backgroundColor: '#FAF5FF', borderColor: PURPLE, borderWidth: 1, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 9, color: PURPLE, fontFamily: 'Poppins-Bold' }}>5s PREVIEW</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.playerArtistName} numberOfLines={1}>
                   {player.currentSong.artist}{player.currentSong.year ? ` • ${player.currentSong.year}` : ''}
                 </Text>
