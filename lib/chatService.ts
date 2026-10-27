@@ -97,6 +97,8 @@ export interface MessageDto {
   sharedProduct: SharedProductDto | null;
   /** Set when type === 'POST'. */
   sharedPost: SharedPostDto | null;
+  /** Echo of the clientMessageId the sender supplied; null for messages sent without one. */
+  clientMessageId?: string | null;
 }
 
 export interface PagedMessages {
@@ -130,6 +132,12 @@ export interface SendMessageRequest {
   productId?: number;
   /** Required when type === 'POST'. */
   postId?: number;
+  /**
+   * Client-generated id for this send. The server returns the already-stored message when the
+   * same id arrives twice (retry after a timeout, double tap), and echoes it back so the
+   * optimistic bubble can be matched to the saved message.
+   */
+  clientMessageId?: string;
 }
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -137,6 +145,12 @@ export interface SendMessageRequest {
 export const chatService = {
 
   // ── Conversations ─────────────────────────────────────────────────────────
+
+  /** Total unread messages across all conversations (inbox badge). */
+  getUnreadCount: async (): Promise<number> => {
+    const res = await apiClient.get<{ count: number }>('/api/chat/unread-count');
+    return Number(res?.count ?? 0);
+  },
 
   getConversations: (): Promise<ConversationDto[]> =>
     apiClient.get('/api/chat/conversations'),

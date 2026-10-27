@@ -103,7 +103,7 @@ const EwalletScreen = () => {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor={PURPLE} />
+      <StatusBar barStyle="light-content" />
       <View style={styles.container}>
         {/* Sticky Header — sits above the scrollable list */}
         <View style={styles.header}>

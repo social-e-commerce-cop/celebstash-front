@@ -25,7 +25,7 @@ const ArtistHomeScreen = () => {
 
   return (
     <View style={styles.screen}>
-        <StatusBar barStyle="dark-content" backgroundColor="#000" />
+        <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
       <Text style={styles.title}>Home artist</Text>

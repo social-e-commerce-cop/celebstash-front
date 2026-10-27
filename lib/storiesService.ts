@@ -1,18 +1,22 @@
 import { apiClient } from './apiClient';
+import { parseServerDate } from './time';
 
+/** Mirrors the backend StoryResponse (com.celebstash.backend.dto.StoryResponse). */
 export interface StoryItem {
   id: number;
   userId: number;
-  userName: string;
+  /** Public handle; null for accounts without one (use userFullName). */
+  username?: string | null;
   userFullName?: string;
-  userAvatarUrl?: any;
+  userAvatar?: string | null;
   userRole?: string;
-  mediaUrl: any;
-  thumbnailUrl?: string;
+  mediaUrl: string;
+  thumbnailUrl?: string | null;
   mediaType: 'IMAGE' | 'VIDEO';
-  caption?: string;
+  caption?: string | null;
   visibility: 'PUBLIC' | 'FOLLOWERS' | 'CLOSE_FRIENDS';
-  productId?: number;
+  productId?: number | null;
+  /** UTC instants; expiry is set by the server (24h after creation). */
   createdAt: string;
   expiresAt: string;
   viewCount: number;
@@ -23,163 +27,124 @@ export interface StoryItem {
   allowReactions: boolean;
   isArchived: boolean;
   isViewedByMe: boolean;
-  myReaction?: string;
-  hasSticker?: boolean;
+  myReaction?: string | null;
 }
 
+/** One artist's active stories, oldest first (the order they are watched in). */
 export interface StoryGroup {
   userId: number;
   username: string;
   userFullName?: string;
-  userAvatar: any;
+  userAvatar?: string | null;
   userRole?: string;
   hasUnseen: boolean;
   stories: StoryItem[];
 }
 
-export const storiesService = {
-  getFeedStories: async (): Promise<StoryItem[]> => {
-    try {
-      const res = await apiClient.get<StoryItem[]>('/api/stories/feed');
-      return res;
-    } catch {
-      // Fallback mock stories if backend API is offline
-      return MOCK_STORIES;
-    }
-  },
+export interface StoryViewer {
+  userId: number;
+  fullName: string;
+  username?: string | null;
+  avatar?: string | null;
+  viewedAt: string;
+  reaction?: string | null;
+}
 
-  createStory: async (data: {
+export const STORY_REACTIONS = ['❤️', '😂', '😍', '😮', '👏', '🔥'];
+
+/** Only artists (and admins) publish stories; the backend enforces the same rule. */
+export const canPostStories = (role?: string) => role === 'ARTIST' || role === 'ADMIN';
+
+/**
+ * The server only returns unexpired stories, but a list fetched earlier can age past expiry while
+ * the app is open, so the client drops those too.
+ */
+export const isStoryActive = (s: StoryItem, now = Date.now()) => {
+  const exp = parseServerDate(s.expiresAt);
+  return !s.isArchived && (!exp || exp.getTime() > now);
+};
+
+/**
+ * Groups stories by artist. Artists with unseen stories come first, then the most recently
+ * updated; the viewer's own group (if any) is pinned to the front.
+ */
+export function groupStories(stories: StoryItem[], myUserId?: number): StoryGroup[] {
+  const byUser = new Map<number, StoryItem[]>();
+  for (const s of stories) {
+    if (!isStoryActive(s)) continue;
+    const list = byUser.get(s.userId) ?? [];
+    list.push(s);
+    byUser.set(s.userId, list);
+  }
+
+  const latest = (g: StoryGroup) => parseServerDate(g.stories[g.stories.length - 1]?.createdAt)?.getTime() ?? 0;
+
+  const groups: StoryGroup[] = Array.from(byUser.values()).map((list) => {
+    const sorted = [...list].sort(
+      (a, b) => (parseServerDate(a.createdAt)?.getTime() ?? 0) - (parseServerDate(b.createdAt)?.getTime() ?? 0)
+    );
+    const first = sorted[0];
+    return {
+      userId: first.userId,
+      username: first.username || first.userFullName || 'artist',
+      userFullName: first.userFullName,
+      userAvatar: first.userAvatar,
+      userRole: first.userRole,
+      hasUnseen: sorted.some((s) => !s.isViewedByMe),
+      stories: sorted,
+    };
+  });
+
+  return groups.sort((a, b) => {
+    if (myUserId !== undefined) {
+      if (Number(a.userId) === Number(myUserId)) return -1;
+      if (Number(b.userId) === Number(myUserId)) return 1;
+    }
+    if (a.hasUnseen !== b.hasUnseen) return a.hasUnseen ? -1 : 1;
+    return latest(b) - latest(a);
+  });
+}
+
+export const storiesService = {
+  /** Active stories from all artists. Throws on failure — there is no offline fallback data. */
+  getFeedStories: (): Promise<StoryItem[]> => apiClient.get<StoryItem[]>('/api/stories/feed'),
+
+  getUserStories: (userId: number): Promise<StoryItem[]> =>
+    apiClient.get<StoryItem[]>(`/api/stories/user/${userId}`),
+
+  /** Artists only; the server rejects other roles with 403. */
+  createStory: (data: {
     mediaUrl: string;
     mediaType: 'IMAGE' | 'VIDEO';
     caption?: string;
     visibility?: 'PUBLIC' | 'FOLLOWERS' | 'CLOSE_FRIENDS';
     allowReplies?: boolean;
     allowReactions?: boolean;
-  }) => {
-    try {
-      return await apiClient.post<StoryItem>('/api/stories', data);
-    } catch {
-      const newStory: StoryItem = {
-        id: Date.now(),
-        userId: 99,
-        userName: 'You',
-        mediaUrl: data.mediaUrl || require('../assets/images/storyItem.jpg'),
-        mediaType: data.mediaType || 'IMAGE',
-        caption: data.caption,
-        visibility: data.visibility || 'PUBLIC',
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        viewCount: 0,
-        reactionCount: 0,
-        replyCount: 0,
-        shareCount: 0,
-        allowReplies: data.allowReplies !== false,
-        allowReactions: data.allowReactions !== false,
-        isArchived: false,
-        isViewedByMe: true,
-      };
-      MOCK_STORIES.unshift(newStory);
-      return newStory;
-    }
+  }): Promise<StoryItem> => apiClient.post<StoryItem>('/api/stories', data),
+
+  /** Counted once per viewer by the server; the author's own views are not counted. */
+  recordView: async (storyId: number, watchDuration = 5, completed = true): Promise<void> => {
+    await apiClient.post(`/api/stories/${storyId}/view`, { watchDuration, completed });
   },
 
-  recordView: async (storyId: number, watchDuration = 5, completed = true) => {
-    try {
-      await apiClient.post(`/api/stories/${storyId}/view`, { watchDuration, completed });
-    } catch {
-      const found = MOCK_STORIES.find((s) => s.id === storyId);
-      if (found) {
-        found.isViewedByMe = true;
-        found.viewCount += 1;
-      }
-    }
+  /** One reaction per user per story; reacting again replaces it. */
+  reactToStory: (storyId: number, emoji: string): Promise<{ myReaction: string; reactionCount: number }> =>
+    apiClient.post(`/api/stories/${storyId}/react`, { emoji }),
+
+  removeReaction: (storyId: number): Promise<{ reactionCount: number }> =>
+    apiClient.delete(`/api/stories/${storyId}/react`),
+
+  replyToStory: async (storyId: number, message: string): Promise<void> => {
+    await apiClient.post(`/api/stories/${storyId}/reply`, { message });
   },
 
-  reactToStory: async (storyId: number, emoji: string) => {
-    try {
-      await apiClient.post(`/api/stories/${storyId}/react`, { emoji });
-    } catch {
-      const found = MOCK_STORIES.find((s) => s.id === storyId);
-      if (found) {
-        found.myReaction = emoji;
-        found.reactionCount += 1;
-      }
-    }
+  /** Author only. */
+  getViewers: (storyId: number): Promise<StoryViewer[]> =>
+    apiClient.get<StoryViewer[]>(`/api/stories/${storyId}/viewers`),
+
+  deleteStory: async (storyId: number): Promise<void> => {
+    await apiClient.delete(`/api/stories/${storyId}`);
   },
 
-  replyToStory: async (storyId: number, message: string) => {
-    try {
-      await apiClient.post(`/api/stories/${storyId}/reply`, { message });
-    } catch {
-      const found = MOCK_STORIES.find((s) => s.id === storyId);
-      if (found) {
-        found.replyCount += 1;
-      }
-    }
-  },
-
-  deleteStory: async (storyId: number) => {
-    try {
-      await apiClient.delete(`/api/stories/${storyId}`);
-    } catch {
-      const idx = MOCK_STORIES.findIndex((s) => s.id === storyId);
-      if (idx !== -1) MOCK_STORIES.splice(idx, 1);
-    }
-  },
-
-  getArchivedStories: async (): Promise<StoryItem[]> => {
-    try {
-      return await apiClient.get<StoryItem[]>('/api/stories/archive');
-    } catch {
-      return MOCK_STORIES.filter((s) => s.isArchived);
-    }
-  },
+  getArchivedStories: (): Promise<StoryItem[]> => apiClient.get<StoryItem[]>('/api/stories/archive'),
 };
-
-const MOCK_STORIES: StoryItem[] = [
-  {
-    id: 1,
-    userId: 101,
-    userName: 'Kenny K Shot',
-    userFullName: 'Kenny K Shot',
-    userAvatarUrl: require('../assets/images/story1.png'),
-    userRole: 'ARTIST',
-    mediaUrl: require('../assets/images/feed6.jpg'),
-    mediaType: 'IMAGE',
-    caption: 'Eras Tour opening night crystal jacket! 🔥 Tap to shop',
-    visibility: 'PUBLIC',
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 86400000).toISOString(),
-    viewCount: 1420,
-    reactionCount: 312,
-    replyCount: 45,
-    shareCount: 88,
-    allowReplies: true,
-    allowReactions: true,
-    isArchived: false,
-    isViewedByMe: false,
-    hasSticker: true,
-  },
-  {
-    id: 2,
-    userId: 102,
-    userName: 'blue_boy',
-    userFullName: 'Blue Boy',
-    userAvatarUrl: require('../assets/images/storyItem.jpg'),
-    userRole: 'USER',
-    mediaUrl: require('../assets/images/drop1.jpg'),
-    mediaType: 'IMAGE',
-    caption: 'Late night studio sessions producing ambient soundscapes 🌊',
-    visibility: 'PUBLIC',
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 86400000).toISOString(),
-    viewCount: 450,
-    reactionCount: 89,
-    replyCount: 12,
-    shareCount: 19,
-    allowReplies: true,
-    allowReactions: true,
-    isArchived: false,
-    isViewedByMe: true,
-  },
-];

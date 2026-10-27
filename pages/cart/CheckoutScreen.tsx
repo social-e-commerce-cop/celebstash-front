@@ -222,7 +222,7 @@ const CheckoutScreen: React.FC = () => {
       behavior="padding"
       keyboardVerticalOffset={Platform.OS === 'android' ? -200 : 0}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF6ED" />
+      <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
 
         {/* ── Header ── */}

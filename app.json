@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "cstash",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.akuzwe.cstash",
@@ -20,7 +19,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.akuzwe.cstash",
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",

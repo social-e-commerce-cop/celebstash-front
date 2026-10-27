@@ -224,7 +224,7 @@ export default function CreateProduct() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Navigation Header */}
       <View style={styles.header}>

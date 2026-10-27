@@ -27,7 +27,7 @@ const Wallet = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#000" />
+      <StatusBar barStyle="dark-content" />
 
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}

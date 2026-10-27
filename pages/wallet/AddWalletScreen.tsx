@@ -145,7 +145,7 @@ const AddWalletScreen = () => {
       style={{ flex: 1, backgroundColor: '#FFF' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
+      <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#000" />

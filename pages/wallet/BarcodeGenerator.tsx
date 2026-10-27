@@ -1,6 +1,9 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions, Platform, Text } from 'react-native';
-import Barcode from 'react-native-barcode-builder';
+// react-native-barcode-svg draws with react-native-svg (already a dependency). The previous
+// library, react-native-barcode-builder, required the unmaintained @react-native-community/art
+// native module, which has no New Architecture support.
+import Barcode from 'react-native-barcode-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -8,7 +11,6 @@ const BarcodeScreen: React.FC = () => {
   const barcodeValue = '05111140759';
 
   if (!Barcode) {
-    console.error('Barcode component is not available. Check react-native-barcode-builder installation.');
     return <View><Text>Error loading barcode.</Text></View>;
   }
 
@@ -18,8 +20,8 @@ const BarcodeScreen: React.FC = () => {
         value={barcodeValue}
         format="CODE128"
         height={120}
-        width={2}
-   
+        singleBarWidth={2}
+        maxWidth={width - 40}
       />
     </View>
   );

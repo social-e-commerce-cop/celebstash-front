@@ -52,7 +52,7 @@ const SecurityScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Custom Toast */}
       {toast && (

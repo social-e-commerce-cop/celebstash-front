@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#000" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.headerOverlay}>

@@ -67,7 +67,7 @@ const AddAddressForm: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" />
       
       {/* Header */}
       <View style={styles.headerOverlay}>

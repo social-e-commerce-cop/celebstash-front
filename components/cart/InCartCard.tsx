@@ -12,7 +12,8 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+// gesture-handler 3 removed the legacy Swipeable; this is its Reanimated replacement.
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Svg, { Path } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');

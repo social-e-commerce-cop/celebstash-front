@@ -76,7 +76,7 @@ const TransactionDetails: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>

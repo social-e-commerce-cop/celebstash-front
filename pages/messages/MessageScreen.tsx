@@ -174,7 +174,7 @@ const MessagesScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
 
       {/* ── Fixed Header ── */}
       <View style={styles.fixedTop}>

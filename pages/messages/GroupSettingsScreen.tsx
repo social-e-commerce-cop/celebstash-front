@@ -411,7 +411,7 @@ export default function GroupSettingsScreen() {
                 );
               }}
               ListEmptyComponent={
-                addSearching ? null : (
+                addSearching ? undefined : (
                   <Text style={styles.addEmpty}>
                     {addHasQuery ? 'No matching people' : 'Type to search for people'}
                   </Text>

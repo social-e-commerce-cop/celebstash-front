@@ -4,6 +4,7 @@ import {
   FlatList, TextInput, KeyboardAvoidingView, Platform,
   ActivityIndicator, Alert, Dimensions, ScrollView, Keyboard
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -322,7 +323,7 @@ export const CommentsModal: React.FC<Props> = ({
 
   const repliesPageRef = useRef<Record<number, number>>({});
   const listRef = useRef<FlatList<BackendComment>>(null);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const tagSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeTagQuery = useRef('');
 
@@ -873,7 +874,7 @@ export const CommentsModal: React.FC<Props> = ({
                 </View>
               }
               ListFooterComponent={
-                loadingMore ? <ActivityIndicator size="small" color={PURPLE} style={{ marginVertical: 12 }} /> : null
+                loadingMore ? <ActivityIndicator size="small" color={PURPLE} style={{ marginVertical: 12 }} /> : undefined
               }
               renderItem={({ item }) => (
                 <View>

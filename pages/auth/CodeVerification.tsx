@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
@@ -29,7 +30,7 @@ const CodeVerification: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [timer, setTimer] = useState(30);
   
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<Array<TextInputInstance | null>>([]);
 
   useEffect(() => {
     const interval = setInterval(() => {

@@ -113,7 +113,7 @@ const UpcomingDrops = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
       
 
       {/* Content */}

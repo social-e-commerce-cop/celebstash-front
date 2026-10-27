@@ -31,6 +31,8 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   onProductPress?: () => void;
   onLinkPress?: () => void;
+  /** Re-sends a message whose send failed (shown as "Not sent — tap to retry"). */
+  onRetry?: () => void;
   avatarSource?: any;
 }
 
@@ -60,6 +62,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReply,
   onLongPress,
   onProductPress,
+  onRetry,
   onLinkPress,
   avatarSource,
 }) => {
@@ -329,13 +332,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
           {/* Instagram-style read status below outgoing bubbles */}
           {isOutgoing && getReadStatusText() && (
-            <Text style={[
-              styles.readStatusText,
-              message.readStatus === 'read' && styles.readStatusSeen,
-              message.readStatus === 'failed' && styles.readStatusFailed,
-            ]}>
-              {getReadStatusText()}
-            </Text>
+            <TouchableOpacity
+              disabled={!(message.readStatus === 'failed' && onRetry)}
+              onPress={onRetry}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Text style={[
+                styles.readStatusText,
+                message.readStatus === 'read' && styles.readStatusSeen,
+                message.readStatus === 'failed' && styles.readStatusFailed,
+              ]}>
+                {getReadStatusText()}
+              </Text>
+            </TouchableOpacity>
           )}
 
           {/* Reactions */}

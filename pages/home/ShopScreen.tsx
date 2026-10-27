@@ -136,7 +136,7 @@ export default function ShopScreen() {
   // to avoid nested VirtualizedList issues.
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 

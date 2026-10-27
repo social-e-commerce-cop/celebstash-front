@@ -179,7 +179,7 @@ const NotificationScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F4F6" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Floating Toast */}
       {toastMessage && (

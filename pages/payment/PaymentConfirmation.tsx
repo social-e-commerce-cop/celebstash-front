@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator,
   Modal, Image, TextInput,
 } from "react-native";
+import type { TextInputInstance } from 'react-native';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -35,7 +36,7 @@ const PinEntry: React.FC = () => {
   const route = useRoute<any>();
   const [pin, setPin] = useState<string[]>([]);
   const [momoPin, setMomoPin] = useState<string[]>(new Array(5).fill(''));
-  const momoPinRefs = useRef<(TextInput | null)[]>([]);
+  const momoPinRefs = useRef<(TextInputInstance | null)[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Processing…');
@@ -167,7 +168,7 @@ const PinEntry: React.FC = () => {
             {momoPin.map((digit, index) => (
               <View key={index} style={{ position: 'relative', marginHorizontal: 7 }}>
                 <TextInput
-                  ref={(r: TextInput | null) => { momoPinRefs.current[index] = r; }}
+                  ref={(r: TextInputInstance | null) => { momoPinRefs.current[index] = r; }}
                   style={[
                     styles.momoPinBox,
                     { borderColor: digit ? momoConfig.bg : '#E5E7EB' },

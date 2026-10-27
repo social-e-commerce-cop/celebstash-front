@@ -13,6 +13,7 @@
 import { Conversation, ChatUser, Message, SharedMediaItem } from '@/types/chatTypes';
 import { ConversationDto, MessageDto, ParticipantDto } from './chatService';
 import { resolveImageUrl } from './apiClient';
+import { toUtcIso } from './time';
 
 const FALLBACK_AVATAR = require('../assets/images/storyItem.jpg');
 
@@ -63,7 +64,7 @@ export function toLocalConversation(dto: ConversationDto, myId: number): Convers
     lastMessage: dto.lastMessage
       ? {
           text: dto.lastMessage.text ?? '',
-          timestamp: dto.lastMessage.sentAt,
+          timestamp: toUtcIso(dto.lastMessage.sentAt),
           senderId: localId(dto.lastMessage.senderId, myId),
           type: (dto.lastMessage.type?.toLowerCase() as any) ?? 'text',
         }
@@ -92,6 +93,7 @@ export function toLocalConversation(dto: ConversationDto, myId: number): Convers
 export function toLocalMessage(dto: MessageDto, myId: number): Message {
   return {
     id: String(dto.id),
+    clientMessageId: dto.clientMessageId ?? undefined,
     conversationId: String(dto.conversationId),
     senderId: localId(dto.senderId, myId),
     senderName: dto.senderName,
@@ -105,7 +107,8 @@ export function toLocalMessage(dto: MessageDto, myId: number): Message {
       ? { name: dto.documentName, size: dto.documentSize ?? '', type: 'pdf', uri: dto.mediaUrl ?? undefined }
       : undefined,
     systemText: dto.systemText ?? undefined,
-    timestamp: dto.sentAt,
+    // The server sends zoneless UTC; normalised so every `new Date(timestamp)` is correct.
+    timestamp: toUtcIso(dto.sentAt),
     readStatus: (dto.readStatus?.toLowerCase() as any) ?? 'sent',
     replyTo: dto.replyTo
       ? { messageId: String(dto.replyTo.messageId), text: dto.replyTo.text, sender: dto.replyTo.senderName }

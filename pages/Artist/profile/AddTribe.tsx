@@ -40,7 +40,7 @@ const [formData, setFormData] = useState({
       style={{ flex: 1, backgroundColor: "white" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#000" />
+      <StatusBar barStyle="dark-content" />
       <Header
       title="Create Tribe"
         onBack={() => navigation.goBack()}

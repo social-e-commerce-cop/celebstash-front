@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,448 +9,554 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
-  Alert,
+  ActivityIndicator,
+  PanResponder,
+  Keyboard,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import Svg, { Path } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
-import { storiesService } from "@/lib/storiesService";
+import { useVideoPlayer, VideoView } from "expo-video";
+import {
+  storiesService,
+  groupStories,
+  isStoryActive,
+  STORY_REACTIONS,
+  StoryGroup,
+  StoryItem,
+  StoryViewer,
+} from "@/lib/storiesService";
+import { followService } from "@/lib/followService";
+import { resolveImageUrl } from "@/lib/apiClient";
+import { getSessionUser } from "@/lib/session";
+import { formatRelativeTime } from "@/lib/time";
 
 const { width, height } = Dimensions.get("window");
 
-type AppStackParamList = {
-  ProfileDetails: { story: { id: number; username: string; image: any } };
-};
+const IMAGE_DURATION_MS = 5000;
+const VIDEO_FALLBACK_MS = 15000;
+const TICK_MS = 50;
+const DEFAULT_AVATAR = require("../../assets/images/profile.jpg");
+const avatarSource = (url?: string | null) => (url ? { uri: resolveImageUrl(url) } : DEFAULT_AVATAR);
 
-type ProfileDetailsScreenRouteProp = RouteProp<AppStackParamList, "ProfileDetails">;
-
-// Stories list for each artist to display multiple stories at the top
-const artistStoriesMap: Record<string, { id?: number; image: any; likes: string; bookmarks: string }[]> = {
-  "blue_boy": [
-    { id: 201, image: require("../../assets/images/storyItem.jpg"), likes: "12.2k", bookmarks: "346.8k" },
-    { id: 202, image: require("../../assets/images/products/product1.jpg"), likes: "8.4k", bookmarks: "120.5k" },
-    { id: 203, image: require("../../assets/images/drop1.jpg"), likes: "15.1k", bookmarks: "412.3k" },
-  ],
-  "steve.loves": [
-    { id: 204, image: require("../../assets/images/story2.png"), likes: "10.2k", bookmarks: "220.1k" },
-  ],
-  "waggles": [
-    { id: 205, image: require("../../assets/images/story3.png"), likes: "14.5k", bookmarks: "512.0k" },
-  ],
-  "sabanok...": [
-    { id: 206, image: require("../../assets/images/story1.png"), likes: "15.4k", bookmarks: "480.2k" },
-  ],
-};
-
-const getStoriesForArtist = (username: string) => {
-  return artistStoriesMap[username] || [
-    { id: 207, image: require("../../assets/images/story1.png"), likes: "5.2k", bookmarks: "88.1k" },
-  ];
-};
-
-const artists = [
-  { id: 1, username: "sabanok...", image: require("../../assets/images/story1.png") },
-  { id: 2, username: "blue_boy", image: require("../../assets/images/storyItem.jpg") },
-  { id: 3, username: "waggles", image: require("../../assets/images/story3.png") },
-  { id: 4, username: "steve.loves", image: require("../../assets/images/story4.png") },
-];
-
+/**
+ * Story viewer. Opened from the Home stories row with all artists' groups, or from a
+ * notification with a single user's id (their stories are then fetched).
+ *
+ * Route params: { groups?, startUserId? } or { userId, startStoryId? }.
+ */
 const ProfileDetails: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const route = useRoute<ProfileDetailsScreenRouteProp>();
-  const [currentArtist, setCurrentArtist] = useState(route.params?.story || artists[0]);
-  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const route = useRoute<any>();
+  const me = getSessionUser();
 
-  const [showAnalyticsDrawer, setShowAnalyticsDrawer] = useState(false);
-  const [replyText, setReplyText] = useState('');
+  const [groups, setGroups] = useState<StoryGroup[]>(() =>
+    (route.params?.groups as StoryGroup[] | undefined)?.filter((g) => g.stories.some((s) => isStoryActive(s))) ?? []
+  );
+  const [loading, setLoading] = useState(!route.params?.groups && Boolean(route.params?.userId));
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [groupIndex, setGroupIndex] = useState(() => {
+    const start = route.params?.startUserId;
+    const i = groups.findIndex((g) => g.userId === start);
+    return i >= 0 ? i : 0;
+  });
+  const [storyIndex, setStoryIndex] = useState(() => {
+    const g = groups[groupIndex];
+    const firstUnseen = g?.stories.findIndex((s) => !s.isViewedByMe) ?? -1;
+    return firstUnseen >= 0 ? firstUnseen : 0;
+  });
+  const [progress, setProgress] = useState(0);
+  const [holdPaused, setHoldPaused] = useState(false);
+  const [replying, setReplying] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [viewersOpen, setViewersOpen] = useState(false);
+  const [viewers, setViewers] = useState<StoryViewer[] | null>(null);
+  const [viewersError, setViewersError] = useState(false);
+  const [following, setFollowing] = useState<boolean | null>(null);
 
   const pressStartTime = useRef(0);
-  const hasNavigatedAway = useRef(false);
-  const stories = getStoriesForArtist(currentArtist.username);
-  const currentStory = stories[currentStoryIndex];
+  const progressValue = useRef(0);
+  const viewedIds = useRef(new Set<number>());
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSendReaction = (emoji: string) => {
-    storiesService.reactToStory(currentStory.id || 1, emoji);
-    Alert.alert('Quick Reaction', `Sent ${emoji} to ${currentArtist.username}!`);
-  };
-
-  const handleSendReply = () => {
-    if (!replyText.trim()) return;
-    storiesService.replyToStory(currentStory.id || 1, replyText.trim());
-    setReplyText('');
-    Alert.alert('Reply Sent', `Your message was sent to ${currentArtist.username}`);
-  };
-
-  // Story ticking timer effect
+  // Opened by user id (notification): fetch that user's active stories.
   useEffect(() => {
-    if (isPaused) return;
+    const userId = route.params?.userId;
+    if (route.params?.groups || !userId) return;
+    let cancelled = false;
+    storiesService
+      .getUserStories(Number(userId))
+      .then((stories) => {
+        if (cancelled) return;
+        const g = groupStories(stories, me.id);
+        setGroups(g);
+        const startId = route.params?.startStoryId;
+        const idx = g[0]?.stories.findIndex((s) => s.id === startId) ?? -1;
+        setGroupIndex(0);
+        setStoryIndex(idx >= 0 ? idx : 0);
+      })
+      .catch(() => !cancelled && setLoadError("Could not load this story."))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [route.params?.userId, route.params?.groups, route.params?.startStoryId, me.id]);
 
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 1) {
-          return 1;
-        }
-        return p + 0.01;
-      });
-    }, 50);
+  const group = groups[groupIndex];
+  const story: StoryItem | undefined = group?.stories[storyIndex];
+  // Compared as numbers: a strict === between a numeric id and one restored as a string (or a
+  // missing id) silently treated the author as an ordinary viewer, hiding their views bar.
+  const isOwn = Boolean(story && me.id != null && Number(story.userId) === Number(me.id));
 
-    return () => clearInterval(interval);
-  }, [currentStoryIndex, isPaused, currentArtist]);
+  // Images: progress waits until the picture has actually loaded, and a failed load says so
+  // instead of leaving a black screen.
+  const [loadedMediaId, setLoadedMediaId] = useState<number | null>(null);
+  const [failedMediaId, setFailedMediaId] = useState<number | null>(null);
+  const mediaPending = Boolean(
+    story && story.mediaType !== "VIDEO" && loadedMediaId !== story.id && failedMediaId !== story.id
+  );
+  const paused = holdPaused || replying || viewersOpen || mediaPending;
 
-  // Handle auto-advance when progress reaches 1
+  // isFocused() guards against a second goBack (auto-close at the end racing a tap on X).
+  const close = useCallback(() => {
+    if (navigation.isFocused()) navigation.goBack();
+  }, [navigation]);
+
+  // ── Video ──────────────────────────────────────────────────────────────────
+  const videoSource = story?.mediaType === "VIDEO" ? resolveImageUrl(story.mediaUrl) : null;
+  const player = useVideoPlayer(videoSource, (p) => {
+    p.loop = false;
+  });
   useEffect(() => {
-    if (progress >= 1) {
-      if (currentStoryIndex < stories.length - 1) {
-        setCurrentStoryIndex((prev) => prev + 1);
-        setProgress(0);
-      } else {
-        // Find next artist
-        const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
-        if (currentIndex !== -1 && currentIndex < artists.length - 1) {
-          setCurrentArtist(artists[currentIndex + 1]);
-          setCurrentStoryIndex(0);
-          setProgress(0);
-        } else {
-          if (!hasNavigatedAway.current) {
-            hasNavigatedAway.current = true;
-            navigation.goBack();
-          }
-        }
-      }
-    }
-  }, [progress]);
+    if (!videoSource) return;
+    if (paused) player.pause();
+    else player.play();
+  }, [player, videoSource, paused]);
 
-  // Reset states when switching story item or artist
-  useEffect(() => {
+  /** Read inside the ticker: a video's duration is only known once it has loaded. */
+  const currentDurationMs = useCallback(() => {
+    if (story?.mediaType !== "VIDEO") return IMAGE_DURATION_MS;
+    const d = player.duration;
+    return d && d > 0 ? d * 1000 : VIDEO_FALLBACK_MS;
+  }, [story?.mediaType, player]);
+
+  // ── Navigation between stories ─────────────────────────────────────────────
+  const goTo = useCallback((g: number, s: number) => {
+    progressValue.current = 0;
+    setGroupIndex(g);
+    setStoryIndex(s);
     setProgress(0);
-  }, [currentStoryIndex, currentArtist]);
+    setViewers(null);
+  }, []);
 
-  const handleTapLeft = () => {
-    if (currentStoryIndex > 0) {
-      setCurrentStoryIndex((prev) => prev - 1);
-      setProgress(0);
-    } else {
-      // Find previous artist
-      const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
-      if (currentIndex > 0) {
-        const prevArtist = artists[currentIndex - 1];
-        const prevStories = getStoriesForArtist(prevArtist.username);
-        setCurrentArtist(prevArtist);
-        setCurrentStoryIndex(prevStories.length - 1);
-        setProgress(0);
-      } else {
-        setProgress(0);
+  const next = useCallback(() => {
+    if (!group) return close();
+    if (storyIndex < group.stories.length - 1) return goTo(groupIndex, storyIndex + 1);
+    if (groupIndex < groups.length - 1) {
+      const ng = groups[groupIndex + 1];
+      const firstUnseen = ng.stories.findIndex((s) => !s.isViewedByMe);
+      return goTo(groupIndex + 1, firstUnseen >= 0 ? firstUnseen : 0);
+    }
+    close();
+  }, [group, groups, groupIndex, storyIndex, goTo, close]);
+
+  const prev = useCallback(() => {
+    if (storyIndex > 0) return goTo(groupIndex, storyIndex - 1);
+    if (groupIndex > 0) return goTo(groupIndex - 1, groups[groupIndex - 1].stories.length - 1);
+    goTo(groupIndex, storyIndex);
+  }, [groups, groupIndex, storyIndex, goTo]);
+
+  // Progress ticker: pauses while held, replying or viewing the viewers sheet; advances to the
+  // next story when full. A story that expired while the viewer was open is skipped.
+  useEffect(() => {
+    if (!story || paused) return;
+    const t = setInterval(() => {
+      if (!isStoryActive(story)) {
+        clearInterval(t);
+        next();
+        return;
       }
+      progressValue.current = Math.min(1, progressValue.current + TICK_MS / currentDurationMs());
+      setProgress(progressValue.current);
+      if (progressValue.current >= 1) {
+        clearInterval(t);
+        next();
+      }
+    }, TICK_MS);
+    return () => clearInterval(t);
+  }, [story, paused, currentDurationMs, next]);
+
+  // ── Record the view once per story (never for the author) ──────────────────
+  useEffect(() => {
+    if (!story || isOwn || viewedIds.current.has(story.id)) return;
+    viewedIds.current.add(story.id);
+    const storyId = story.id;
+    storiesService
+      .recordView(storyId, currentDurationMs() / 1000, true)
+      .then(() =>
+        setGroups((gs) =>
+          gs.map((g) => ({
+            ...g,
+            stories: g.stories.map((s) => (s.id === storyId ? { ...s, isViewedByMe: true } : s)),
+          }))
+        )
+      )
+      .catch(() => {
+        viewedIds.current.delete(storyId);
+      });
+  }, [story, isOwn, currentDurationMs]);
+
+  // The author's counts in the Home list can be minutes old; re-read them when they open their story.
+  useEffect(() => {
+    if (!isOwn || !me.id) return;
+    let cancelled = false;
+    storiesService
+      .getUserStories(Number(me.id))
+      .then((fresh) => {
+        if (cancelled) return;
+        const byId = new Map(fresh.map((s) => [s.id, s]));
+        setGroups((gs) =>
+          gs.map((g) => ({
+            ...g,
+            stories: g.stories.map((s) => {
+              const f = byId.get(s.id);
+              return f ? { ...s, viewCount: f.viewCount, reactionCount: f.reactionCount } : s;
+            }),
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwn, me.id, story?.id]);
+
+  // Follow state for the artist header button.
+  useEffect(() => {
+    if (!group || isOwn) return;
+    let cancelled = false;
+    followService
+      .checkFollowStatus(group.userId)
+      .then((f) => !cancelled && setFollowing(f))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [group, isOwn]);
+
+  const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 1500);
+  };
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  const patchStory = (id: number, patch: Partial<StoryItem>) =>
+    setGroups((gs) => gs.map((g) => ({ ...g, stories: g.stories.map((s) => (s.id === id ? { ...s, ...patch } : s)) })));
+
+  const handleReaction = async (emoji: string) => {
+    if (!story || isOwn) return;
+    const previous = story.myReaction ?? null;
+    const removing = previous === emoji;
+    patchStory(story.id, { myReaction: removing ? null : emoji });
+    try {
+      if (removing) {
+        await storiesService.removeReaction(story.id);
+        showToast("Reaction removed");
+      } else {
+        await storiesService.reactToStory(story.id, emoji);
+        showToast(`Sent ${emoji}`);
+      }
+    } catch {
+      patchStory(story.id, { myReaction: previous });
+      showToast("Couldn't send reaction");
     }
   };
 
-  const handleTapRight = () => {
-    if (currentStoryIndex < stories.length - 1) {
-      setCurrentStoryIndex((prev) => prev + 1);
-      setProgress(0);
-    } else {
-      // Find next artist
-      const currentIndex = artists.findIndex((a) => a.username === currentArtist.username);
-      if (currentIndex !== -1 && currentIndex < artists.length - 1) {
-        setCurrentArtist(artists[currentIndex + 1]);
-        setCurrentStoryIndex(0);
-        setProgress(0);
-      } else {
-        if (!hasNavigatedAway.current) {
-          hasNavigatedAway.current = true;
-          navigation.goBack();
-        }
-      }
+  const handleSendReply = async () => {
+    const text = replyText.trim();
+    if (!story || !text) return;
+    setReplyText("");
+    Keyboard.dismiss();
+    setReplying(false);
+    try {
+      await storiesService.replyToStory(story.id, text);
+      showToast("Reply sent");
+    } catch {
+      setReplyText(text);
+      showToast("Couldn't send reply");
     }
   };
+
+  const toggleFollow = async () => {
+    if (!group || following === null) return;
+    const nextState = !following;
+    setFollowing(nextState);
+    try {
+      if (nextState) await followService.followUser(group.userId);
+      else await followService.unfollowUser(group.userId);
+    } catch {
+      setFollowing(!nextState);
+    }
+  };
+
+  const openViewers = async () => {
+    if (!story) return;
+    setViewersOpen(true);
+    setViewersError(false);
+    try {
+      setViewers(await storiesService.getViewers(story.id));
+    } catch {
+      setViewersError(true);
+    }
+  };
+
+  // Swipe down anywhere to close.
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > 80) close();
+        },
+      }),
+    [close]
+  );
 
   const handlePressIn = () => {
-    setIsPaused(true);
+    setHoldPaused(true);
     pressStartTime.current = Date.now();
   };
-
-  const handlePressOutLeft = () => {
-    setIsPaused(false);
-    const duration = Date.now() - pressStartTime.current;
-    if (duration < 300) {
-      handleTapLeft();
+  const handlePressOut = (side: "left" | "right") => {
+    setHoldPaused(false);
+    if (Date.now() - pressStartTime.current < 300) {
+      if (side === "left") prev();
+      else next();
     }
   };
 
-  const handlePressOutRight = () => {
-    setIsPaused(false);
-    const duration = Date.now() - pressStartTime.current;
-    if (duration < 300) {
-      handleTapRight();
-    }
-  };
-
-  const selectArtist = (artist: typeof artists[0]) => {
-    setCurrentArtist(artist);
-    setCurrentStoryIndex(0);
-    setProgress(0);
-    setIsLiked(false);
-    setIsBookmarked(false);
-  };
+  // ── Render ─────────────────────────────────────────────────────────────────
+  if (loading || loadError || !group || !story) {
+    return (
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
+        <StatusBar barStyle="light-content" />
+        {loading ? (
+          <ActivityIndicator size="large" color="#FFF" />
+        ) : (
+          <Text style={{ color: "#FFF", fontFamily: "Poppins-Medium", marginBottom: 16 }}>
+            {loadError ?? "No stories available"}
+          </Text>
+        )}
+        {!loading && (
+          <TouchableOpacity style={styles.closeButton} onPress={close} accessibilityLabel="Close">
+            <Ionicons name="close" size={22} color="#FFF" />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+    <View style={styles.container} {...pan.panHandlers}>
+      <StatusBar barStyle="light-content" />
 
-      {/* Story Background Image */}
-      <Image source={currentStory.image} style={styles.storyImage} />
+      {/* Story media */}
+      {story.mediaType === "VIDEO" ? (
+        <VideoView player={player} style={styles.storyImage} contentFit="contain" nativeControls={false} />
+      ) : (
+        <Image
+          key={story.id}
+          source={{ uri: resolveImageUrl(story.mediaUrl) }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="contain"
+          onLoad={() => setLoadedMediaId(story.id)}
+          onError={() => setFailedMediaId(story.id)}
+        />
+      )}
+      {mediaPending && (
+        <View style={styles.mediaStatus} pointerEvents="none">
+          <ActivityIndicator size="large" color="#FFF" />
+        </View>
+      )}
+      {story.mediaType !== "VIDEO" && failedMediaId === story.id && (
+        <View style={styles.mediaStatus} pointerEvents="none">
+          <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.7)" />
+          <Text style={styles.mediaStatusText}>This story could not be loaded.</Text>
+        </View>
+      )}
 
-      {/* Progress Bars Indicator at the top */}
+      {/* Progress bars: one per story of this artist */}
       <View style={styles.progressContainer}>
-        {stories.map((_, index) => {
-          let fillWidth = "0%";
-          if (index < currentStoryIndex) {
-            fillWidth = "100%";
-          } else if (index === currentStoryIndex) {
-            fillWidth = `${progress * 100}%`;
-          }
+        {group.stories.map((s, index) => {
+          const fill = index < storyIndex ? 1 : index === storyIndex ? progress : 0;
           return (
-            <View key={index} style={styles.progressBarBackground}>
-              <View style={[styles.progressBarFilled, { width: fillWidth as any }]} />
+            <View key={s.id} style={styles.progressBarBackground}>
+              <View style={[styles.progressBarFilled, { width: `${fill * 100}%` }]} />
             </View>
           );
         })}
       </View>
 
-      {/* Top Header details */}
+      {/* Header */}
       <View style={styles.topHeader}>
-        <Image source={currentArtist.image} style={styles.profilePic} />
+        <Image source={avatarSource(group.userAvatar)} style={styles.profilePic} />
         <View style={styles.headerInfo}>
           <View style={styles.usernameRow}>
-            <Text style={styles.username}>{currentArtist.username}</Text>
-            {/* Orange/Red verification badge */}
-            <View style={styles.verifiedBadge}>
-              <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" stroke="#7126D0" strokeWidth="1">
-                <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-              </Svg>
-            </View>
+            <Text style={styles.username}>{group.username}</Text>
+            {group.userRole === "ARTIST" && (
+              <View style={styles.verifiedBadge}>
+                <Svg width="14" height="14" viewBox="0 0 24 24" fill="#7126D0" stroke="#7126D0" strokeWidth="1">
+                  <Path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </Svg>
+              </View>
+            )}
           </View>
-          <Text style={styles.timeText}>{currentStoryIndex + 1}h</Text>
+          <Text style={styles.timeText}>{formatRelativeTime(story.createdAt)}</Text>
         </View>
 
-        {/* Translucent Mate button */}
-        <TouchableOpacity style={styles.mateButton} activeOpacity={0.8}>
-          <Text style={styles.mateText}>Mate</Text>
+        {!isOwn && following !== null && (
+          <TouchableOpacity style={styles.mateButton} activeOpacity={0.8} onPress={toggleFollow}>
+            <Text style={styles.mateText}>{following ? "Following" : "Follow"}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={close} style={{ marginLeft: 10 }} accessibilityLabel="Close" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="close" size={26} color="#FFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Invisible Tap Areas for Instagram Navigation */}
+      {/* Tap left = previous, tap right = next, hold = pause */}
       <View style={styles.tapContainer}>
-        <TouchableOpacity
-          style={styles.tapLeft}
-          activeOpacity={1}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOutLeft}
-        />
-        <TouchableOpacity
-          style={styles.tapRight}
-          activeOpacity={1}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOutRight}
-        />
+        <TouchableOpacity style={styles.tapLeft} activeOpacity={1} onPressIn={handlePressIn} onPressOut={() => handlePressOut("left")} />
+        <TouchableOpacity style={styles.tapRight} activeOpacity={1} onPressIn={handlePressIn} onPressOut={() => handlePressOut("right")} />
       </View>
 
-      {/* Interactive Shoppable Sticker for Artists */}
-      {((currentArtist as any).hasSticker || currentArtist.username === 'Kenny K Shot' || currentArtist.username === 'sabanok...') && (
-        <TouchableOpacity
-          style={styles.storySticker}
-          activeOpacity={0.85}
-          onPress={() => {
-            navigation.navigate('ProductDetails', {
-              name: 'Eras Tour Crystal Jacket',
-              price: '$250',
-              image: require('../../assets/images/feed6.jpg'),
-              description: 'Official Limited Edition Merch as seen on story.',
-              artistName: currentArtist.username,
-              verified: true,
-            });
-          }}
-        >
-          <View style={styles.stickerIconBadge}>
-            <Ionicons name="bag-handle" size={16} color="#FFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.stickerTitle}>Tap to Shop Merch</Text>
-            <Text style={styles.stickerSub}>Eras Tour Crystal Jacket • $250</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#7126D0" />
-        </TouchableOpacity>
+      {!!story.caption && (
+        <View style={styles.captionBox} pointerEvents="none">
+          <Text style={styles.captionText}>{story.caption}</Text>
+        </View>
       )}
 
-      {/* Floating Vertical Actions on the Right */}
-      <View style={styles.rightActionsPanel}>
-        <TouchableOpacity
-          style={styles.actionCircle}
-          onPress={() => setIsLiked(!isLiked)}
-          activeOpacity={0.8}
-        >
-          <Svg width="26" height="26" viewBox="0 0 24 24" fill={isLiked ? "#7126D0" : "none"} stroke={isLiked ? "#7126D0" : "#fff"} strokeWidth="2.5">
-            <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </Svg>
-        </TouchableOpacity>
-        <Text style={styles.actionText}>{currentStory.likes}</Text>
-
-        <TouchableOpacity
-          style={styles.actionCircle}
-          onPress={() => setIsBookmarked(!isBookmarked)}
-          activeOpacity={0.8}
-        >
-          <Svg width="24" height="24" viewBox="0 0 24 24" fill={isBookmarked ? "#fff" : "none"} stroke="#fff" strokeWidth="2.5">
-            <Path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-          </Svg>
-        </TouchableOpacity>
-        <Text style={styles.actionText}>{currentStory.bookmarks}</Text>
-
-        {/* Analytics Drawer Trigger Button */}
-        <TouchableOpacity
-          style={styles.actionCircle}
-          onPress={() => setShowAnalyticsDrawer(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="bar-chart-outline" size={22} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.actionText}>Stats</Text>
-      </View>
-
-      {/* Quick Emoji Reaction Bar & DM Reply Input */}
-      <View style={styles.interactiveBottomBar}>
-        <View style={styles.emojiQuickRow}>
-          {['❤️', '🔥', '👏', '😂', '😮', '🎉'].map((emoji) => (
-            <TouchableOpacity
-              key={emoji}
-              style={styles.emojiBubble}
-              onPress={() => handleSendReaction(emoji)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.emojiText}>{emoji}</Text>
-            </TouchableOpacity>
-          ))}
+      {toast && (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{toast}</Text>
         </View>
+      )}
 
-        <View style={styles.replyInputRow}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder={`Send message to ${currentArtist.username}...`}
-            placeholderTextColor="rgba(255,255,255,0.7)"
-            value={replyText}
-            onChangeText={setReplyText}
-          />
-          {replyText.trim().length > 0 && (
-            <TouchableOpacity style={styles.sendReplyBtn} onPress={handleSendReply}>
-              <Ionicons name="send" size={16} color="#7126D0" />
-            </TouchableOpacity>
+      {isOwn ? (
+        /* Author: views and the viewers sheet */
+        <TouchableOpacity style={styles.ownerBar} onPress={openViewers} activeOpacity={0.85}>
+          <Ionicons name="eye-outline" size={20} color="#FFF" />
+          <Text style={styles.ownerBarText}>
+            {story.viewCount} {story.viewCount === 1 ? "view" : "views"} · {story.reactionCount} {story.reactionCount === 1 ? "reaction" : "reactions"}
+          </Text>
+          <Ionicons name="chevron-up" size={16} color="#FFF" />
+        </TouchableOpacity>
+      ) : (
+        /* Viewer: reactions and reply */
+        <View style={styles.interactiveBottomBar}>
+          {story.allowReactions && (
+            <View style={styles.emojiQuickRow}>
+              {STORY_REACTIONS.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={[styles.emojiBubble, story.myReaction === emoji && styles.emojiBubbleSelected]}
+                  onPress={() => handleReaction(emoji)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`React ${emoji}`}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {story.allowReplies && (
+            <View style={styles.replyInputRow}>
+              <TextInput
+                style={styles.replyInput}
+                placeholder={`Reply to ${group.username}...`}
+                placeholderTextColor="rgba(255,255,255,0.7)"
+                value={replyText}
+                onChangeText={setReplyText}
+                onFocus={() => setReplying(true)}
+                onBlur={() => setReplying(false)}
+                onSubmitEditing={handleSendReply}
+                returnKeyType="send"
+              />
+              {replyText.trim().length > 0 && (
+                <TouchableOpacity style={styles.sendReplyBtn} onPress={handleSendReply}>
+                  <Ionicons name="send" size={16} color="#7126D0" />
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
-      </View>
+      )}
 
-      {/* Owner Analytics & Viewer Drawer */}
-      {showAnalyticsDrawer && (
+      {/* Author's viewers sheet */}
+      {viewersOpen && (
         <View style={styles.analyticsDrawerOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setViewersOpen(false)} />
           <View style={styles.analyticsDrawerContent}>
             <View style={styles.drawerHeader}>
-              <Text style={styles.drawerTitle}>Story Analytics & Viewers</Text>
-              <TouchableOpacity onPress={() => setShowAnalyticsDrawer(false)}>
+              <Text style={styles.drawerTitle}>Viewers ({viewers ? viewers.length : story.viewCount})</Text>
+              <TouchableOpacity onPress={() => setViewersOpen(false)}>
                 <Ionicons name="close" size={22} color="#111" />
               </TouchableOpacity>
             </View>
-
-            <View style={styles.analyticsStatsGrid}>
-              <View style={styles.analyticsStatBox}>
-                <Text style={styles.analyticsStatNumber}>1.4K</Text>
-                <Text style={styles.analyticsStatLabel}>Total Views</Text>
-              </View>
-              <View style={styles.analyticsStatBox}>
-                <Text style={styles.analyticsStatNumber}>94%</Text>
-                <Text style={styles.analyticsStatLabel}>Completion Rate</Text>
-              </View>
-              <View style={styles.analyticsStatBox}>
-                <Text style={styles.analyticsStatNumber}>4.8s</Text>
-                <Text style={styles.analyticsStatLabel}>Avg Watch Time</Text>
-              </View>
-            </View>
-
-            <Text style={styles.viewersSectionTitle}>Recent Viewers ({currentStory.likes})</Text>
-            <ScrollView style={styles.viewersList} showsVerticalScrollIndicator={false}>
-              {[
-                { name: 'Alex Johnson', time: '10m ago', reaction: '🔥' },
-                { name: 'Sarah Connor', time: '25m ago', reaction: '❤️' },
-                { name: 'Michael Scott', time: '1h ago', reaction: '👏' },
-                { name: 'Dwight Schrute', time: '2h ago', reaction: '😂' },
-              ].map((item, idx) => (
-                <View key={idx} style={styles.viewerRow}>
-                  <View style={styles.viewerAvatarPlaceholder}>
-                    <Text style={styles.viewerAvatarChar}>{item.name[0]}</Text>
+            {viewers === null && !viewersError ? (
+              <ActivityIndicator color="#7126D0" style={{ marginVertical: 24 }} />
+            ) : viewersError ? (
+              <TouchableOpacity onPress={openViewers} style={{ paddingVertical: 24, alignItems: "center" }}>
+                <Text style={styles.viewerTime}>Could not load viewers. Tap to retry.</Text>
+              </TouchableOpacity>
+            ) : viewers && viewers.length === 0 ? (
+              <Text style={[styles.viewerTime, { textAlign: "center", paddingVertical: 24 }]}>No one has viewed this story yet.</Text>
+            ) : (
+              <ScrollView style={styles.viewersList} showsVerticalScrollIndicator={false}>
+                {viewers!.map((v) => (
+                  <View key={v.userId} style={styles.viewerRow}>
+                    {v.avatar ? (
+                      <Image source={avatarSource(v.avatar)} style={styles.viewerAvatarPlaceholder} />
+                    ) : (
+                      <View style={styles.viewerAvatarPlaceholder}>
+                        <Text style={styles.viewerAvatarChar}>{(v.fullName || "?")[0]}</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.viewerName}>{v.fullName}</Text>
+                      <Text style={styles.viewerTime}>{formatRelativeTime(v.viewedAt)}</Text>
+                    </View>
+                    {!!v.reaction && <Text style={{ fontSize: 16 }}>{v.reaction}</Text>}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.viewerName}>{item.name}</Text>
-                    <Text style={styles.viewerTime}>{item.time}</Text>
-                  </View>
-                  <Text style={{ fontSize: 16 }}>{item.reaction}</Text>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       )}
 
-      {/* Bottom Row containing horizontal list of stories & close X */}
-      <View style={styles.bottomSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bottomScrollView}
-        >
-          {artists.map((artist) => {
-            const isActive = artist.username === currentArtist.username;
-            return (
-              <TouchableOpacity
-                key={artist.id}
-                style={styles.bottomStoryBubble}
-                onPress={() => selectArtist(artist)}
-                activeOpacity={0.9}
-              >
-                <View
-                  style={[
-                    styles.bottomImageRing,
-                    isActive && styles.bottomImageRingActive,
-                  ]}
-                >
-                  <Image source={artist.image} style={styles.bottomStoryImage} />
+      {/* Other artists with stories */}
+      {groups.length > 1 && !replying && (
+        <View style={styles.bottomSection}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bottomScrollView}>
+            {groups.map((g, i) => (
+              <TouchableOpacity key={g.userId} style={styles.bottomStoryBubble} onPress={() => goTo(i, 0)} activeOpacity={0.9}>
+                <View style={[styles.bottomImageRing, i === groupIndex && styles.bottomImageRingActive]}>
+                  <Image source={avatarSource(g.userAvatar)} style={styles.bottomStoryImage} />
                 </View>
                 <Text style={styles.bottomStoryLabel} numberOfLines={1}>
-                  {artist.username}
+                  {g.username}
                 </Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Close Button X below story bubble */}
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => {
-            if (!hasNavigatedAway.current) {
-              hasNavigatedAway.current = true;
-              navigation.goBack();
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
-            <Path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </TouchableOpacity>
-      </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 };
@@ -676,7 +782,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: height * 0.14,
     left: 16,
-    right: 76,
+    right: 16,
     zIndex: 15,
   },
   emojiQuickRow: {
@@ -809,5 +915,70 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Poppins-Regular",
     color: "#888",
+  },
+  emojiBubbleSelected: {
+    backgroundColor: 'rgba(113, 38, 208, 0.6)',
+    borderRadius: 16,
+  },
+  captionBox: {
+    position: 'absolute',
+    bottom: height * 0.3,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    zIndex: 12,
+  },
+  captionText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    textAlign: 'center',
+  },
+  toast: {
+    position: 'absolute',
+    top: height * 0.45,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    zIndex: 25,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+  },
+  mediaStatus: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  mediaStatusText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+  },
+  ownerBar: {
+    position: 'absolute',
+    bottom: height * 0.15,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    zIndex: 15,
+  },
+  ownerBarText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
   },
 });

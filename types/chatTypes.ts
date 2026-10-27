@@ -95,6 +95,12 @@ export interface LinkPreviewData {
 // ── Message ──
 export interface Message {
   id: string;
+  /**
+   * Id generated on this device when the message was composed. It stays the same through the
+   * optimistic bubble, the REST response and the socket echo, so the three are recognised as one
+   * message. Absent on messages loaded from history that were sent without one.
+   */
+  clientMessageId?: string;
   conversationId: string;
   senderId: string;
   senderName?: string; // for display in groups

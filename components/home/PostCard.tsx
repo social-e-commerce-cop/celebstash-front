@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Modal, Alert, Platform, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -12,6 +12,7 @@ import { BackendPost, likePostApi, unlikePostApi, repostPostApi, unrepostPostApi
 import { followService } from '@/lib/followService';
 import { getSessionUser } from '@/lib/session';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { formatRelativeTime } from '@/lib/time';
 
 const { width } = Dimensions.get('window');
 
@@ -75,9 +76,16 @@ export interface PostCardProps {
   post: BackendPost | PostData | any;
   onSaveToggle?: (postId: number, isSaved: boolean) => void;
   onRepostToggle?: (postId: number, isReposted: boolean) => void;
+  /** Opens the comments sheet on mount (used when arriving from a comment notification). */
+  initialCommentsOpen?: boolean;
+  /**
+   * Reports the server's like state after a like/unlike so the owning list can update its copy of
+   * the post. Without it, the list keeps the stale count and a re-render or remount shows it again.
+   */
+  onPostUpdated?: (postId: number, patch: Partial<BackendPost>) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle, initialCommentsOpen = false, onPostUpdated }) => {
   const navigation = useNavigation<StackNavigationProp<any>>();
 
   const isBackend = 'likesCount' in post || 'description' in post;
@@ -134,8 +142,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
   const [saveCount, setSaveCount] = useState<number>(
     Number(isBackend ? (post.savesCount ?? 0) : (post.saves ?? 0))
   );
-  const [mated, setMated] = useState<boolean>(false);
-  const [commentsOpen, setCommentsOpen] = useState<boolean>(false);
+  const [mated, setMated] = useState<boolean>(post.isFollowingAuthor === true);
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(initialCommentsOpen);
+  const likeInFlight = useRef(false);
   const [likesOpen, setLikesOpen] = useState<boolean>(false);
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [showShareToast, setShowShareToast] = useState<boolean>(false);
@@ -155,13 +164,23 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
   const targetId = post.userId || (post.user && post.user.id);
   const currentUserId = getSessionUser()?.id;
 
+  // The home feed sends isFollowingAuthor with each post; only posts from other sources need a
+  // separate status request (previously every card in the feed made one).
+  const feedFollowFlag: boolean | undefined =
+    typeof post.isFollowingAuthor === 'boolean' ? post.isFollowingAuthor : undefined;
+  const [lastFeedFlag, setLastFeedFlag] = useState(feedFollowFlag);
+  if (feedFollowFlag !== undefined && feedFollowFlag !== lastFeedFlag) {
+    setLastFeedFlag(feedFollowFlag);
+    setMated(feedFollowFlag);
+  }
   React.useEffect(() => {
-    if (targetId) {
+    if (feedFollowFlag !== undefined) return;
+    if (targetId && targetId !== currentUserId) {
       followService.checkFollowStatus(targetId)
         .then(isFollowing => setMated(isFollowing))
         .catch(() => {});
     }
-  }, [targetId]);
+  }, [targetId, feedFollowFlag, currentUserId]);
 
   React.useEffect(() => {
     const postLiked = Boolean(
@@ -192,6 +211,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
   ]);
 
   const handleLikeToggle = async () => {
+    // One request at a time: rapid taps would otherwise send overlapping like/unlike calls whose
+    // responses can land out of order and leave the heart showing the wrong state.
+    if (likeInFlight.current) return;
     const prevLiked = liked;
     const prevCount = likeCount;
 
@@ -204,6 +226,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
 
     const parsedPostId = typeof postId === 'number' ? postId : parseInt(String(postId), 10);
     if (!isNaN(parsedPostId) && parsedPostId > 0) {
+      likeInFlight.current = true;
       try {
         let updatedPost: BackendPost | null = null;
         if (prevLiked) {
@@ -219,11 +242,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
             : nextCount;
           setLiked(serverLiked);
           setLikeCount(serverCount);
+          onPostUpdated?.(parsedPostId, {
+            isLiked: serverLiked,
+            likesCount: serverCount,
+            recentLikers: updatedPost.recentLikers,
+          });
         }
       } catch (err) {
-        console.error('Failed to update like status:', err);
+        if (__DEV__) console.warn('Failed to update like status:', err);
         setLiked(prevLiked);
         setLikeCount(prevCount);
+      } finally {
+        likeInFlight.current = false;
       }
     }
   };
@@ -361,7 +391,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onSaveToggle, onRepostToggle 
               <Text style={styles.userName}>{displayUsername}</Text>
               {userVerified && <PurpleVerifiedBadge />}
             </View>
-            <Text style={styles.timeAgo}>Active</Text>
+            <Text style={styles.timeAgo}>{isBackend && post.createdAt ? formatRelativeTime(post.createdAt) : (post.timeAgo || '')}</Text>
           </View>
         </TouchableOpacity>
 

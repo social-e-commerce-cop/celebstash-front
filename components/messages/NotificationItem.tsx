@@ -33,6 +33,11 @@ export type NotificationItemProps = {
   isFollowing?: boolean;
   onPress?: () => void;
   onActionButtonPress?: () => void;
+  /**
+   * Follows/unfollows the actor. Must call the API; the button shows the new state optimistically
+   * and reverts if the returned promise rejects.
+   */
+  onFollowToggle?: (follow: boolean) => Promise<void>;
 };
 
 const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -49,9 +54,26 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   isFollowing: initialFollowing = false,
   onPress,
   onActionButtonPress,
+  onFollowToggle,
 }) => {
   const [following, setFollowing] = useState(initialFollowing);
-  const showFollowBtn = type === 'follow';
+  const [followBusy, setFollowBusy] = useState(false);
+  // Without a real follow action the button would only flip local state, so it is hidden.
+  const showFollowBtn = type === 'follow' && !!onFollowToggle;
+
+  const toggleFollow = async () => {
+    if (!onFollowToggle || followBusy) return;
+    const next = !following;
+    setFollowing(next);
+    setFollowBusy(true);
+    try {
+      await onFollowToggle(next);
+    } catch {
+      setFollowing(!next);
+    } finally {
+      setFollowBusy(false);
+    }
+  };
   const isLive = type === 'live';
   const showCustomActionBtn = !!actionButtonLabel || isLive;
   const showThumbnail = !!thumbnail && !showFollowBtn && !showCustomActionBtn;
@@ -85,10 +107,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         <Text style={styles.textLine} numberOfLines={2}>
           <Text style={styles.userName}>{user}</Text>
           {'  '}
-          <Text style={styles.action}>{action}</Text>
+          <Text style={[styles.action, !isRead && styles.actionUnread]}>{action}</Text>
           {'  '}
           <Text style={styles.time}>{time}</Text>
         </Text>
+        {!isRead && <View style={styles.unreadDot} accessibilityLabel="Unread" />}
         {comment && (
           <Text style={styles.commentPreview} numberOfLines={1}>
             "{comment}"
@@ -100,7 +123,8 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       {showFollowBtn && (
         <TouchableOpacity
           style={[styles.followBtn, following && styles.followingBtn]}
-          onPress={() => setFollowing(f => !f)}
+          onPress={toggleFollow}
+          disabled={followBusy}
           activeOpacity={0.8}
         >
           <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
@@ -138,7 +162,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   containerUnread: {
-    // Subtle highlight state if needed
+    backgroundColor: '#F5F0FD',
+  },
+  actionUnread: {
+    fontFamily: 'Poppins-Medium',
+    color: '#111',
+  },
+  unreadDot: {
+    position: 'absolute',
+    right: 0,
+    top: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#7126D0',
   },
   avatarWrapper: {
     position: 'relative',
@@ -172,6 +209,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginRight: 10,
+    paddingRight: 12,
   },
   textLine: {
     fontSize: 13,

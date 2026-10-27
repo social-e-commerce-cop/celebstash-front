@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { getSessionToken } from './session';
+import {
+  getSessionToken,
+  getRefreshToken,
+  setSessionAuth,
+  clearSession,
+  isAccessTokenExpiring,
+} from './session';
 
 /**
  * Auto-detect Base API URL for Spring Boot Backend:
@@ -107,10 +113,90 @@ async function tryFetchUrl<T = any>(
 
 export let cachedWorkingBaseUrl: string | null = null;
 
+// ── Access-token refresh ─────────────────────────────────────────────────────
+export type RefreshResult = 'ok' | 'rejected' | 'unreachable';
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+const AUTH_PREFIX = '/api/v1/auth/';
+
+/**
+ * Exchanges the stored refresh token for a new access token.
+ *
+ * Concurrent callers share one request: the server rotates the refresh token on every use, so two
+ * parallel refreshes would race and the loser would present an already-revoked token.
+ *
+ * - 'ok'          — new tokens stored.
+ * - 'rejected'    — the server refused the refresh token; the session is over and is cleared.
+ * - 'unreachable' — network/server trouble; the session is kept so the user stays signed in
+ *                   offline, and the refresh is retried on the next request.
+ */
+export function refreshAccessToken(): Promise<RefreshResult> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async (): Promise<RefreshResult> => {
+    const token = getRefreshToken();
+    if (!token) {
+      if (getSessionToken()) await clearSession('expired');
+      return 'rejected';
+    }
+    try {
+      const base = cachedWorkingBaseUrl || API_BASE_URL;
+      const data: any = await tryFetchUrl(
+        `${base}${AUTH_PREFIX}refresh-token`,
+        { method: 'POST', body: JSON.stringify({ refreshToken: token }) },
+        { 'Content-Type': 'application/json', Accept: 'application/json' },
+        base.startsWith('https://') ? 90000 : 15000
+      );
+      if (data?.success && data.accessToken) {
+        setSessionAuth(
+          { accessToken: data.accessToken, refreshToken: data.refreshToken },
+          {
+            ...(data.userId ? { id: Number(data.userId) } : {}),
+            ...(data.fullName ? { fullName: data.fullName } : {}),
+            ...(data.username ? { username: data.username } : {}),
+            ...(data.role ? { role: data.role } : {}),
+            ...(data.status ? { status: data.status } : {}),
+          }
+        );
+        return 'ok';
+      }
+      await clearSession('expired');
+      return 'rejected';
+    } catch (err: any) {
+      // 400/401/403 mean the refresh token itself is invalid, expired or revoked.
+      if (err instanceof ApiError && [400, 401, 403].includes(err.status)) {
+        await clearSession('expired');
+        return 'rejected';
+      }
+      return 'unreachable';
+    }
+  })().finally(() => {
+    refreshInFlight = null;
+  });
+
+  return refreshInFlight;
+}
+
+/** Refreshes ahead of time when the access token is about to expire. */
+export async function ensureFreshAccessToken(): Promise<void> {
+  if (getSessionToken() && isAccessTokenExpiring()) {
+    await refreshAccessToken();
+  }
+}
+
+const isTimeout = (err: any) => err?.name === 'AbortError';
+
 async function request<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry = false
 ): Promise<T> {
+  const isAuthEndpoint = endpoint.includes(AUTH_PREFIX);
+  if (!isAuthEndpoint) {
+    await ensureFreshAccessToken();
+  }
+
   const token = getSessionToken();
 
   const headers: Record<string, string> = {
@@ -164,6 +250,7 @@ async function request<T = any>(
   const timeoutMs = usesRemoteHost
     ? 90000
     : ((options.method && options.method !== 'GET') ? 15000 : 8000);
+  const method = (options.method || 'GET').toUpperCase();
   for (const targetUrl of candidateUrls) {
     try {
       const result = await tryFetchUrl<T>(targetUrl, options, headers, timeoutMs);
@@ -175,8 +262,22 @@ async function request<T = any>(
       }
       return result;
     } catch (err: any) {
+      // An expired or revoked access token: refresh once and replay the request.
+      if (err instanceof ApiError && err.status === 401 && token && !isAuthEndpoint && !isRetry) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed === 'ok') {
+          return request<T>(endpoint, options, true);
+        }
+        throw err;
+      }
       if (err instanceof ApiError && err.status !== 0 && err.status !== 408) {
         throw err;
+      }
+      // A timed-out write may already have been applied by the server. Replaying it against a
+      // fallback host would repeat it (a second chat message, a second order), so only reads
+      // move on to the next candidate after a timeout.
+      if (method !== 'GET' && isTimeout(err)) {
+        throw new ApiError('The request timed out. Please check your connection.', 408);
       }
       lastError = err;
     }
@@ -226,6 +327,7 @@ export function getWorkingBaseUrl(): string {
 }
 
 export async function uploadFileToBackend(fileUri: string, fileName?: string, fileType?: string): Promise<string> {
+  await ensureFreshAccessToken();
   const token = getSessionToken();
   const filename = fileName || fileUri.split('/').pop() || `file_${Date.now()}.jpg`;
   const match = /\.(\w+)$/.exec(filename);

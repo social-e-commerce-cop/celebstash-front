@@ -127,7 +127,7 @@ const BrowseScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Top Header Row with back arrow & title */}
       <View style={styles.header}>

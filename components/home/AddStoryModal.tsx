@@ -64,6 +64,12 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
   };
 
   const handlePostStory = async () => {
+    // A story is the artist's own photo or video. Posting used to fall back to a stock image or
+    // video when nothing was picked, publishing content the artist never chose.
+    if (!selectedUri) {
+      Alert.alert('Choose media', 'Pick a photo or video for your story first.');
+      return;
+    }
     setIsUploading(true);
     setUploadProgress(0.2);
 
@@ -78,19 +84,12 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
     }, 200);
 
     try {
-      let finalMediaUrl: string;
-      if (selectedUri) {
-        const isVid = mediaType === 'VIDEO';
-        finalMediaUrl = await uploadFileToBackend(
-          selectedUri,
-          `story_${Date.now()}.${isVid ? 'mp4' : 'jpg'}`,
-          isVid ? 'video/mp4' : 'image/jpeg'
-        );
-      } else {
-        finalMediaUrl = mediaType === 'IMAGE'
-          ? 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800'
-          : 'https://assets.mixkit.co/videos/preview/mixkit-concert-crowd-raising-hands-41484-large.mp4';
-      }
+      const isVid = mediaType === 'VIDEO';
+      const finalMediaUrl = await uploadFileToBackend(
+        selectedUri,
+        `story_${Date.now()}.${isVid ? 'mp4' : 'jpg'}`,
+        isVid ? 'video/mp4' : 'image/jpeg'
+      );
 
       await storiesService.createStory({
         mediaUrl: finalMediaUrl,
@@ -111,8 +110,15 @@ export const AddStoryModal: React.FC<AddStoryModalProps> = ({
         onClose();
       }, 300);
     } catch (err: any) {
+      clearInterval(interval);
       setIsUploading(false);
-      Alert.alert('Upload Failed', err?.message || 'Failed to upload story. Please check connection and try again.');
+      setUploadProgress(0);
+      Alert.alert(
+        'Upload Failed',
+        err?.status === 403
+          ? 'Only artists can post stories.'
+          : err?.message || 'Failed to upload story. Please check connection and try again.'
+      );
     }
   };
 

@@ -149,7 +149,7 @@ const EditProfile = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Custom Toast Banner */}
       {toast && (

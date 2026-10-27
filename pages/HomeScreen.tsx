@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar, RefreshControl, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ScrollView, StyleSheet, Dimensions, View, Text, TextInput, TouchableOpacity, StatusBar, RefreshControl, Platform, ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { useNavigation } from "@react-navigation/native"; 
 import type { StackNavigationProp } from "@react-navigation/stack";
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -11,9 +11,17 @@ import LatestDrops from '@/components/home/LatestDrops';
 import AuctionGrid from '@/components/home/AuctionGrid';
 import Post from '@/components/home/Post';
 import LiveAuctionBanner from '@/components/home/LiveAuctionBanner';
-import { AddPostModal } from '@/components/home/AddPostModal';
 import { getSessionUser } from '@/lib/session';
 import { fetchHomeFeed, BackendPost } from '@/lib/postService';
+import { useNotificationCenter } from '@/lib/notificationCenter';
+
+const PAGE_SIZE = 10;
+/** Returning to Home re-reads the first page only if the feed is older than this. */
+const STALE_AFTER_MS = 2 * 60 * 1000;
+/** Start loading the next page when this close (px) to the bottom. */
+const LOAD_MORE_THRESHOLD = 600;
+
+const badgeLabel = (n: number) => (n > 99 ? '99+' : String(n));
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,36 +29,92 @@ const HomeScreen = () => {
   const navigation = useNavigation<StackNavigationProp<any>>(); 
   const [user, setUser] = useState(getSessionUser());
   const [postsList, setPostsList] = useState<BackendPost[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [addPostVisible, setAddPostVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { unreadNotifications, unreadMessages, refreshCounts } = useNotificationCenter();
 
-  const loadFeedPosts = useCallback(async () => {
+  const nextPage = useRef(0);
+  const busy = useRef(false);
+  const lastLoadedAt = useRef(0);
+
+  /** Loads page 0 and replaces the list (initial load, pull-to-refresh, stale return). */
+  const loadFirstPage = useCallback(async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setFeedError(null);
     try {
-      const res = await fetchHomeFeed(0, 20);
-      if (res && res.content) {
-        setPostsList(res.content);
-      }
-    } catch (err) {
-      console.error('Error fetching home feed:', err);
+      const res = await fetchHomeFeed(0, PAGE_SIZE);
+      setPostsList(res.content);
+      setHasMore(!res.last);
+      nextPage.current = 1;
+      lastLoadedAt.current = Date.now();
+    } catch {
+      setFeedError('Could not load your feed. Check your connection and try again.');
+    } finally {
+      busy.current = false;
+      setInitialLoading(false);
     }
   }, []);
 
+  /** Appends the next page. Offset pages can shift when new posts arrive, so ids are de-duplicated. */
+  const loadNextPage = useCallback(async () => {
+    if (busy.current || !hasMore) return;
+    busy.current = true;
+    setLoadingMore(true);
+    try {
+      const res = await fetchHomeFeed(nextPage.current, PAGE_SIZE);
+      setPostsList((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...res.content.filter((p) => !seen.has(p.id))];
+      });
+      setHasMore(!res.last);
+      nextPage.current += 1;
+    } catch {
+      setFeedError('Could not load more posts.');
+    } finally {
+      busy.current = false;
+      setLoadingMore(false);
+    }
+  }, [hasMore]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadFeedPosts();
+    await loadFirstPage();
+    refreshCounts();
     setRefreshing(false);
   };
 
   useEffect(() => {
+    const first = setTimeout(loadFirstPage, 0);
+    // Coming back to Home keeps the list (and scroll position) unless it has gone stale; likes
+    // made elsewhere in the meantime are already patched into it via onPostUpdated.
     const unsubscribe = navigation.addListener('focus', () => {
       setUser(getSessionUser());
-      loadFeedPosts();
+      refreshCounts();
+      if (lastLoadedAt.current && Date.now() - lastLoadedAt.current > STALE_AFTER_MS) {
+        loadFirstPage();
+      }
     });
-    loadFeedPosts();
-    return unsubscribe;
-  }, [navigation, loadFeedPosts]);
+    return () => {
+      clearTimeout(first);
+      unsubscribe();
+    };
+  }, [navigation, loadFirstPage, refreshCounts]);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    if (contentSize.height - contentOffset.y - layoutMeasurement.height < LOAD_MORE_THRESHOLD) {
+      loadNextPage();
+    }
+  };
+
+  const handlePostUpdated = useCallback((postId: number, patch: Partial<BackendPost>) => {
+    setPostsList((prev) => prev.map((p) => (p.id === postId ? { ...p, ...patch } : p)));
+  }, []);
 
   // Filter posts by username or caption text
   const filteredPosts = searchQuery.trim()
@@ -74,11 +138,13 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
       
       <ScrollView 
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={250}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7126D0']} />
         }
@@ -97,9 +163,11 @@ const HomeScreen = () => {
                 <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </Svg>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>1</Text>
-              </View>
+              {unreadNotifications > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeLabel(unreadNotifications)}</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             {/* Messaging bubble button */}
@@ -107,9 +175,11 @@ const HomeScreen = () => {
               <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </Svg>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>3</Text>
-              </View>
+              {unreadMessages > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeLabel(unreadMessages)}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -166,8 +236,33 @@ const HomeScreen = () => {
         {/* AuctionGrid */}
         <AuctionGrid auctions={[]} />
 
-        {/* Real Feed posts list */}
-        <Post posts={filteredPosts} />
+        {/* Feed: followed accounts first, then everyone else, paged as you scroll */}
+        {initialLoading ? (
+          <View style={styles.feedStatus}>
+            <ActivityIndicator size="large" color="#7126D0" />
+          </View>
+        ) : feedError && postsList.length === 0 ? (
+          <View style={styles.feedStatus}>
+            <Text style={styles.feedStatusText}>{feedError}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={loadFirstPage}>
+              <Text style={styles.retryText}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Post
+              posts={filteredPosts}
+              onPostUpdated={handlePostUpdated}
+              emptyMessage="No posts yet. Follow artists to see their latest drops here."
+            />
+            {loadingMore && <ActivityIndicator style={{ marginVertical: 16 }} color="#7126D0" />}
+            {feedError && postsList.length > 0 && !loadingMore && (
+              <TouchableOpacity style={styles.feedStatus} onPress={loadNextPage}>
+                <Text style={styles.feedStatusText}>{feedError} Tap to retry.</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </ScrollView>
 
       <View style={styles.tabBarContainer}>
@@ -276,6 +371,28 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
     zIndex: 999,
+  },
+  feedStatus: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  feedStatusText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  retryBtn: {
+    backgroundColor: '#7126D0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFF',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
   },
   tabBarContainer: {
     position: 'absolute',

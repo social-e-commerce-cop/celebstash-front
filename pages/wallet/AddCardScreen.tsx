@@ -120,7 +120,7 @@ const AddCardScreen: React.FC = () => {
       style={{ flex: 1, backgroundColor: '#fff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>

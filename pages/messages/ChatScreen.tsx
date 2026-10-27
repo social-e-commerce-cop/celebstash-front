@@ -25,7 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ChatHeader } from '@/components/messages/ChatHeader';
 import { MessageBubble } from '@/components/messages/MessageBubble';
 import { MessageInput } from '@/components/messages/MessageInput';
@@ -39,8 +39,18 @@ import {
 import { chatService, MessageDto } from '@/lib/chatService';
 import { useChatSocket } from '@/lib/chatSocket';
 import { getSessionToken, getSessionUser } from '@/lib/session';
+import { useNotificationCenter } from '@/lib/notificationCenter';
 
 const PURPLE = '#7126D0';
+
+/** Device-generated id for a message being sent (see Message.clientMessageId). */
+const newClientMessageId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Delivery ticks only move forward: a late echo must not pull 'read' back to 'sent'. */
+const STATUS_RANK: Record<string, number> = { sending: 0, failed: 0, sent: 1, delivered: 2, read: 3 };
+const laterStatus = (a: Message['readStatus'], b: Message['readStatus']) =>
+  (STATUS_RANK[a] ?? 0) >= (STATUS_RANK[b] ?? 0) ? a : b;
 
 export default function ChatScreen() {
   const route = useRoute<any>();
@@ -79,6 +89,21 @@ export default function ChatScreen() {
   const [actionSheetParams, setActionSheetParams] = useState<{ visible: boolean; message: Message | null }>({ visible: false, message: null });
 
   const isAuthenticated = !!getSessionToken();
+  const { setActiveConversationId, refreshCounts } = useNotificationCenter();
+  /** Set while older history is prepended, so the list does not jump to the bottom. */
+  const keepScrollPosition = useRef(false);
+
+  // While this thread is on screen, a message banner for it would be noise.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveConversationId(numericConvId);
+      return () => {
+        setActiveConversationId(null);
+        // Opening the thread read it on the server; bring the badges in line.
+        refreshCounts();
+      };
+    }, [numericConvId, setActiveConversationId, refreshCounts])
+  );
 
   // ── Load messages from API ────────────────────────────────────────────────
   const loadMessages = useCallback(async (pageNum: number = 0) => {
@@ -86,9 +111,20 @@ export default function ChatScreen() {
     try {
       setLoading(true);
       setLoadError(null);
+      // Page 0 is the newest messages; higher pages are older history, prepended above.
       const paged = await chatService.getMessages(numericConvId, pageNum);
       const local = paged.content.map(d => toLocalMessage(d, myId));
-      setMessages(prev => pageNum === 0 ? local : [...local, ...prev]);
+      if (pageNum > 0) keepScrollPosition.current = true;
+      setMessages(prev => {
+        if (pageNum === 0) {
+          // Keep bubbles still being sent; everything else comes from the server.
+          const pending = prev.filter(m => m.id.startsWith('temp:') &&
+            !local.some(l => l.clientMessageId && l.clientMessageId === m.clientMessageId));
+          return [...local, ...pending];
+        }
+        const known = new Set(prev.map(m => m.id));
+        return [...local.filter(m => !known.has(m.id)), ...prev];
+      });
       setHasMore(!paged.last);
       setPage(pageNum);
     } catch (e: any) {
@@ -128,16 +164,42 @@ export default function ChatScreen() {
   // own initialisation.
   const scrollToBottom = () => { flatListRef.current?.scrollToEnd({ animated: true }); };
 
+  // ── One idempotent path for every server copy of a message ───────────────
+  /**
+   * Adds or updates a message from the server — REST response, socket echo or retry — exactly once.
+   *
+   * The cause of the duplicate "Hello Hello": the optimistic bubble had a throwaway id, and the
+   * server echoes every new message back over the socket to its own sender as well. When the echo
+   * arrived before the POST response, nothing linked it to the optimistic bubble, so both showed
+   * until the response came back; if the POST then timed out, both stayed and a retry stored a
+   * second copy on the server. Now the bubble carries a clientMessageId that the server stores
+   * and echoes, so whichever copy arrives first replaces the bubble and later copies update it.
+   */
+  const upsertServerMessage = useCallback((dto: MessageDto) => {
+    const incoming = toLocalMessage(dto, myId);
+    setMessages(prev => {
+      const byId = prev.findIndex(m => m.id === incoming.id);
+      const byClientId = incoming.clientMessageId
+        ? prev.findIndex(m => m.id !== incoming.id && m.clientMessageId === incoming.clientMessageId)
+        : -1;
+
+      if (byId >= 0) {
+        const merged = prev.map((m, i) =>
+          i === byId ? { ...incoming, readStatus: laterStatus(m.readStatus, incoming.readStatus) } : m);
+        return byClientId >= 0 ? merged.filter((_, i) => i !== byClientId) : merged;
+      }
+      if (byClientId >= 0) {
+        return prev.map((m, i) => (i === byClientId ? incoming : m));
+      }
+      return [...prev, incoming];
+    });
+  }, [myId]);
+
   // ── WebSocket real-time incoming messages ────────────────────────────────
   const handleIncomingMessage = useCallback((dto: MessageDto) => {
-    const local = toLocalMessage(dto, myId);
-    setMessages(prev => {
-      // Avoid duplicates (our own messages are added optimistically)
-      if (prev.some(m => m.id === local.id)) return prev;
-      return [...prev, local];
-    });
+    upsertServerMessage(dto);
     setTimeout(() => scrollToBottom(), 100);
-  }, []);
+  }, [upsertServerMessage]);
 
   // The socket also drives typing indicators, presence and the reconnecting banner. Remote
   // edits/deletes/reactions are applied here so the thread stays correct without a refetch.
@@ -183,24 +245,6 @@ export default function ChatScreen() {
   };
 
   // ── Send Logic ────────────────────────────────────────────────────────────
-  /**
-   * Swaps an optimistic message for the saved one, dropping any copy the socket already
-   * delivered.
-   *
-   * The server echoes every new message back over the socket, including to its own sender. When
-   * that echo wins the race against the POST response, the thread ends up holding the real
-   * message twice — once from the socket and once where the temp row was replaced — which React
-   * reports as two children with the same key. Re-reading the conversation made it look fixed
-   * because the duplicate only ever existed in local state.
-   */
-  const replaceOptimistic = useCallback((tempId: string, saved: MessageDto) => {
-    const local = toLocalMessage(saved, myId);
-    setMessages(prev => {
-      const withoutEcho = prev.filter(m => m.id !== local.id || m.id === tempId);
-      return withoutEcho.map(m => (m.id === tempId ? local : m));
-    });
-  }, [myId]);
-
   /** Marks an optimistic message as failed instead of pretending it was sent. */
   const markFailed = useCallback((tempId: string) => {
     setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, readStatus: 'failed' } : m)));
@@ -221,10 +265,12 @@ export default function ChatScreen() {
       return;
     }
 
-    // Optimistic message
-    const tempId = String(Date.now());
+    // Optimistic message, keyed by a client id the server will echo back.
+    const clientMessageId = newClientMessageId();
+    const tempId = `temp:${clientMessageId}`;
     const newMsg: Message = {
       id: tempId,
+      clientMessageId,
       conversationId: String(conversationId),
       senderId: 'me',
       type: 'text',
@@ -250,8 +296,9 @@ export default function ChatScreen() {
           type: 'TEXT',
           content: newMsg.text,
           replyToId: replyTo ? Number(replyTo.messageId) : undefined,
+          clientMessageId,
         });
-        replaceOptimistic(tempId, saved);
+        upsertServerMessage(saved);
       } catch (e) {
         console.warn('[Chat] Send failed:', e);
         markFailed(tempId);
@@ -260,6 +307,29 @@ export default function ChatScreen() {
       // Nothing was sent, so the message is not "sent". Faking a delivery timeline here used to
       // show ticks for a message that never left the device.
       markFailed(tempId);
+    }
+  };
+
+  /**
+   * Re-sends a failed text message with its ORIGINAL clientMessageId. If the first attempt did
+   * reach the server (only the response was lost), the server returns that message instead of
+   * storing a second copy.
+   */
+  const retryMessage = async (msg: Message) => {
+    if (!numericConvId || !isAuthenticated || msg.type !== 'text' || !msg.text) return;
+    const clientMessageId = msg.clientMessageId ?? newClientMessageId();
+    setMessages(prev => prev.map(m => (m.id === msg.id ? { ...m, clientMessageId, readStatus: 'sending' } : m)));
+    try {
+      const saved = await chatService.sendMessage(numericConvId, {
+        type: 'TEXT',
+        content: msg.text,
+        replyToId: msg.replyTo ? Number(msg.replyTo.messageId) : undefined,
+        clientMessageId,
+      });
+      upsertServerMessage(saved);
+    } catch (e) {
+      if (__DEV__) console.warn('[Chat] Retry failed:', e);
+      markFailed(msg.id);
     }
   };
 
@@ -279,9 +349,11 @@ export default function ChatScreen() {
       documentSize?: string;
     },
   ) => {
-    const tempId = String(Date.now());
+    const clientMessageId = newClientMessageId();
+    const tempId = `temp:${clientMessageId}`;
     const local: Message = {
       id: tempId,
+      clientMessageId,
       conversationId: String(conversationId),
       senderId: ME,
       type: opts.type.toLowerCase() as Message['type'],
@@ -318,8 +390,9 @@ export default function ChatScreen() {
         voiceDuration: opts.voiceDuration,
         documentName: opts.documentName,
         documentSize: opts.documentSize,
+        clientMessageId,
       });
-      replaceOptimistic(tempId, saved);
+      upsertServerMessage(saved);
     } catch (e) {
       console.warn(`[Chat] ${opts.type} send failed:`, e);
       markFailed(tempId);
@@ -463,6 +536,7 @@ export default function ChatScreen() {
         avatarSource={avatarSrc}
         onImagePress={() => { if (item.imageUri) { setSelectedImageUri(item.imageUri); setImageModalVisible(true); } }}
         onLongPress={() => setActionSheetParams({ visible: true, message: item })}
+        onRetry={item.readStatus === 'failed' && item.type === 'text' ? () => retryMessage(item) : undefined}
         onReply={() => handleMessageAction('reply')}
         onProductPress={() => {
           if (item.product) {
@@ -481,7 +555,7 @@ export default function ChatScreen() {
   if (!conv) {
     return (
       <SafeAreaView style={styles.safe}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+        <StatusBar barStyle="dark-content" />
         <View style={styles.centeredState}>
           <Ionicons name="chatbubble-ellipses-outline" size={48} color={PURPLE} />
           <Text style={styles.centeredTitle}>Conversation unavailable</Text>
@@ -498,7 +572,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
       <ChatHeader
         scrollY={scrollY}
         conversation={conv}
@@ -538,7 +612,24 @@ export default function ChatScreen() {
               renderItem={renderItem}
               contentContainerStyle={{ paddingTop: isSearching ? 100 : (pinnedMsg ? 160 : 110), paddingHorizontal: 8, paddingBottom: 8 }}
               showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => scrollToBottom()}
+              onContentSizeChange={() => {
+                if (keepScrollPosition.current) {
+                  keepScrollPosition.current = false;
+                  return;
+                }
+                scrollToBottom();
+              }}
+              ListHeaderComponent={hasMore ? (
+                <TouchableOpacity
+                  style={{ alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 14 }}
+                  onPress={() => { if (!loading) loadMessages(page + 1); }}
+                  disabled={loading}
+                >
+                  {loading
+                    ? <ActivityIndicator size="small" color={PURPLE} />
+                    : <Text style={{ color: PURPLE, fontFamily: 'Poppins-Medium', fontSize: 13 }}>Load earlier messages</Text>}
+                </TouchableOpacity>
+              ) : undefined}
               onLayout={() => scrollToBottom()}
             />
           )}

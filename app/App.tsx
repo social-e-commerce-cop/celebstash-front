@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Platform, LogBox } from 'react-native';
+import { Platform, LogBox, View } from 'react-native';
 
 // Ignore harmless Expo development warnings
 LogBox.ignoreLogs([
@@ -12,6 +12,11 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 
 import { NavigationContainer, NavigationIndependentTree, useNavigation } from '@react-navigation/native';
+import { navigationRef, resetTo } from '@/lib/navigation';
+import { subscribeSession } from '@/lib/session';
+import { NotificationCenterProvider } from '@/lib/notificationCenter';
+import InAppNotificationBanner from '@/components/InAppNotificationBanner';
+import PostDetailScreen from '@/pages/home/PostDetailScreen';
 
 import Onboarding from '@/pages/Onboarding';
 import SplashScreen from '@/pages/SplashScreen';
@@ -108,7 +113,9 @@ type AppStackParamList = {
   MyMusic: undefined;
   Drops: undefined;
   Shop: undefined;
-  ProfileDetails: { story: { username: string; time: string; image: any } };
+  /** Story viewer: either a list of artists' story groups, or one user's stories by id. */
+  ProfileDetails: { groups?: any[]; startUserId?: number; userId?: number; startStoryId?: number };
+  PostDetail: { postId: number; openComments?: boolean };
   ProductDetails: {
     name?: string;
     price?: string | number;
@@ -211,6 +218,12 @@ const SplashScreenWrapper = () => {
 };
 
 export default function App() {
+  // The only automatic sign-out: the server rejected the refresh token (revoked, expired after
+  // long inactivity). Closing or reopening the app never ends the session.
+  useEffect(() => subscribeSession((event) => {
+    if (event === 'expired') resetTo('Signin');
+  }), []);
+
   useEffect(() => {
     async function hideSystemNavBar() {
       if (Platform.OS === 'android') {
@@ -225,8 +238,10 @@ export default function App() {
   }, []);
 
   return (
+    <NotificationCenterProvider>
+    <View style={{ flex: 1 }}>
     <NavigationIndependentTree>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Splash" component={SplashScreenWrapper} />
           <Stack.Screen name="OnBoarding" component={Onboarding} />
@@ -248,6 +263,7 @@ export default function App() {
           <Stack.Screen name="Drops" component={Drops} />
           <Stack.Screen name="Shop" component={ShopScreen} />
           <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
+          <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           <Stack.Screen name="ProductDetails" component={ProductDetails} />
           <Stack.Screen name="CreateProduct" component={CreateProduct} />
           <Stack.Screen name="ProductReviews" component={ProductReviews} />
@@ -304,5 +320,8 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </NavigationIndependentTree>
+    <InAppNotificationBanner />
+    </View>
+    </NotificationCenterProvider>
   );
 }

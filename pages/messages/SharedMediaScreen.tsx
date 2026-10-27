@@ -168,7 +168,7 @@ export default function SharedMediaScreen() {
 
   const footer = loadingMore
     ? <ActivityIndicator style={{ marginVertical: 20 }} color={PURPLE} />
-    : null;
+    : undefined;
 
   return (
     <View style={styles.container}>

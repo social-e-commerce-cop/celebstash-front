@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Image,
   ScrollView, ActivityIndicator, Dimensions, FlatList, Modal,
 } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -100,7 +101,7 @@ export default function StepMedia({ selected, activeIndex, onToggle, onActiveCha
     }
   };
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     if (scrollRef.current && selected.length > 0 && activeIndex < selected.length) {

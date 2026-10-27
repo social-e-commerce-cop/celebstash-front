@@ -37,7 +37,7 @@ const AddWalletModal: React.FC<AddWalletModalProps> = ({ visible, onClose }) => 
       animationType="slide"
       onRequestClose={onClose}
     >
-        <StatusBar barStyle="light-content" backgroundColor="rgba(0, 0, 0, 0.5)" />
+        <StatusBar barStyle="light-content" />
       <TouchableOpacity style={styles.modalOverlay} onPress={handleOverlayPress} activeOpacity={1}>
         <View style={styles.modalContainer}>
           <Text style={styles.modalTitle}>Add wallet</Text>

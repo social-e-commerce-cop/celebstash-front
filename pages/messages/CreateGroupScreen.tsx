@@ -216,7 +216,7 @@ export default function CreateGroupScreen() {
               />
             )}
             ListEmptyComponent={
-              searching ? null : (
+              searching ? undefined : (
                 <View style={styles.emptySearch}>
                   <Text style={styles.emptySearchText}>
                     {displayError ? '' : hasQuery ? 'No users found' : 'Type to search for people'}

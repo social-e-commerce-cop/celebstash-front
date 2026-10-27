@@ -12,6 +12,7 @@ interface PostProps {
   emptyMessage?: string;
   onSaveToggle?: (postId: number, isSaved: boolean) => void;
   onRepostToggle?: (postId: number, isReposted: boolean) => void;
+  onPostUpdated?: (postId: number, patch: Partial<BackendPost>) => void;
 }
 
 const Post: React.FC<PostProps> = ({
@@ -21,6 +22,7 @@ const Post: React.FC<PostProps> = ({
   emptyMessage = 'Follow creators & artists to see their latest drops and posts here!',
   onSaveToggle,
   onRepostToggle,
+  onPostUpdated,
 }) => {
   if (!posts || posts.length === 0) {
     return (
@@ -43,6 +45,7 @@ const Post: React.FC<PostProps> = ({
           post={post}
           onSaveToggle={onSaveToggle}
           onRepostToggle={onRepostToggle}
+          onPostUpdated={onPostUpdated}
         />
       ))}
     </View>

@@ -1,5 +1,12 @@
-import { apiClient } from './apiClient';
-import { setSessionAuth, clearSession, getRefreshToken } from './session';
+import { apiClient, refreshAccessToken, RefreshResult } from './apiClient';
+import {
+  setSessionAuth,
+  clearSession,
+  getRefreshToken,
+  getSessionToken,
+  restoreSession,
+  isAccessTokenExpiring,
+} from './session';
 
 export interface LoginParams {
   emailOrPhone: string;
@@ -115,34 +122,44 @@ export const authService = {
     return response;
   },
 
-  // Refresh Token
-  refreshToken: async (): Promise<AuthResponseData> => {
-    const token = getRefreshToken();
-    if (!token) throw new Error('No refresh token available');
+  /**
+   * Refreshes the access token. Shares the in-flight request with the API client so a manual
+   * refresh can never race an automatic one (the server rotates the refresh token on each use).
+   */
+  refreshToken: (): Promise<RefreshResult> => refreshAccessToken(),
 
-    const response: AuthResponseData = await apiClient.post('/api/v1/auth/refresh-token', {
-      refreshToken: token,
-    });
-    if (response.success && response.accessToken) {
-      setSessionAuth(
-        { accessToken: response.accessToken, refreshToken: response.refreshToken },
-        response.user
-      );
+  /**
+   * Runs once at launch, before the first screen is chosen: loads the stored session and, when the
+   * access token has expired or is about to, refreshes it.
+   *
+   * Returns whether the user should land in the signed-in app. An unreachable server keeps the
+   * session (the user is still signed in, just offline); only an explicit rejection of the refresh
+   * token by the server ends it.
+   */
+  bootstrapSession: async (): Promise<boolean> => {
+    await restoreSession();
+    if (!getSessionToken()) return false;
+    if (isAccessTokenExpiring()) {
+      const result = await refreshAccessToken();
+      if (result === 'rejected') return false;
     }
-    return response;
+    return Boolean(getSessionToken());
   },
 
-  // Logout
+  /**
+   * User-initiated sign out: revokes the refresh token on the server, then clears local state.
+   * Local state is cleared even when the server cannot be reached, so Sign Out always works.
+   */
   logout: async () => {
     const token = getRefreshToken();
     if (token) {
       try {
         await apiClient.post('/api/v1/auth/logout', { refreshToken: token });
       } catch (e) {
-        console.warn('Logout request error:', e);
+        if (__DEV__) console.warn('Logout request error:', e);
       }
     }
-    clearSession();
+    await clearSession('signedOut');
   },
 
   // Initiate Password Reset

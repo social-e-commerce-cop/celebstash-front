@@ -7,7 +7,7 @@
  * uses the event stream so it also receives edits, deletes, reactions, typing and presence.
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { API_BASE_URL } from './apiClient';
+import { getWorkingBaseUrl, ensureFreshAccessToken } from './apiClient';
 import { getSessionToken } from './session';
 import type { MessageDto } from './chatService';
 
@@ -135,11 +135,20 @@ export function useChatSocket(
     setConnectionState('connecting');
 
     const client = new StompClient({
-      webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
+      webSocketFactory: () => new SockJS(`${getWorkingBaseUrl()}/ws`),
       connectHeaders: { Authorization: `Bearer ${token}` },
       reconnectDelay: 5000,
+      // Runs before every reconnect too: after a long disconnect the original token may have
+      // expired, and the server rejects CONNECT frames with a stale one.
+      beforeConnect: async () => {
+        await ensureFreshAccessToken();
+        const fresh = getSessionToken();
+        if (fresh) client.connectHeaders = { Authorization: `Bearer ${fresh}` };
+      },
       onConnect: () => {
         setConnectionState('connected');
+        // A reconnect runs onConnect again; without this each one stacked another heartbeat.
+        if (heartbeatRef.current) clearInterval(heartbeatRef.current);
         subsRef.current = [
           client.subscribe(`/topic/conversation/${conversationId}/events`, (frame: any) => {
             try {

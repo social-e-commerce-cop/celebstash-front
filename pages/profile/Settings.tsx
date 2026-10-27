@@ -24,7 +24,7 @@ import {
   Profile,
   Security,
 } from "@/assets/icons/Settings";
-import { clearSession } from "@/lib/session";
+import { authService } from "@/lib/authService";
 
 const { width, height } = Dimensions.get("window");
 const LIGHT_BG = "#F5F8FA";
@@ -52,9 +52,10 @@ const SettingsScreen: React.FC = () => {
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => {
-          console.log("Logged out");
-          clearSession();
+        onPress: async () => {
+          // Revokes the refresh token server-side, then clears the stored session. This is the
+          // only path that ends a session on purpose; closing the app keeps the user signed in.
+          await authService.logout();
           navigation.reset({
             index: 0,
             routes: [{ name: "Signin" }],
@@ -116,7 +117,7 @@ const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.header}>

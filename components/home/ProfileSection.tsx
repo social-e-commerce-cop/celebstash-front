@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,33 +7,75 @@ import {
   Image,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import { getSessionUser } from "@/lib/session";
+import { resolveImageUrl } from "@/lib/apiClient";
+import { storiesService, groupStories, canPostStories, StoryGroup } from "@/lib/storiesService";
 import { AddStoryModal } from "./AddStoryModal";
-
-type AppStackParamList = {
-  ProfileDetails: { story: { id: number; username: string; image: any; hasSticker?: boolean } };
-};
 
 const { width } = Dimensions.get("window");
 
 const STORY_SIZE = width * 0.16; // Perfectly sized avatar bubble
 const BORDER_SIZE = STORY_SIZE + 6;
 
-const artists = [
-  { id: 1, username: "Kenny K Shot", image: require("../../assets/images/story1.png"), hasSticker: true, isUnseen: true },
-  { id: 2, username: "blue_boy", image: require("../../assets/images/storyItem.jpg"), isUnseen: false },
-  { id: 3, username: "waggles", image: require("../../assets/images/story3.png"), isUnseen: true },
-  { id: 4, username: "steve.loves", image: require("../../assets/images/story4.png"), isUnseen: false },
-];
+/** Re-read stories when Home regains focus only if the row is older than this. */
+const STALE_AFTER_MS = 60 * 1000;
 
+const DEFAULT_AVATAR = require("../../assets/images/profile.jpg");
+const avatarSource = (url?: string | null) => (url ? { uri: resolveImageUrl(url) } : DEFAULT_AVATAR);
+
+/**
+ * Stories row on Home: every artist with an active (unexpired) story. Purple ring = unseen,
+ * grey = all seen. Only artists get the "Your Story" bubble, because only artists can post.
+ */
 export default function ProfileSection() {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const user = getSessionUser();
+  const isArtist = canPostStories(user.role);
   const [addStoryVisible, setAddStoryVisible] = useState(false);
+  const [groups, setGroups] = useState<StoryGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const lastLoadedAt = useRef(0);
+
+  const load = useCallback(async () => {
+    setFailed(false);
+    try {
+      const stories = await storiesService.getFeedStories();
+      setGroups(groupStories(stories, getSessionUser().id));
+      lastLoadedAt.current = Date.now();
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const first = setTimeout(load, 0);
+    // Returning from the viewer marks stories seen; re-read so rings update, but not on every
+    // focus — only when the data has aged.
+    const unsubscribe = navigation.addListener("focus", () => {
+      if (Date.now() - lastLoadedAt.current > STALE_AFTER_MS) load();
+    });
+    return () => {
+      clearTimeout(first);
+      unsubscribe();
+    };
+  }, [navigation, load]);
+
+  const isMine = (g: StoryGroup) => user.id != null && Number(g.userId) === Number(user.id);
+  const myGroup = groups.find(isMine);
+  const otherGroups = groups.filter((g) => !isMine(g));
+
+  const openGroup = (groupUserId: number) => {
+    lastLoadedAt.current = 0; // the viewer changes seen state; refresh on return
+    navigation.navigate("ProfileDetails", { groups, startUserId: groupUserId });
+  };
 
   return (
     <View style={styles.container}>
@@ -44,51 +86,68 @@ export default function ProfileSection() {
 
       {/* Horizontal List */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
-        {/* Your Story (+) Bubble - Symmetric for Artists & Users */}
-        <TouchableOpacity style={styles.storyContainer} onPress={() => setAddStoryVisible(true)} activeOpacity={0.8}>
-          <View style={[styles.imageWrapper, { borderColor: "#E5E7EB" }]}>
-            <Image
-              source={
-                user.role === 'ARTIST'
-                  ? require("../../assets/images/black-man.png")
-                  : require("../../assets/images/profile.jpg")
-              }
-              style={styles.storyImage}
-            />
-            <View style={styles.plusBadge}>
-              <Ionicons name="add" size={14} color="#FFF" />
-            </View>
-          </View>
-          <Text style={styles.storyText} numberOfLines={1}>
-            Your Story
-          </Text>
-        </TouchableOpacity>
-
-        {/* Featured Artists Stories with Unseen Gradient vs Seen Grey Rings */}
-        {artists.map((artist) => (
+        {/* Your Story: artists only. Tap opens your stories if you have any; + adds one. */}
+        {isArtist && (
           <TouchableOpacity
-            key={artist.id}
             style={styles.storyContainer}
-            onPress={() => navigation.navigate("ProfileDetails", { story: artist })}
+            onPress={() => (myGroup ? openGroup(myGroup.userId) : setAddStoryVisible(true))}
+            activeOpacity={0.8}
           >
-            <View style={[styles.imageWrapper, { borderColor: artist.isUnseen ? '#7126D0' : '#D1D5DB' }]}>
-              <Image source={artist.image} style={styles.storyImage} />
+            <View style={[styles.imageWrapper, { borderColor: myGroup ? "#7126D0" : "#E5E7EB" }]}>
+              <Image source={avatarSource(user.profilePicture || user.avatar)} style={styles.storyImage} />
+              <TouchableOpacity
+                style={styles.plusBadge}
+                onPress={() => setAddStoryVisible(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Add to your story"
+              >
+                <Ionicons name="add" size={14} color="#FFF" />
+              </TouchableOpacity>
             </View>
             <Text style={styles.storyText} numberOfLines={1}>
-              {artist.username}
+              Your Story
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {loading && (
+          <View style={[styles.storyContainer, { justifyContent: "center", height: BORDER_SIZE }]}>
+            <ActivityIndicator color="#7126D0" />
+          </View>
+        )}
+
+        {!loading && failed && (
+          <TouchableOpacity style={[styles.storyContainer, { justifyContent: "center", height: BORDER_SIZE }]} onPress={load}>
+            <Ionicons name="refresh" size={22} color="#7126D0" />
+            <Text style={styles.storyText}>Retry</Text>
+          </TouchableOpacity>
+        )}
+
+        {!loading && !failed && otherGroups.length === 0 && !isArtist && (
+          <Text style={[styles.storyText, { alignSelf: "center", color: "#888" }]}>No stories available</Text>
+        )}
+
+        {otherGroups.map((g) => (
+          <TouchableOpacity key={g.userId} style={styles.storyContainer} onPress={() => openGroup(g.userId)}>
+            <View style={[styles.imageWrapper, { borderColor: g.hasUnseen ? "#7126D0" : "#D1D5DB" }]}>
+              <Image source={avatarSource(g.userAvatar)} style={styles.storyImage} />
+            </View>
+            <Text style={styles.storyText} numberOfLines={1}>
+              {g.username}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Add Story Modal */}
-      <AddStoryModal
-        visible={addStoryVisible}
-        onClose={() => setAddStoryVisible(false)}
-        onStoryCreated={() => {
-          navigation.navigate("ProfileDetails", { story: { id: 99, username: user.username || 'You', image: require("../../assets/images/profile.jpg") } });
-        }}
-      />
+      {isArtist && (
+        <AddStoryModal
+          visible={addStoryVisible}
+          onClose={() => setAddStoryVisible(false)}
+          onStoryCreated={() => {
+            load();
+          }}
+        />
+      )}
     </View>
   );
 }

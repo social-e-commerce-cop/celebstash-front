@@ -10,7 +10,10 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { restoreSession, getSessionToken } from '@/lib/session';
+import { authService } from '@/lib/authService';
+
+/** Keeps the brand screen up long enough not to flash, without delaying a fast restore. */
+const MIN_SPLASH_MS = 700;
 
 type AppStackParamList = {
   Splash: undefined;
@@ -30,10 +33,20 @@ export default function SplashScreen() {
   const float3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      await restoreSession();
-      navigation.replace(getSessionToken() ? 'Home' : 'OnBoarding');
-    }, 3000);
+    // Session bootstrap: the next screen is chosen only after the stored session has been loaded
+    // (and refreshed if its access token expired), so a signed-in user never sees the login flow.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const startedAt = Date.now();
+    authService
+      .bootstrapSession()
+      .catch(() => false)
+      .then((signedIn) => {
+        const wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - startedAt));
+        timer = setTimeout(() => {
+          if (!cancelled) navigation.replace(signedIn ? 'Home' : 'OnBoarding');
+        }, wait);
+      });
 
     // Pulse animation for logo
     const pulseAnimation = Animated.loop(
@@ -78,7 +91,8 @@ export default function SplashScreen() {
     createFloatAnimation(float3Anim, 4000).start();
 
     return () => {
-      clearTimeout(timer);
+      cancelled = true;
+      if (timer) clearTimeout(timer);
       pulseAnimation.stop();
     };
   }, [navigation, pulseAnim, float1Anim, float2Anim, float3Anim]);
@@ -94,7 +108,7 @@ export default function SplashScreen() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#7126D0" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.splashScreen}>
         <Animated.View
           style={[styles.circle, styles.circle1, { transform: [{ translateY: float1Anim }] }]}

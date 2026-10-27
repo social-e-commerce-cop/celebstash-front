@@ -1,6 +1,7 @@
 import MenuItem from "@/components/Profile/MenuItem";
 import React from "react";
-import { View, StyleSheet, Text, Dimensions, TouchableOpacity, StatusBar } from "react-native";
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, StatusBar, Alert } from "react-native";
+import { authService } from "@/lib/authService";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -15,12 +16,26 @@ const navigation = useNavigation<StackNavigationProp<any>>();
 
   const handlePress = (item: string) => {
     navigation.navigate(item);
-    // TODO: Add navigation or action logic here
+  };
+
+  // There is no "Logout" route; signing out is an action. Same flow as the user Settings screen.
+  const handleLogout = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out of your account?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          await authService.logout();
+          navigation.reset({ index: 0, routes: [{ name: "Signin" }] });
+        },
+      },
+    ]);
   };
 
   return (
     <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#000" />
+        <StatusBar barStyle="dark-content" />
               {/* Header */}
               <View style={styles.headerOverlay}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
@@ -76,7 +91,7 @@ const navigation = useNavigation<StackNavigationProp<any>>();
       <MenuItem
         icon={<Logout />}
         title="Logout"
-        onPress={() => handlePress("Logout")}
+        onPress={handleLogout}
       />
       </View>
     </View>

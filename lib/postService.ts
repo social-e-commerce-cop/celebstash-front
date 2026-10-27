@@ -67,6 +67,8 @@ export interface BackendPost {
   attachedSubtitle?: string;
   attachedPrice?: string;
   recentLikers?: BackendPostLiker[];
+  /** Set by the home feed: whether the viewer follows the author. Absent on other endpoints. */
+  isFollowingAuthor?: boolean;
   isRepost?: boolean;
   reposterId?: number;
   reposterName?: string;
@@ -87,19 +89,27 @@ export interface CreatePostRequest {
   attachedPrice?: string;
 }
 
+export interface FeedPage {
+  content: BackendPost[];
+  totalElements: number;
+  totalPages: number;
+  /** True on the final page. */
+  last: boolean;
+}
+
 /**
- * Fetch home feed posts (paginated)
+ * One page of the home feed: followed accounts' posts first, then everyone else, newest first
+ * within each group (ranked by the server). Throws on failure so the caller can tell "no posts"
+ * apart from "could not load".
  */
-export async function fetchHomeFeed(page = 0, size = 20): Promise<{ content: BackendPost[]; totalElements: number; totalPages: number }> {
-  try {
-    const data = await fetchWithAuth<{ content: BackendPost[]; totalElements: number; totalPages: number }>(
-      `/api/posts?page=${page}&size=${size}`
-    );
-    return data || { content: [], totalElements: 0, totalPages: 0 };
-  } catch (err) {
-    console.warn('fetchHomeFeed failed:', err);
-    return { content: [], totalElements: 0, totalPages: 0 };
-  }
+export async function fetchHomeFeed(page = 0, size = 10): Promise<FeedPage> {
+  const data = await fetchWithAuth<FeedPage>(`/api/posts?page=${page}&size=${size}`);
+  return {
+    content: data?.content ?? [],
+    totalElements: data?.totalElements ?? 0,
+    totalPages: data?.totalPages ?? 0,
+    last: data?.last ?? true,
+  };
 }
 
 /**

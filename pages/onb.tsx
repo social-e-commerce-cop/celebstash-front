@@ -164,7 +164,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#000000" barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: screenHeight * 0.06 }]}>
@@ -201,7 +201,7 @@ export default function OnboardingScreen() {
                 ] as StyleProp<ViewStyle>
               }
             >
-              <Image
+              <Animated.Image
                 source={{
                   uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face",
                 }}
@@ -222,7 +222,7 @@ export default function OnboardingScreen() {
                 ] as StyleProp<ViewStyle>
               }
             >
-              <Image
+              <Animated.Image
                 source={{
                   uri: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=200&h=200&fit=crop&crop=face",
                 }}
@@ -243,7 +243,7 @@ export default function OnboardingScreen() {
                 ] as StyleProp<ViewStyle>
               }
             >
-              <Image
+              <Animated.Image
                 source={require("../assets/images/black-man.png")}
                 style={[styles.profileImage, { width: image3Width, height: image3Height }]}
                 onError={(e) => console.log("Image 3 load error:", e.nativeEvent.error)}

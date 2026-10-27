@@ -121,7 +121,7 @@ const PaymentMethods = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F0FF" />
+      <StatusBar barStyle="dark-content" />
 
       {/* Header */}
       <View style={styles.headerOverlay}>

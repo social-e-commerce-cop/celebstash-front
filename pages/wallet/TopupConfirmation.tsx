@@ -12,6 +12,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -51,7 +52,7 @@ const TopupConfirmation: React.FC = () => {
 
   // PIN state (for momo)
   const [pin, setPin] = useState<string[]>(new Array(5).fill(''));
-  const pinInputsRef = useRef<(TextInput | null)[]>([]);
+  const pinInputsRef = useRef<(TextInputInstance | null)[]>([]);
   const [pinError, setPinError] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -127,7 +128,7 @@ const TopupConfirmation: React.FC = () => {
       style={{ flex: 1, backgroundColor: '#fff' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="dark-content" />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -189,7 +190,7 @@ const TopupConfirmation: React.FC = () => {
               {pin.map((digit, index) => (
                 <View key={index} style={{ marginHorizontal: 6, position: 'relative' }}>
                   <TextInput
-                    ref={(ref: TextInput | null) => {
+                    ref={(ref: TextInputInstance | null) => {
                       pinInputsRef.current[index] = ref;
                     }}
                     style={styles.pinInputBox}
