@@ -27,13 +27,6 @@ type AppStackParamList = {
 
 type BrowseScreenRouteProp = RouteProp<AppStackParamList, 'Browse'>;
 
-const fallbackCollections: RealProductItem[] = [
-  { id: 101, name: 'Ink Art Tee', category: 'Clothing', price: 34, stockQuantity: 15, productType: 'REGULAR', status: 'APPROVED', sellerId: 1, sellerName: 'Anelia', imageUrl: undefined },
-  { id: 102, name: 'Classic Cap', category: 'Accessories', price: 28, stockQuantity: 24, productType: 'REGULAR', status: 'APPROVED', sellerId: 2, sellerName: 'Kenny K Shot', imageUrl: undefined },
-  { id: 103, name: 'Artistic Print', category: 'Art', price: 45, stockQuantity: 3, productType: 'REGULAR', status: 'APPROVED', sellerId: 1, sellerName: 'Anelia', imageUrl: undefined },
-  { id: 104, name: 'Celeb Mug', category: 'Utilities', price: 19, stockQuantity: 12, productType: 'REGULAR', status: 'APPROVED', sellerId: 2, sellerName: 'Kenny K Shot', imageUrl: undefined },
-];
-
 const categories = ['All', 'Clothing', 'Accessories', 'Art', 'Utilities'];
 
 const BrowseScreen = () => {
@@ -44,20 +37,17 @@ const BrowseScreen = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const [realProducts, setRealProducts] = useState<RealProductItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     productsService.getAllProducts()
       .then(prods => {
-        if (Array.isArray(prods) && prods.length > 0) {
-          // Sort by ID descending (newest / recently added first)
-          const sorted = [...prods].sort((a, b) => b.id - a.id);
-          setRealProducts(sorted);
-        } else {
-          setRealProducts(fallbackCollections);
-        }
+        // Sort by ID descending (newest / recently added first)
+        setRealProducts(Array.isArray(prods) ? [...prods].sort((a, b) => b.id - a.id) : []);
       })
-      .catch(() => {
-        setRealProducts(fallbackCollections);
+      .catch((err: any) => {
+        // No placeholder products: their made-up ids could be added to a real cart.
+        setLoadError(err?.message || 'Could not load products.');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -98,7 +88,7 @@ const BrowseScreen = () => {
             image: mainImg ? { uri: mainImg } : require('@/assets/images/products/product1.jpg'),
             imageUrls: resolvedImageUrls,
             description: item.description || 'Exclusive merchandise product.',
-            artistName: item.sellerName || 'Kenny K Shot',
+            artistName: item.sellerName || '',
             verified: true,
             stockQuantity: item.stockQuantity,
             sizeStock: item.sizeStock,
@@ -204,7 +194,15 @@ const BrowseScreen = () => {
         renderItem={renderProductItem}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No items found matching "{searchQuery}"</Text>
+            <Text style={styles.emptyText}>
+              {loading
+                ? 'Loading products…'
+                : loadError
+                  ? loadError
+                  : searchQuery.trim()
+                    ? `No items found matching "${searchQuery}"`
+                    : 'No products available yet.'}
+            </Text>
           </View>
         }
       />

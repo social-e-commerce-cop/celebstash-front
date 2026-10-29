@@ -1,130 +1,152 @@
 import CartCard from '@/components/cart/InCartCard';
-import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import React from 'react';
+import {
+  ScrollView, View, Text, StyleSheet, Dimensions, TouchableOpacity, ActivityIndicator, Alert, RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Svg, { Path } from 'react-native-svg';
+import { useCart, refreshCart, updateCartQuantity, removeFromCart } from '@/lib/cartStore';
+import { resolveImageUrl } from '@/lib/apiClient';
+import { isAuthenticated } from '@/lib/session';
+import type { CartItem } from '@/lib/cartService';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const PURPLE = '#7126D0';
+const PLACEHOLDER = require('../../assets/images/products/product1.jpg');
 
-// Simulated cart state (in a real app this would come from context/store)
-const INITIAL_CART = [
-  {
-    id: 1,
-    title: "Indorerwamo merch",
-    subtitle: "Black - Medium",
-    price: 150.00,
-    quantity: 1,
-    imageSource: require('../../assets/images/cart/order2.png'),
-  },
-  {
-    id: 2,
-    title: "Kendrick's Tour Hoodie",
-    subtitle: "White - Large",
-    price: 120.00,
-    quantity: 1,
-    imageSource: require('../../assets/images/cart/order1.jpg'),
-  },
-];
+const fmt = (n: number | undefined | null) => `$${Number(n ?? 0).toFixed(2)}`;
+
+const variantLabel = (item: CartItem) =>
+  [item.selectedColor, item.selectedSize ? `Size ${item.selectedSize}` : null].filter(Boolean).join(' - ');
 
 const ActivePage = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
+  const { cart, loading, error, pending } = useCart();
+  const items = cart?.items ?? [];
+  const hasUnavailable = items.some(i => i.available === false);
 
-  const [cartItems, setCartItems] = useState(INITIAL_CART);
-
-  const handleTrackOrder = () => navigation.navigate('TrackOrder');
-
-  const handleDecrease = (id: number) => {
-    setCartItems(prev =>
-      prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, item.quantity - 1) } : item)
-    );
+  // Every change goes to the server first; the list re-renders from the server's answer.
+  const run = async (action: () => Promise<unknown>) => {
+    try {
+      await action();
+    } catch (err: any) {
+      Alert.alert('Cart not updated', err?.message || 'Please try again.');
+    }
   };
 
-  const handleIncrease = (id: number) => {
-    setCartItems(prev =>
-      prev.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item)
-    );
+  const handleDecrease = (item: CartItem) => {
+    if (item.quantity <= 1) return;
+    run(() => updateCartQuantity(item.productId, item.quantity - 1));
   };
 
-  const handleRemove = (id: number) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const handleIncrease = (item: CartItem) => {
+    if (item.stockAvailable !== undefined && item.stockAvailable <= 0) {
+      Alert.alert('No more stock', `There are no more units of ${item.productName} available.`);
+      return;
+    }
+    run(() => updateCartQuantity(item.productId, item.quantity + 1));
   };
+
+  const handleRemove = (item: CartItem) => run(() => removeFromCart(item.productId));
 
   const handleCheckout = () => {
-    navigation.navigate('CheckoutScreen', {
-      fromCart: true,
-      cartItems: cartItems,
-    });
+    if (hasUnavailable) {
+      Alert.alert('Unavailable item', 'Remove the items marked unavailable before checking out.');
+      return;
+    }
+    navigation.navigate('CheckoutScreen', { fromCart: true });
   };
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shipping = 13;
-  const total = subtotal + shipping;
+  if (!isAuthenticated()) {
+    return (
+      <View style={styles.emptyCart}>
+        <Text style={styles.emptyCartText}>Sign in to see your cart</Text>
+        <Text style={styles.emptyCartSub}>Your cart is saved to your account.</Text>
+      </View>
+    );
+  }
 
-  const fmt = (n: number) => `$${n.toFixed(2)}`;
+  if (!cart && loading) {
+    return (
+      <View style={styles.emptyCart}>
+        <ActivityIndicator color={PURPLE} />
+      </View>
+    );
+  }
+
+  if (!cart && error) {
+    return (
+      <View style={styles.emptyCart}>
+        <Text style={styles.emptyCartText}>Could not load your cart</Text>
+        <Text style={styles.emptyCartSub}>{error}</Text>
+        <TouchableOpacity style={[styles.checkoutButton, { marginTop: 16, paddingHorizontal: 24 }]} onPress={() => refreshCart().catch(() => {})}>
+          <Text style={styles.checkoutButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '' }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading && Boolean(cart)} onRefresh={() => { refreshCart().catch(() => {}); }} />}
       >
-        {/* Cart items */}
-        {cartItems.length > 0 && (
-          <>
-            {cartItems.map(item => (
+        {items.map(item => {
+          const busy = pending.includes(item.productId);
+          return (
+            <View key={item.id} style={busy ? { opacity: 0.5 } : undefined} pointerEvents={busy ? 'none' : 'auto'}>
               <CartCard
-                key={item.id}
-                imageSource={item.imageSource}
-                title={item.title}
-                subtitle={item.subtitle}
-                status="In Cart"
-                price={fmt(item.price)}
+                imageSource={item.productImageUrl ? { uri: resolveImageUrl(item.productImageUrl) } : PLACEHOLDER}
+                title={item.productName}
+                subtitle={variantLabel(item)}
+                status={item.available === false ? 'Unavailable' : 'Reserved'}
+                price={fmt(item.productPrice)}
                 quantity={item.quantity}
-                onQuantityDecrease={() => handleDecrease(item.id)}
-                onQuantityIncrease={() => handleIncrease(item.id)}
-                onRemove={() => handleRemove(item.id)}
+                onQuantityDecrease={() => handleDecrease(item)}
+                onQuantityIncrease={() => handleIncrease(item)}
+                onRemove={() => handleRemove(item)}
               />
-            ))}
-          </>
-        )}
+            </View>
+          );
+        })}
 
-        {/* Order Summary Card */}
-        {cartItems.length > 0 && (
+        {items.length > 0 && (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Order Summary</Text>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal ({cartItems.reduce((s, i) => s + i.quantity, 0)} items)</Text>
-              <Text style={styles.summaryValue}>{fmt(subtotal)}</Text>
-            </View>
-            {/* <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shipping (Economy)</Text>
-              <Text style={styles.summaryValue}>{fmt(shipping)}</Text>
-            </View> */}
+            {items.map(item => (
+              <View key={`line-${item.id}`} style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { flex: 1 }]} numberOfLines={1}>
+                  {item.productName} × {item.quantity}
+                </Text>
+                <Text style={styles.summaryValue}>{fmt(item.subtotal)}</Text>
+              </View>
+            ))}
             <View style={styles.summaryDivider} />
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryTotalLabel}>Total</Text>
-              <Text style={styles.summaryTotal}>{fmt(total)}</Text>
+              <Text style={styles.summaryLabel}>Subtotal ({cart?.totalItems ?? 0} items)</Text>
+              <Text style={styles.summaryValue}>{fmt(cart?.totalPrice)}</Text>
             </View>
+            <Text style={styles.summaryNote}>Delivery fees are added at checkout.</Text>
           </View>
         )}
 
-        {/* Checkout Button */}
-        {cartItems.length > 0 && (
-          <TouchableOpacity 
-            style={styles.checkoutButton}
+        {items.length > 0 && (
+          <TouchableOpacity
+            style={[styles.checkoutButton, (pending.length > 0 || hasUnavailable) && { opacity: 0.6 }]}
             onPress={handleCheckout}
+            disabled={pending.length > 0}
             activeOpacity={0.8}
           >
             <Text style={styles.checkoutButtonText}>Checkout</Text>
           </TouchableOpacity>
         )}
 
-        {cartItems.length === 0 && (
+        {items.length === 0 && (
           <View style={styles.emptyCart}>
             <Text style={styles.emptyCartText}>Your cart is empty</Text>
             <Text style={styles.emptyCartSub}>Add items from the shop to start shopping</Text>
@@ -138,16 +160,8 @@ const ActivePage = () => {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: 10,
-    paddingHorizontal: 0, // Change this value to reduce or increase horizontal padding
-    backgroundColor: "#fff"
-  },
-  sectionLabel: {
-    fontSize: width * 0.04,
-    fontWeight: '700',
-    color: '#222',
-    marginBottom: 10,
-    marginTop: 6,
-    fontFamily: 'Poppins-Bold',
+    paddingHorizontal: 0,
+    backgroundColor: '#fff',
   },
   summaryCard: {
     backgroundColor: '#fff',
@@ -159,7 +173,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
-    marginHorizontal: 2
+    marginHorizontal: 2,
   },
   summaryTitle: {
     fontSize: 16,
@@ -171,6 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 10,
+    gap: 8,
   },
   summaryLabel: {
     fontSize: 14,
@@ -182,27 +197,21 @@ const styles = StyleSheet.create({
     color: '#111',
     fontFamily: 'Poppins-Medium',
   },
+  summaryNote: {
+    fontSize: 12,
+    color: '#8F959E',
+    fontFamily: 'Poppins-Regular',
+  },
   summaryDivider: {
     height: 1,
     backgroundColor: '#F0F0F0',
     marginVertical: 10,
   },
-  summaryTotalLabel: {
-    fontSize: 16,
-    color: '#111',
-    fontFamily: 'Poppins-Bold',
-  },
-  summaryTotal: {
-    fontSize: 18,
-    color: PURPLE,
-    fontFamily: 'Poppins-Bold',
-  },
   checkoutButton: {
-    backgroundColor: '#7126D0',
+    backgroundColor: PURPLE,
     borderRadius: 5,
     paddingVertical: 10,
     alignItems: 'center',
-    marginHorizontal: 0, // added margin to keep it from touching screen edges
   },
   checkoutButtonText: {
     color: 'white',
@@ -214,8 +223,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyCartText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: width * 0.045,
     color: '#333',
     marginBottom: 8,
     fontFamily: 'Poppins-Bold',
@@ -224,8 +232,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
     fontFamily: 'Poppins-Regular',
+    textAlign: 'center',
   },
 });
 
 export default ActivePage;
-

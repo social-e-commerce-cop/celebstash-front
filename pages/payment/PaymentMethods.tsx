@@ -44,18 +44,24 @@ const MOMO_CONFIG: Record<MoMoProvider, { color: string; bg: string; selectedBg:
 const PaymentMethods = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const route = useRoute<any>();
-  const { balance } = useWallet();
+  const { balance, heldBalance } = useWallet();
 
   const total: number = route.params?.total ?? 0;
   const isMusic = route.params?.isMusic ?? false;
   const musicItem = route.params?.musicItem;
+  // Present when paying for a cart order; the backend prices and charges the order itself.
+  const orderDraft = route.params?.orderDraft;
 
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode] = useState('+250');
   const [phoneError, setPhoneError] = useState('');
 
-  const hasSufficientFunds = balance >= total;
+  // Cart reservations already moved part of the price into the wallet's escrow hold, and the
+  // order payment consumes that hold, so it counts towards what the buyer can pay. The backend
+  // makes the authoritative check when the order is paid.
+  const spendable = orderDraft ? balance + (heldBalance || 0) : balance;
+  const hasSufficientFunds = spendable >= total;
 
   const handleSelect = (name: string) => {
     if (name === 'My Wallet' && !hasSufficientFunds) {
@@ -89,6 +95,20 @@ const PaymentMethods = () => {
       return;
     }
 
+    // Orders are charged from the Ziki wallet by the backend. Other methods have no verified
+    // order-payment flow, so they fund the wallet first instead of pretending to pay.
+    if (selectedMethod !== 'My Wallet') {
+      Alert.alert(
+        'Pay with your Ziki Wallet',
+        'Orders are paid from your Ziki Wallet. Top up your wallet with Mobile Money or a card, then pay with My Wallet.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Top Up Wallet', onPress: () => navigation.navigate('TopupWallet') },
+        ]
+      );
+      return;
+    }
+
     const isMoMo = ['MTN MoMo', 'Airtel Money'].includes(selectedMethod);
     if (isMoMo) {
       if (!phoneNumber || phoneNumber.length < 7) {
@@ -101,6 +121,7 @@ const PaymentMethods = () => {
       total,
       isMusic,
       musicItem,
+      orderDraft,
       paymentMethod: isMoMo
         ? `${selectedMethod} (${countryCode} ${phoneNumber})`
         : selectedMethod,

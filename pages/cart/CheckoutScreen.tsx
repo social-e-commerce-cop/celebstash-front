@@ -1,50 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, Image, TextInput, StyleSheet, ScrollView,
   TouchableOpacity, Dimensions, StatusBar, Alert,
-  Platform, KeyboardAvoidingView, Keyboard, Animated,
+  Platform, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { useCart } from '@/lib/cartStore';
+import { resolveImageUrl } from '@/lib/apiClient';
+import { ordersService, LocationResponse, DeliveryOption } from '@/lib/ordersService';
 
 const { width, height } = Dimensions.get('window');
 const PURPLE = '#7126D0';
-
-type CheckoutParams = {
-  CheckoutScreen: {
-    name?: string;
-    price?: string | number;
-    image?: any;
-    artistName?: string;
-    selectedSize?: string;
-    selectedColor?: string;
-    selectedColorValue?: string;
-    fromCart?: boolean;
-    cartItems?: Array<{ id: number; title: string; subtitle: string; price: number; quantity: number; imageSource: any }>;
-    isDigital?: boolean;
-    isMusic?: boolean;
-    musicItem?: { title: string; artist: string; image: any } | null;
-  };
-};
-
-type ShippingId = 'none' | 'economy' | 'cargo';
-
-const SHIPPING_OPTIONS = [
-  { id: 'economy' as ShippingId, label: 'Economy (In Kigali)',    price: 13, eta: 'Estimate Arrival May 14' },
-  { id: 'cargo'   as ShippingId, label: 'Cargo (Outside Kigali)', price: 20, eta: 'Estimate Arrival May 20' },
-];
+const PLACEHOLDER = require('../../assets/images/products/product1.jpg');
 
 // ─── Icons (inline SVG helpers) ───────────────────────────────────────────────
 const BackIcon = () => (
   <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5">
     <Path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const TrashIcon = () => (
-  <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF4D4D" strokeWidth="2">
-    <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -78,7 +52,7 @@ const FormInput: React.FC<InputProps> = ({
       value={value}
       onChangeText={onChange}
       placeholder={placeholder ?? label}
-      placeholderTextColor="#333qa"
+      placeholderTextColor="#9CA3AF"
       keyboardType={keyboardType}
       autoCapitalize="words"
     />
@@ -92,133 +66,131 @@ const Radio = ({ selected }: { selected: boolean }) => (
   </View>
 );
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+const fmt = (n: number | undefined | null) => `$${Number(n ?? 0).toFixed(2)}`;
+
+/**
+ * Checkout for the server-side cart. Nothing here decides a price: the screen shows the cart
+ * totals the backend returned plus the delivery fee of the chosen saved address, and the order
+ * itself is priced again by the backend when it is created (PinEntry → POST /api/orders).
+ */
 const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
-  const route = useRoute<RouteProp<CheckoutParams, 'CheckoutScreen'>>();
+  const { cart, loading: cartLoading, error: cartError } = useCart();
+  const items = cart?.items ?? [];
 
-  // keyboard visibility
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
-    return () => { show.remove(); hide.remove(); };
-  }, []);
+  const [deliveryOption, setDeliveryOption] = useState<DeliveryOption>('SELF_PICKUP');
 
-  // product params
-  const params    = route.params ?? {};
-  const fromCart  = params.fromCart ?? false;
-  const cartItems = params.cartItems ?? [];
-  const isDigital = params.isDigital ?? false;
-  const isMusic   = (params.isMusic ?? false) || !!params.musicItem;
+  // Saved delivery addresses (server-side locations, each with a server-decided fee)
+  const [locations, setLocations] = useState<LocationResponse[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<number | 'new' | null>(null);
 
-  const name      = params.name        ?? 'Indorerwamo merch';
-  const image     = params.image       ?? require('../../assets/images/products/product1.jpg');
-  const artistName = params.artistName ?? 'Kenny K Shot';
-  const selSize   = params.selectedSize   ?? 'M';
-  const selColor  = params.selectedColor  ?? 'Black';
-  const rawPrice  = params.price !== undefined ? params.price : 150;
-  const unitPrice = typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 150;
-
-  // qty
-  const [qty, setQty] = useState(1);
-
-  // shipping
-  const [shipping, setShipping] = useState<ShippingId>(isDigital ? 'none' : 'economy');
-  const shippingCost = shipping === 'none' ? 0 : (SHIPPING_OPTIONS.find(o => o.id === shipping)?.price ?? 0);
-
-  // promo
-  const [appliedPromos, setAppliedPromos] = useState<{code: string, discount: number}[]>([]);
-  const [showPromoInput, setShowPromoInput] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
-  const [promoMessage, setPromoMessage] = useState('');
-  const promoAnim = useRef(new Animated.Value(0)).current;
-
-  const VALID_CODES: Record<string, number> = { 'ZIKI25': 25, 'CELEB10': 10, 'VIP50': 50 };
-
-  const handleAddPromo = () => {
-    setShowPromoInput(v => {
-      const next = !v;
-      Animated.timing(promoAnim, { toValue: next ? 1 : 0, duration: 250, useNativeDriver: false }).start();
-      return next;
-    });
-  };
-
-  const applyPromo = () => {
-    const code = promoCode.trim().toUpperCase();
-    if (VALID_CODES[code]) {
-      if (appliedPromos.some(p => p.code === code)) {
-        setPromoMessage(`⚠ Code ${code} is already applied.`);
-        return;
-      }
-      setAppliedPromos(prev => [...prev, { code, discount: VALID_CODES[code] }]);
-      setPromoMessage(`✓ Promo code ${code} applied!`);
-      setPromoCode('');
-    } else {
-      setPromoMessage('✗ Invalid promo code. Try ZIKI25, CELEB10 or VIP50.');
-    }
-  };
-
-  const removePromo = (code: string) => {
-    setAppliedPromos(prev => prev.filter(p => p.code !== code));
-    setPromoMessage('');
-  };
-  // delivery form
-  const [fullName,   setFullName]   = useState('');
-  const [phone,      setPhone]      = useState('');
-  const [email,      setEmail]      = useState('');
-  const [street,     setStreet]     = useState('');
-  const [apt,        setApt]        = useState('');
-  const [city,       setCity]       = useState('');
+  // contact + new address form
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [street, setStreet] = useState('');
+  const [apt, setApt] = useState('');
+  const [city, setCity] = useState('');
   const [stateProvince, setStateProvince] = useState('');
-  const [zip,        setZip]        = useState('');
+  const [zip, setZip] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // calculations
-  const baseAmount = fromCart 
-    ? cartItems.reduce((s: number, i: any) => s + i.price * i.quantity, 0)
-    : unitPrice * qty;
-  const effectiveShippingCost = isMusic ? 0 : shippingCost;
-  const totalDiscountPercent = Math.min(appliedPromos.reduce((sum, p) => sum + p.discount, 0), 100);
-  const discountAmount = +(baseAmount * totalDiscountPercent / 100).toFixed(2);
-  const total    = +(baseAmount + effectiveShippingCost - discountAmount).toFixed(2);
+  const [locationsLoaded, setLocationsLoaded] = useState(false);
 
-  const promoInputHeight = promoAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 90] });
+  // Saved addresses are fetched the first time the buyer chooses delivery.
+  const chooseDelivery = () => {
+    setDeliveryOption('DELIVERY');
+    if (locationsLoaded || locationsLoading) return;
+    setLocationsLoading(true);
+    ordersService.getMyActiveLocations()
+      .then(list => {
+        const active = Array.isArray(list) ? list : [];
+        setLocations(active);
+        setSelectedLocationId(active.length > 0 ? active[0].id : 'new');
+      })
+      .catch(() => setSelectedLocationId('new'))
+      .finally(() => {
+        setLocationsLoading(false);
+        setLocationsLoaded(true);
+      });
+  };
 
-  const fmt = (n: number) => `$${n.toFixed(2)}`;
+  const selectedLocation = typeof selectedLocationId === 'number'
+    ? locations.find(l => l.id === selectedLocationId) ?? null
+    : null;
+  const subtotal = Number(cart?.totalPrice ?? 0);
+  const deliveryFee = deliveryOption === 'DELIVERY' && selectedLocation ? Number(selectedLocation.deliveryFee ?? 0) : 0;
+  const estimatedTotal = +(subtotal + deliveryFee).toFixed(2);
 
-  const handleContinue = () => {
-    // Contact details are always required
-    const missingContact = !fullName || !phone || !email;
-    if (missingContact) {
-      Alert.alert('Missing details', 'Please fill in all required contact information before continuing.');
+  const handleContinue = async () => {
+    if (submitting) return;
+    if (items.length === 0) {
+      Alert.alert('Cart is empty', 'Add items to your cart before checking out.');
+      return;
+    }
+    if (items.some(i => i.available === false)) {
+      Alert.alert('Unavailable item', 'Remove unavailable items from your cart first.');
+      return;
+    }
+    if (!fullName.trim() || !phone.trim()) {
+      Alert.alert('Missing details', 'Please enter your name and phone number.');
       return;
     }
 
-    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!emailOk) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
-      return;
-    }
-
-    // Address details are required only if shipping is selected
-    if (shipping !== 'none') {
-      const missingAddress = !street || !city || !stateProvince || !zip;
-      if (missingAddress) {
-        Alert.alert('Missing details', 'Please fill in all required delivery address information before continuing.');
-        return;
+    let locationId: number | undefined;
+    if (deliveryOption === 'DELIVERY') {
+      if (selectedLocationId === 'new' || selectedLocationId === null) {
+        if (!street.trim() || street.trim().length < 5 || !city.trim()) {
+          Alert.alert('Missing address', 'Please enter a street address (at least 5 characters) and city.');
+          return;
+        }
+        setSubmitting(true);
+        try {
+          const saved = await ordersService.createLocation({
+            name: (fullName.trim() || 'Delivery address').slice(0, 100).padEnd(3, ' '),
+            address: [street.trim(), apt.trim()].filter(Boolean).join(', ').slice(0, 200),
+            city: city.trim() || undefined,
+            state: stateProvince.trim() || undefined,
+            zipCode: zip.trim() || undefined,
+          });
+          setLocations(prev => [...prev, saved]);
+          setSelectedLocationId(saved.id);
+          locationId = saved.id;
+        } catch (err: any) {
+          Alert.alert('Could not save address', err?.message || 'Please check the address and try again.');
+          return;
+        } finally {
+          setSubmitting(false);
+        }
+      } else {
+        locationId = selectedLocationId;
       }
     }
 
+    const contactNote = `Contact: ${fullName.trim()}, ${phone.trim()}`;
     navigation.navigate('PaymentMethods', {
-      total,
-      isMusic,
-      musicItem: params.musicItem,
+      // Shown to the buyer only; the backend recomputes the payable amount from the cart.
+      total: estimatedTotal,
+      orderDraft: {
+        deliveryOption,
+        locationId,
+        notes: [contactNote, notes.trim()].filter(Boolean).join(' | ').slice(0, 1000),
+      },
     });
   };
+
+  if (!cart && cartLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={PURPLE} />
+      </View>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
       behavior="padding"
       keyboardVerticalOffset={Platform.OS === 'android' ? -200 : 0}
     >
@@ -234,24 +206,38 @@ const CheckoutScreen: React.FC = () => {
           <View style={styles.headerBtn} />
         </View>
 
-        <ScrollView 
-          showsVerticalScrollIndicator={false} 
-          style={styles.scroll} 
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
 
           {/* ── Order Summary ── */}
           <Text style={styles.sectionTitle}>Order Summary</Text>
-          {fromCart && cartItems.length > 0 ? (
+          {items.length === 0 ? (
             <View style={styles.card}>
-              {cartItems.map((item: any, idx: number) => (
-                <View key={item.id} style={[styles.cartItemRow, idx < cartItems.length - 1 && styles.cartItemBorder]}>
-                  <Image source={item.imageSource} style={styles.cartItemImage} resizeMode="cover" />
+              <Text style={styles.noDeliveryText}>
+                {cartError ? cartError : 'Your cart is empty.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              {items.map((item, idx) => (
+                <View key={item.id} style={[styles.cartItemRow, idx < items.length - 1 && styles.cartItemBorder]}>
+                  <Image
+                    source={item.productImageUrl ? { uri: resolveImageUrl(item.productImageUrl) } : PLACEHOLDER}
+                    style={styles.cartItemImage}
+                    resizeMode="cover"
+                  />
                   <View style={styles.cartItemInfo}>
-                    <Text style={styles.cartItemName} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.cartItemSub}>{item.subtitle}</Text>
-                    <Text style={styles.cartItemPrice}>{fmt(item.price)}</Text>
+                    <Text style={styles.cartItemName} numberOfLines={1}>{item.productName}</Text>
+                    {(item.selectedColor || item.selectedSize) ? (
+                      <Text style={styles.cartItemSub}>
+                        {[item.selectedColor, item.selectedSize ? `Size ${item.selectedSize}` : null].filter(Boolean).join(' - ')}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.cartItemPrice}>{fmt(item.productPrice)}</Text>
                   </View>
                   <View style={styles.cartItemQtyBadge}>
                     <Text style={styles.cartItemQtyText}>×{item.quantity}</Text>
@@ -259,93 +245,65 @@ const CheckoutScreen: React.FC = () => {
                 </View>
               ))}
             </View>
-          ) : (
-            <View style={[styles.card, styles.orderSummaryCard]}>
-              <Image source={image} style={styles.productImage} resizeMode="cover" />
-              <View style={styles.productInfo}>
-                <View style={styles.productDetailsRow}>
-                  <View style={styles.productTextCol}>
-                    <Text style={styles.productName} numberOfLines={2}>{name}</Text>
-                    {isMusic
-                      ? <Text style={styles.productVariant}>🎵 Digital Download</Text>
-                      : <Text style={styles.productVariant}>{selColor} - {selSize}</Text>
-                    }
-                    <Text style={styles.productPrice}>{fmt(unitPrice)}</Text>
-                  </View>
-                  <View style={styles.productActionsCol}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.trashBtn}>
-                      <TrashIcon />
-                    </TouchableOpacity>
-                    {/* Only show qty stepper for physical products */}
-                    {!isMusic && (
-                      <View style={styles.qtyRow}>
-                        <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => setQty(q => Math.max(1, q - 1))}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.qtyBtnText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.qtyValue}>{qty}</Text>
-                        <TouchableOpacity
-                          style={[styles.qtyBtn, styles.qtyBtnPlus]}
-                          onPress={() => setQty(q => q + 1)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.qtyBtnText, { color: '#fff' }]}>+</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </View>
           )}
 
-          {/* ── Choose Shipping ── */}
-          {!isDigital && (
-            <>
-              <Text style={styles.sectionTitle}>Choose Shipping</Text>
-              <View style={styles.card}>
-                {/* No delivery */}
-                <TouchableOpacity style={styles.shippingRow} onPress={() => setShipping('none')} activeOpacity={0.8}>
-                  <Radio selected={shipping === 'none'} />
-                  <Text style={styles.noDeliveryText}>No delivery</Text>
-                </TouchableOpacity>
+          {/* ── Delivery ── */}
+          <Text style={styles.sectionTitle}>Delivery</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.shippingRow} onPress={() => setDeliveryOption('SELF_PICKUP')} activeOpacity={0.8}>
+              <Radio selected={deliveryOption === 'SELF_PICKUP'} />
+              <Text style={styles.noDeliveryText}>Self pickup (no delivery fee)</Text>
+            </TouchableOpacity>
 
-                {SHIPPING_OPTIONS.map(opt => (
-                  <TouchableOpacity
-                    key={opt.id}
-                    style={[styles.shippingOption, shipping === opt.id && styles.shippingOptionSelected]}
-                    onPress={() => setShipping(opt.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.shippingIconCircle}>
-                      <TruckIcon color={shipping === opt.id ? PURPLE : PURPLE} />
-                    </View>
+            <TouchableOpacity
+              style={[styles.shippingOption, deliveryOption === 'DELIVERY' && styles.shippingOptionSelected]}
+              onPress={chooseDelivery}
+              activeOpacity={0.8}
+            >
+              <View style={styles.shippingIconCircle}>
+                <TruckIcon color={PURPLE} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shippingLabel}>Deliver to my address</Text>
+                <Text style={styles.shippingEta}>The delivery fee is set by Ziki for your address</Text>
+              </View>
+              <Radio selected={deliveryOption === 'DELIVERY'} />
+            </TouchableOpacity>
+
+            {deliveryOption === 'DELIVERY' && (
+              <>
+                {locationsLoading && <ActivityIndicator color={PURPLE} style={{ marginVertical: 8 }} />}
+                {locations.map(loc => (
+                  <TouchableOpacity key={loc.id} style={styles.shippingRow} onPress={() => setSelectedLocationId(loc.id)} activeOpacity={0.8}>
+                    <Radio selected={selectedLocationId === loc.id} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.shippingLabel}>{opt.label}  <Text style={styles.shippingPrice}>${opt.price}</Text></Text>
-                      <Text style={styles.shippingEta}>{opt.eta}</Text>
+                      <Text style={styles.shippingLabel} numberOfLines={1}>{loc.address}</Text>
+                      <Text style={styles.shippingEta}>
+                        {[loc.city, loc.state].filter(Boolean).join(', ')} · Delivery {fmt(loc.deliveryFee)}
+                      </Text>
                     </View>
-                    <Radio selected={shipping === opt.id} />
                   </TouchableOpacity>
                 ))}
-              </View>
-            </>
-          )}
+                {!locationsLoading && (
+                  <TouchableOpacity style={styles.shippingRow} onPress={() => setSelectedLocationId('new')} activeOpacity={0.8}>
+                    <Radio selected={selectedLocationId === 'new'} />
+                    <Text style={styles.noDeliveryText}>Use a new address</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
 
           {/* ── Contact / Delivery Information ── */}
           <Text style={styles.sectionTitle}>
-            {shipping === 'none' ? 'Contact Information' : 'Delivery Information'}
+            {deliveryOption === 'DELIVERY' && selectedLocationId === 'new' ? 'Delivery Information' : 'Contact Information'}
           </Text>
           <View style={styles.card}>
-            <FormInput label="Full Name" value={fullName} onChange={setFullName} placeholder="e.g. Jean Pierre Mugisha" />
+            <FormInput label="Full Name" value={fullName} onChange={setFullName} placeholder="Your full name" />
             <FormInput label="Phone Number" value={phone} onChange={setPhone} placeholder="+250 7XX XXX XXX" keyboardType="phone-pad" />
-            <FormInput label="Email Address" value={email} onChange={setEmail} placeholder="you@example.com" keyboardType="email-address" />
 
-            {shipping !== 'none' && (
+            {deliveryOption === 'DELIVERY' && selectedLocationId === 'new' && (
               <>
-                {/* divider */}
                 <View style={styles.divider} />
                 <Text style={styles.subSectionLabel}>Address</Text>
 
@@ -356,82 +314,36 @@ const CheckoutScreen: React.FC = () => {
                     <FormInput label="City" value={city} onChange={setCity} placeholder="Kigali" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <FormInput label="State / Province" value={stateProvince} onChange={setStateProvince} placeholder="Kigali City" />
+                    <FormInput label="State / Province" value={stateProvince} onChange={setStateProvince} placeholder="Kigali City" optional />
                   </View>
                 </View>
-                <FormInput label="ZIP / Postal Code" value={zip} onChange={setZip} placeholder="00000" keyboardType="numeric" />
+                <FormInput label="ZIP / Postal Code" value={zip} onChange={setZip} placeholder="00000" keyboardType="numeric" optional />
               </>
             )}
+            <FormInput label="Notes for the seller" value={notes} onChange={setNotes} placeholder="Anything we should know?" optional />
           </View>
 
-          {/* ── Promo Code ── */}
-          <Text style={styles.sectionTitle}>Promo Code</Text>
+          {/* ── Price breakdown ── */}
+          <Text style={styles.sectionTitle}>Payment Summary</Text>
           <View style={styles.card}>
-            <View style={styles.promoHeaderRow}>
-              <Text style={styles.promoHeading}>Have a promo code?</Text>
-              <TouchableOpacity
-                style={styles.promoAddBtn}
-                onPress={handleAddPromo}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.promoAddBtnText}>{showPromoInput ? '− Close' : '+ Add Code'}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Expandable input */}
-            <Animated.View style={{ overflow: 'hidden', height: promoInputHeight }}>
-              <View style={styles.promoInputRow}>
-                <TextInput
-                  style={styles.promoInput}
-                  value={promoCode}
-                  onChangeText={setPromoCode}
-                  placeholder="Enter promo code (e.g. ZIKI25)"
-                  placeholderTextColor="#BDBDBD"
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity style={styles.promoApplyBtn} onPress={applyPromo}>
-                  <Text style={styles.promoApplyText}>Apply</Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-
-            {/* Applied Promos */}
-            {appliedPromos.length > 0 && (
-              <View style={styles.appliedPromosContainer}>
-                {appliedPromos.map(promo => (
-                  <View key={promo.code} style={styles.promoChipCard}>
-                    <Text style={styles.promoChipCardText}>{promo.code} ({promo.discount}%)</Text>
-                    <TouchableOpacity onPress={() => removePromo(promo.code)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
-                      <Text style={styles.promoChipCardRemove}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Promo message */}
-            {!!promoMessage && (
-              <View style={[styles.promoMsgBox, appliedPromos.length > 0 ? styles.promoMsgSuccess : styles.promoMsgError]}>
-                <Text style={[styles.promoMsgText, appliedPromos.length > 0 ? styles.promoMsgTextSuccess : styles.promoMsgTextError]}>
-                  {promoMessage}
-                </Text>
-              </View>
-            )}
-
-            {/* Price breakdown */}
-            <View style={styles.priceDivider} />
-            <PriceRow label="Amount" value={fmt(baseAmount)} />
-            {!isMusic && (
-              <PriceRow label="Shipping" value={shippingCost > 0 ? `+${fmt(shippingCost)}` : '$0.00'} />
-            )}
-            {appliedPromos.length > 0 && <PriceRow label={`Discount (${totalDiscountPercent}%)`} value={`−${fmt(discountAmount)}`} valueColor={PURPLE} />}
+            <PriceRow label={`Subtotal (${cart?.totalItems ?? 0} items)`} value={fmt(subtotal)} />
+            <PriceRow
+              label="Delivery"
+              value={deliveryOption === 'SELF_PICKUP' ? '$0.00' : selectedLocation ? fmt(deliveryFee) : 'Set when address is saved'}
+            />
             <View style={styles.totalDivider} />
-            <PriceRow label="Total" value={fmt(total)} bold />
+            <PriceRow label="Total" value={fmt(estimatedTotal)} bold />
+            <Text style={styles.shippingEta}>The final amount is confirmed by Ziki when your order is placed.</Text>
           </View>
 
           {/* ── Continue Button ── */}
-          <TouchableOpacity style={styles.ctaButton} onPress={handleContinue} activeOpacity={0.85}>
-            <Text style={styles.ctaLabel}>Continue to payment</Text>
+          <TouchableOpacity
+            style={[styles.ctaButton, (submitting || items.length === 0) && { opacity: 0.6 }]}
+            onPress={handleContinue}
+            disabled={submitting || items.length === 0}
+            activeOpacity={0.85}
+          >
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaLabel}>Continue to payment</Text>}
           </TouchableOpacity>
 
         </ScrollView>

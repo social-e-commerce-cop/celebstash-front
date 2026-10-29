@@ -48,7 +48,7 @@ export default function UploadMusicScreen() {
   }, []);
 
   // Release Information
-  const [releaseType, setReleaseType] = useState<'SINGLE' | 'EP' | 'ALBUM' | 'MULTIPLE_TRACKS'>('SINGLE');
+  const [releaseType, setReleaseType] = useState<'SINGLE' | 'EP' | 'ALBUM' | 'PLAYLIST'>('SINGLE');
   const [title, setTitle] = useState('');
   const [featuredArtists, setFeaturedArtists] = useState('');
   const [genre, setGenre] = useState('Afrobeats');
@@ -125,9 +125,10 @@ export default function UploadMusicScreen() {
       if (!res.canceled && res.assets && res.assets.length > 0) {
         const asset = res.assets[0];
         const ext = (asset.name.split('.').pop() || '').toLowerCase();
-        const validFormats = ['mp3', 'wav', 'aac', 'flac', 'm4a', 'ogg'];
+        // Must match what the server can cut a secure 5-second preview from (MP3, WAV, AAC/ADTS).
+        const validFormats = ['mp3', 'wav', 'aac'];
         if (!validFormats.includes(ext)) {
-          Alert.alert('Unsupported Audio Format', 'Supported formats: MP3, WAV, AAC, FLAC, M4A, OGG.');
+          Alert.alert('Unsupported Audio Format', 'Supported formats: MP3, WAV and AAC. Please export M4A, FLAC or OGG files as MP3.');
           return;
         }
         if (asset.size && asset.size > 100 * 1024 * 1024) {
@@ -174,7 +175,9 @@ export default function UploadMusicScreen() {
     }
   };
 
-  const handleUpload = async (targetStatus: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED') => {
+  // 'PENDING_REVIEW' submits the release to an administrator; it goes live only once approved.
+  const handleUpload = async (targetStatus: 'DRAFT' | 'PENDING_REVIEW' = 'PENDING_REVIEW') => {
+    if (submitting) return;
     if (!title.trim()) {
       Alert.alert('Missing Title', 'Please enter a release title');
       return;
@@ -186,6 +189,19 @@ export default function UploadMusicScreen() {
     const invalidTrack = tracks.find(t => !t.fileUri);
     if (invalidTrack) {
       Alert.alert('Missing Audio File', 'Please select an audio file for all tracks');
+      return;
+    }
+    if (releaseType === 'SINGLE' && tracks.length !== 1) {
+      Alert.alert('Too many tracks', 'A single has exactly one track. Choose EP, Album or Playlist for more.');
+      return;
+    }
+    if (releaseType !== 'SINGLE' && tracks.length < 2) {
+      Alert.alert('Add more tracks', 'Albums, EPs and playlists need at least two tracks. Upload one track as a single.');
+      return;
+    }
+    const badPrice = [albumPrice, ...tracks.map(t => t.price)].find(p => p !== '' && (isNaN(Number(p)) || Number(p) < 0));
+    if (badPrice !== undefined) {
+      Alert.alert('Invalid price', 'Prices must be numbers of 0 or more.');
       return;
     }
 
@@ -204,7 +220,8 @@ export default function UploadMusicScreen() {
       formData.append('publicReleaseDate', publicReleaseDate);
       formData.append('copyrightInfo', copyrightInfo);
       formData.append('credits', credits);
-      formData.append('albumPrice', albumPrice);
+      // A single sells at its track's price; collections at the bundle price.
+      formData.append('albumPrice', releaseType === 'SINGLE' ? (tracks[0]?.price || '0') : albumPrice);
       formData.append('defaultPlayLimit', String(defaultPlayLimit));
       formData.append('accessType', accessType);
       formData.append('status', targetStatus);
@@ -326,10 +343,10 @@ export default function UploadMusicScreen() {
       });
 
       Alert.alert(
-        targetStatus === 'DRAFT' ? 'Draft Saved!' : 'Release Published!',
+        targetStatus === 'DRAFT' ? 'Draft Saved!' : 'Submitted for Review',
         targetStatus === 'DRAFT'
-          ? 'Your release has been saved as a draft. You can review and publish it from your Artist Studio.'
-          : 'Your music release has been published directly to fans!',
+          ? 'Your release has been saved as a draft. Submit it for review from your Artist Studio when it is ready.'
+          : 'Your release was uploaded and is pending admin approval. It becomes visible to fans once approved — you can follow its status on your profile.',
         [
           { text: 'Artist Studio', onPress: () => navigation.navigate('ArtProfile' as any) },
           { text: 'View Releases', onPress: () => navigation.navigate('AllReleases' as any) },
@@ -359,7 +376,7 @@ export default function UploadMusicScreen() {
         {/* Release Type Selector */}
         <Text style={styles.fieldLabel}>Release Type *</Text>
         <View style={styles.typeSelectorRow}>
-          {(['SINGLE', 'EP', 'ALBUM', 'MULTIPLE_TRACKS'] as const).map((type) => (
+          {(['SINGLE', 'EP', 'ALBUM', 'PLAYLIST'] as const).map((type) => (
             <TouchableOpacity
               key={type}
               style={[styles.typeChip, releaseType === type && styles.typeChipActive]}
@@ -518,7 +535,7 @@ export default function UploadMusicScreen() {
           </>
         )}
 
-        {(releaseType === 'ALBUM' || releaseType === 'EP' || releaseType === 'MULTIPLE_TRACKS') && (
+        {(releaseType === 'ALBUM' || releaseType === 'EP' || releaseType === 'PLAYLIST') && (
           <>
             <Text style={styles.fieldLabel}>Full Bundle Price ($)</Text>
             <TextInput
@@ -858,13 +875,13 @@ export default function UploadMusicScreen() {
 
           <TouchableOpacity
             style={[styles.submitBtn, { flex: 1.5 }]}
-            onPress={() => handleUpload('PUBLISHED')}
+            onPress={() => handleUpload('PENDING_REVIEW')}
             disabled={submitting}
           >
             {submitting ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.submitBtnText}>Publish Release</Text>
+              <Text style={styles.submitBtnText}>Submit for Review</Text>
             )}
           </TouchableOpacity>
         </View>

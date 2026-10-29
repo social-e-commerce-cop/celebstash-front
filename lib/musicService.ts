@@ -1,10 +1,11 @@
-import { apiClient, API_BASE_URL } from './apiClient';
+import { apiClient, getWorkingBaseUrl } from './apiClient';
 
 export interface MusicTrackItem {
   id: number;
   title: string;
   trackNumber: number;
-  audioFileUrl: string;
+  // The raw audio location is never sent by the API; play tracks through getStreamUrl(), which
+  // returns a server-cut preview unless the listener holds Access.
   durationSeconds: number;
   price: number;
   producer?: string;
@@ -38,10 +39,21 @@ export interface MusicExclusiveContentItem {
   createdAt?: string;
 }
 
+/** Publication lifecycle: artists submit, an administrator approves (PUBLISHED) or rejects. */
+export type ReleaseStatus = 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED' | 'ARCHIVED';
+
+export const RELEASE_STATUS_BADGE: Record<ReleaseStatus, { label: string; bg: string; fg: string }> = {
+  DRAFT: { label: 'Draft', bg: '#F3F4F6', fg: '#374151' },
+  PENDING_REVIEW: { label: 'Pending review', bg: '#FEF3C7', fg: '#92400E' },
+  PUBLISHED: { label: 'Approved · Live', bg: '#DCFCE7', fg: '#166534' },
+  REJECTED: { label: 'Rejected', bg: '#FEE2E2', fg: '#991B1B' },
+  ARCHIVED: { label: 'Archived', bg: '#E5E7EB', fg: '#4B5563' },
+};
+
 export interface MusicReleaseItem {
   id: number;
   title: string;
-  releaseType: 'SINGLE' | 'EP' | 'ALBUM';
+  releaseType: 'SINGLE' | 'EP' | 'ALBUM' | 'PLAYLIST';
   coverArtUrl?: string;
   artist?: {
     id: number;
@@ -67,7 +79,12 @@ export interface MusicReleaseItem {
   communityConversationId?: number;
   copyrightInfo?: string;
   credits?: string;
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  status: ReleaseStatus;
+  submittedAt?: string;
+  reviewedAt?: string;
+  approvedAt?: string;
+  /** Set when an administrator rejected the submission; shown to the artist. */
+  rejectionReason?: string | null;
   availabilityStatus?: string;
   albumPrice: number;
   defaultAccessPackageType?: 'LIMITED_PLAYS' | 'PERMANENT_STREAMING';
@@ -143,6 +160,8 @@ export interface ArtistStudioStats {
   totalReleases: number;
   draftReleases: number;
   publishedReleases: number;
+  pendingReleases?: number;
+  rejectedReleases?: number;
   totalOrders: number;
   totalRevenue: number;
   artistPayouts: number;
@@ -183,7 +202,7 @@ export interface ArtistSongDetailsDto {
   artistName: string;
   artistUsername: string;
   coverArtUrl?: string;
-  status: 'PUBLISHED' | 'ARCHIVED' | 'DRAFT';
+  status: ReleaseStatus;
   durationSeconds: number;
   formattedDuration: string;
   releaseDate: string;
@@ -239,8 +258,9 @@ export const musicService = {
     return apiClient.post(`/api/music/releases/${releaseId}/waitlist`);
   },
 
-  // Publish a release directly to fans
-  async publishRelease(releaseId: number): Promise<MusicReleaseItem> {
+  // Submit a draft (or a revised rejected release) for admin review. It goes live only once an
+  // administrator approves it.
+  async submitForReview(releaseId: number): Promise<MusicReleaseItem> {
     return apiClient.post<MusicReleaseItem>(`/api/music/releases/${releaseId}/publish`);
   },
 
@@ -252,11 +272,6 @@ export const musicService = {
   // Verify playback access for a track
   async verifyAccess(trackId: number): Promise<AccessStatusResponse> {
     return apiClient.get<AccessStatusResponse>(`/api/music/tracks/${trackId}/access`);
-  },
-
-  // Record play consumption
-  async consumePlay(trackId: number): Promise<AccessStatusResponse> {
-    return apiClient.post<AccessStatusResponse>(`/api/music/tracks/${trackId}/consume-play`);
   },
 
   // Artist studio statistics
@@ -298,13 +313,14 @@ export const musicService = {
     return apiClient.put<MusicReleaseItem>(`/api/music/${releaseId}`, payload);
   },
 
-  // Stream URL
+  // Stream URL. The server decides what it returns: a 5-second preview, or the full track for
+  // owners and Access holders identified by the token.
   getStreamUrl(trackId: number): string {
-    return `${API_BASE_URL}/api/music/tracks/${trackId}/stream`;
+    return `${getWorkingBaseUrl()}/api/music/tracks/${trackId}/stream`;
   },
 
   // Download URL
   getDownloadUrl(trackId: number): string {
-    return `${API_BASE_URL}/api/music/tracks/${trackId}/download`;
+    return `${getWorkingBaseUrl()}/api/music/tracks/${trackId}/download`;
   },
 };

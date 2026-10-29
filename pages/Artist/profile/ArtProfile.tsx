@@ -17,7 +17,7 @@ import { fetchMyPosts, BackendPost } from '@/lib/postService';
 import { getSessionUser } from '@/lib/session';
 
 import { profileService, UserProfile } from '@/lib/profileService';
-import { musicService, MusicReleaseItem } from '@/lib/musicService';
+import { musicService, MusicReleaseItem, RELEASE_STATUS_BADGE } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
 
 const { width, height } = Dimensions.get('window');
@@ -99,28 +99,10 @@ const ArtProfile: React.FC = () => {
     const loadMusic = async () => {
       setLoadingMusic(true);
       try {
-        const user = getSessionUser();
-        const prof = await profileService.getMyProfile().catch(() => null);
-        const currentUserId = prof?.id || user?.id;
-        const currentUsername = (prof?.username || user?.username || '').toLowerCase();
-        const currentEmail = (prof?.email || user?.email || '').toLowerCase();
-        const currentFullName = (prof?.fullName || user?.fullName || '').toLowerCase();
-
-        const targetArtistId = profileData?.id || currentUserId;
-        const releases = await musicService.getReleases();
-        if (Array.isArray(releases)) {
-          const artistReleases = releases.filter(r => {
-            if (!r.artist) return false;
-            if (targetArtistId && String(r.artist.id) === String(targetArtistId)) return true;
-            if (currentUsername && r.artist.username && r.artist.username.toLowerCase() === currentUsername) return true;
-            if (currentEmail && (r.artist as any).email && (r.artist as any).email.toLowerCase() === currentEmail) return true;
-            if (currentFullName && (r.artist as any).fullName && (r.artist as any).fullName.toLowerCase() === currentFullName) return true;
-            return false;
-          });
-          setMusicReleases(artistReleases);
-        } else {
-          setMusicReleases([]);
-        }
+        // The signed-in artist's own releases in every state (draft, in review, live, rejected,
+        // archived); the backend scopes this to the authenticated account.
+        const releases = await musicService.getArtistReleases();
+        setMusicReleases(Array.isArray(releases) ? releases : []);
       } catch (e) {
         console.warn('Failed to load artist music releases:', e);
         setMusicReleases([]);
@@ -330,6 +312,19 @@ const ArtProfile: React.FC = () => {
                             </View>
                           </View>
                           <Text style={styles.releaseArtist}>{artistName} • {trackCount} tracks</Text>
+                          {(() => {
+                            const badge = RELEASE_STATUS_BADGE[rel.status] ?? RELEASE_STATUS_BADGE.DRAFT;
+                            return (
+                              <View style={{ alignSelf: 'flex-start', marginTop: 4, backgroundColor: badge.bg, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 }}>
+                                <Text style={{ color: badge.fg, fontSize: 10, fontFamily: 'Poppins-Bold' }}>{badge.label}</Text>
+                              </View>
+                            );
+                          })()}
+                          {rel.status === 'REJECTED' && rel.rejectionReason ? (
+                            <Text style={{ fontSize: 11, fontFamily: 'Poppins-Regular', color: '#991B1B', marginTop: 2 }} numberOfLines={2}>
+                              Reason: {rel.rejectionReason}
+                            </Text>
+                          ) : null}
                         </View>
                         <Text style={styles.releaseDuration}>${rel.albumPrice?.toFixed(2) || '1.99'}</Text>
                       </TouchableOpacity>

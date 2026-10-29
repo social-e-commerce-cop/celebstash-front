@@ -24,10 +24,12 @@ import {
   ReleaseDetailResponse,
   ReleaseBenefitItem,
   MusicExclusiveContentItem,
+  RELEASE_STATUS_BADGE,
+  ReleaseStatus,
 } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
-import { useMusicPlayer, playSong, pauseSong, togglePlay, onPreviewEnded } from '@/lib/musicPlayerStore';
-import { addSongToLibrary, syncUnlockedLibrary } from '@/lib/libraryStore';
+import { useMusicPlayer, playSong, pauseSong, togglePlay, onPreviewEnded, getPlayerState, resetPlayer } from '@/lib/musicPlayerStore';
+import { syncUnlockedLibrary } from '@/lib/libraryStore';
 import { getSessionToken, getSessionUser } from '@/lib/session';
 
 const { width } = Dimensions.get('window');
@@ -114,6 +116,24 @@ export default function MusicDetailScreen() {
   const hasExclusiveContent = isOwner || detailData?.hasExclusiveContent || false;
   const isWaitlisted = detailData?.isWaitlisted || false;
   const waitlistCount = detailData?.waitlistCount || 0;
+  // Only approved, live releases can be bought (the backend enforces the same rule).
+  const isPurchasable = !hasAccess && !isOwner && release?.status === 'PUBLISHED';
+  const statusBadge = RELEASE_STATUS_BADGE[(release?.status ?? 'DRAFT') as ReleaseStatus] ?? RELEASE_STATUS_BADGE.DRAFT;
+
+  // Leaving the screen stops audio started here: there is no player outside this screen, so it
+  // would otherwise keep playing with no way to stop it.
+  const releaseTrackIds = useRef<string[]>([]);
+  useEffect(() => {
+    releaseTrackIds.current = (release?.tracks ?? []).map(t => String(t.id));
+  }, [release]);
+  useEffect(() => {
+    return () => {
+      const playing = getPlayerState().currentSong;
+      if (playing && releaseTrackIds.current.includes(playing.id)) {
+        resetPlayer();
+      }
+    };
+  }, []);
 
   // Handle Joining Waitlist
   const handleJoinWaitlist = async () => {
@@ -317,6 +337,22 @@ export default function MusicDetailScreen() {
           </View>
         )}
 
+        {/* ── Review status, shown to the uploading artist while not live ── */}
+        {isOwner && release && release.status !== 'PUBLISHED' && (
+          <View style={[styles.artistNoticeBanner, { backgroundColor: statusBadge.bg }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.artistNoticeTitle, { color: statusBadge.fg }]}>Status: {statusBadge.label}</Text>
+              <Text style={[styles.artistNoticeSub, { color: statusBadge.fg }]}>
+                {release.status === 'PENDING_REVIEW'
+                  ? 'An administrator is reviewing this release. Fans cannot see or buy it until it is approved.'
+                  : release.status === 'REJECTED'
+                    ? `Not approved${release.rejectionReason ? `: ${release.rejectionReason}` : '.'} Update it and resubmit from Manage Song.`
+                    : 'This release is not visible to fans.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Cover Art — full-width, no horizontal padding ── */}
         <View style={styles.coverWrapper}>
           <Image
@@ -335,7 +371,7 @@ export default function MusicDetailScreen() {
             {(release?.title || 'Untitled Release').toUpperCase()}
           </Text>
           <Text style={styles.priceTagInline}>
-            ${release?.albumPrice?.toFixed(0) || '0'}
+            {hasAccess && !isOwner ? 'Owned' : `$${Number(release?.albumPrice ?? 0).toFixed(2)}`}
           </Text>
         </View>
 
@@ -367,12 +403,16 @@ export default function MusicDetailScreen() {
             onPress={() => { if (release?.tracks && release.tracks.length > 0) handlePlayTrack(release.tracks[0]); }}
           >
             <Ionicons name="play" size={18} color="#FFF" style={{ marginRight: 8 }} />
-            <Text style={styles.accessNowBtnText}>Play Full Release</Text>
+            <Text style={styles.accessNowBtnText}>{isOwner ? 'Play Full Release' : 'Owned · Play Full Release'}</Text>
+          </TouchableOpacity>
+        ) : isPurchasable ? (
+          <TouchableOpacity style={styles.accessNowBtn} onPress={() => setCheckoutVisible(true)}>
+            <Text style={styles.accessNowBtnText}>Access Now · ${Number(release?.albumPrice ?? 0).toFixed(2)}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.accessNowBtn} onPress={() => setCheckoutVisible(true)}>
-            <Text style={styles.accessNowBtnText}>Access Now</Text>
-          </TouchableOpacity>
+          <View style={[styles.accessNowBtn, { backgroundColor: '#9CA3AF' }]}>
+            <Text style={styles.accessNowBtnText}>Not available for purchase</Text>
+          </View>
         )}
 
         {isOwner && (
@@ -389,9 +429,15 @@ export default function MusicDetailScreen() {
         {/* 5-Second Preview Notice for Unauthorized Fans */}
         {!hasAccess && previewTrack && (
           <View style={styles.previewNoticeBanner}>
-            <Ionicons name="headset" size={20} color={PURPLE} style={{ marginRight: 8 }} />
+            {player.isLoading ? (
+              <ActivityIndicator size="small" color={PURPLE} style={{ marginRight: 8 }} />
+            ) : (
+              <Ionicons name="headset" size={20} color={PURPLE} style={{ marginRight: 8 }} />
+            )}
             <View style={{ flex: 1 }}>
-              <Text style={styles.previewNoticeTitle}>Playing 5-Second Preview</Text>
+              <Text style={styles.previewNoticeTitle}>
+                {player.isLoading ? 'Loading preview…' : '5-Second Preview'}
+              </Text>
               <Text style={styles.previewNoticeSub}>
                 {previewTrack.title} • {Math.max(0, 5 - (player.currentTime || 0))}s remaining. Get Access to unlock full playback!
               </Text>
@@ -402,6 +448,13 @@ export default function MusicDetailScreen() {
             >
               <Text style={styles.bannerUnlockBtnText}>Get Access</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {player.playerError && release?.tracks?.some(t => String(t.id) === player.currentSong?.id) && (
+          <View style={[styles.previewNoticeBanner, { backgroundColor: '#FEF2F2' }]}>
+            <Ionicons name="alert-circle" size={20} color="#991B1B" style={{ marginRight: 8 }} />
+            <Text style={[styles.previewNoticeSub, { flex: 1, color: '#991B1B' }]}>{player.playerError}</Text>
           </View>
         )}
 
@@ -452,13 +505,13 @@ export default function MusicDetailScreen() {
         </View>
 
         {/* ── Get Premium Access Card (matches screenshot) ── */}
-        {!hasAccess && (
+        {!hasAccess && isPurchasable && (
           <View style={styles.premiumAccessCard}>
             <View style={styles.premiumAccessTop}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.premiumAccessTitle}>Get Premium Access for 3 days</Text>
+                <Text style={styles.premiumAccessTitle}>Get Release Access</Text>
                 <Text style={styles.premiumAccessPrice}>
-                  ${release?.albumPrice?.toFixed(0) || '0'}
+                  ${Number(release?.albumPrice ?? 0).toFixed(2)}
                 </Text>
               </View>
               <TouchableOpacity style={styles.getAccessBtn} onPress={() => setCheckoutVisible(true)}>

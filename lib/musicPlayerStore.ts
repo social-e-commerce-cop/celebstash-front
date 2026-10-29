@@ -3,17 +3,31 @@ import { Platform } from 'react-native';
 import { Song } from './libraryStore';
 import { musicService } from './musicService';
 
+/**
+ * Single app-wide audio player (expo-audio on native, HTMLAudioElement on web).
+ *
+ * The 5-second limit for unpurchased tracks is enforced by the backend, which only ever sends the
+ * preview window for them. The timer here just stops playback cleanly at the limit and reports
+ * "preview ended" so the UI can offer the purchase.
+ */
 let currentSong: Song | null = null;
-let isPlaying: boolean = false;
-let currentTime: number = 0; // in seconds
-let durationSeconds: number = 0; // total seconds of current song
+let isPlaying = false;
+let isLoading = false;
+let previewEnded = false;
+let playerError: string | null = null;
+let currentTime = 0; // in seconds
+let durationSeconds = 0; // total seconds of current song
 let timerId: any = null;
+let loadStartedAt = 0;
 
 // Native player instance (expo-audio)
 let expoPlayer: any = null;
+let expoSource: string | null = null;
 
 // Web player instance (HTML5 Audio)
 let webAudio: any = null;
+
+const LOAD_TIMEOUT_MS = 20000;
 
 const playerListeners = new Set<() => void>();
 const previewEndedListeners = new Set<(song: Song) => void>();
@@ -29,195 +43,203 @@ export const onPreviewEnded = (listener: (song: Song) => void) => {
 };
 
 const parseDuration = (dur?: string): number => {
-  if (!dur) return 180; // 3 mins default
+  if (!dur) return 0;
   const parts = dur.split(':').map(Number);
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
     return parts[0] * 60 + parts[1];
   }
-  return 180;
+  return 0;
 };
 
-const getEffectiveAudioUrl = (song: Song): string => {
-  if (song.audioUrl && typeof song.audioUrl === 'string' && song.audioUrl.trim().length > 0) {
-    return song.audioUrl;
-  }
-  // Safe reliable preview stream fallback if no backend audio file was attached
-  return 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+const previewLimit = (song: Song | null): number => {
+  if (!song) return 0;
+  if (song.maxPlaySeconds && song.maxPlaySeconds > 0) return song.maxPlaySeconds;
+  return song.isPreview ? 5 : 0;
 };
+
+const stopTimer = () => {
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+};
+
+const fail = (message: string) => {
+  isPlaying = false;
+  isLoading = false;
+  playerError = message;
+  stopTimer();
+  try { webAudio?.pause(); } catch (e) {}
+  try { expoPlayer?.pause(); } catch (e) {}
+  notify();
+};
+
+/** Ends playback; for a preview, tells listeners so the UI can show the purchase prompt. */
+const finishPlayback = () => {
+  const ended = currentSong;
+  const wasPreview = previewLimit(ended) > 0;
+  isPlaying = false;
+  isLoading = false;
+  stopTimer();
+  try { webAudio?.pause(); } catch (e) {}
+  try { expoPlayer?.pause(); } catch (e) {}
+  if (wasPreview) {
+    previewEnded = true;
+    currentTime = previewLimit(ended);
+  } else {
+    currentTime = 0;
+  }
+  notify();
+  if (wasPreview && ended) notifyPreviewEnded(ended);
+};
+
+/** Shared progress step for both platforms. */
+const onProgress = (time: number, playing: boolean, mediaDuration?: number) => {
+  currentTime = Math.floor(time || 0);
+  const limit = previewLimit(currentSong);
+
+  if (playing && isLoading) isLoading = false;
+  if (!limit && mediaDuration && mediaDuration > 0 && isFinite(mediaDuration)) {
+    durationSeconds = Math.round(mediaDuration);
+  }
+
+  if (limit > 0 && time >= limit) {
+    finishPlayback();
+    return;
+  }
+  // The media itself ended (a server preview may be a fraction shorter than the limit).
+  if (!playing && !isLoading && mediaDuration && mediaDuration > 0 && time >= mediaDuration - 0.3) {
+    finishPlayback();
+    return;
+  }
+  if (isLoading && Date.now() - loadStartedAt > LOAD_TIMEOUT_MS) {
+    fail('This track is taking too long to load. Check your connection and try again.');
+    return;
+  }
+  notify();
+};
+
+const describeHttpFailure = (song: Song) =>
+  previewLimit(song) > 0
+    ? 'The preview for this track is not available right now.'
+    : 'This track could not be played. You may not have access to it.';
 
 /**
  * Setup or update Web HTML5 Audio Element
  */
-const playWebAudio = (url: string) => {
+const playWebAudio = (url: string, restart: boolean) => {
   try {
     if (!webAudio) {
-      webAudio = new window.Audio(url);
+      webAudio = new window.Audio();
       webAudio.preload = 'auto';
-    } else {
-      if (webAudio.src !== url) {
-        webAudio.src = url;
-      }
+    }
+    if (restart || webAudio.src !== url) {
+      webAudio.src = url;
+      webAudio.currentTime = 0;
     }
 
-    webAudio.ontimeupdate = () => {
-      currentTime = Math.floor(webAudio.currentTime || 0);
-      const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
-      const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
-
-      if (maxSeconds > 0 && currentTime >= maxSeconds) {
-        currentTime = maxSeconds;
-        const songThatEnded = currentSong;
-        pauseSong();
-        if (songThatEnded) notifyPreviewEnded(songThatEnded);
-        return;
-      }
-
-      if (!isPreview && webAudio.duration && !isNaN(webAudio.duration) && webAudio.duration > 0) {
-        durationSeconds = Math.round(webAudio.duration);
-      }
-      notify();
-    };
-
-    webAudio.onended = () => {
-      isPlaying = false;
-      currentTime = 0;
-      notify();
-    };
-
-    webAudio.onerror = (e: any) => {
-      console.warn('HTML5 Audio playback error:', e);
-      // If custom stream failed, fallback to public sample track
-      if (webAudio.src !== 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3') {
-        webAudio.src = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
-        webAudio.play().catch(() => {});
-      }
-    };
+    webAudio.ontimeupdate = () => onProgress(webAudio.currentTime || 0, !webAudio.paused, webAudio.duration);
+    webAudio.onended = () => finishPlayback();
+    webAudio.onerror = () => { if (currentSong) fail(describeHttpFailure(currentSong)); };
 
     webAudio.play().then(() => {
       isPlaying = true;
+      isLoading = false;
       notify();
     }).catch((err: any) => {
-      console.warn('webAudio play catch:', err);
-      isPlaying = true;
-      startFallbackTimer();
-      notify();
+      // Autoplay policies or a failed load — never pretend the track is playing.
+      if (err?.name === 'NotAllowedError') {
+        isPlaying = false;
+        isLoading = false;
+        notify();
+      } else if (currentSong) {
+        fail(describeHttpFailure(currentSong));
+      }
     });
   } catch (err) {
-    console.warn('playWebAudio exception:', err);
-    isPlaying = true;
-    startFallbackTimer();
-    notify();
+    fail('Audio playback is not supported in this browser.');
   }
 };
 
 /**
  * Setup or update Native Expo Audio Player
  */
-const playNativeAudio = (url: string) => {
+const playNativeAudio = (url: string, restart: boolean) => {
   try {
     const { createAudioPlayer } = require('expo-audio');
     if (!expoPlayer) {
       expoPlayer = createAudioPlayer(url);
       expoPlayer.loop = false;
-    } else {
+      expoSource = url;
+    } else if (restart || expoSource !== url) {
       expoPlayer.replace(url);
+      expoSource = url;
+    }
+    if (restart) {
+      try { expoPlayer.seekTo(0); } catch (e) {}
     }
     expoPlayer.play();
     isPlaying = true;
     startNativeTimer();
     notify();
   } catch (err) {
-    console.warn('playNativeAudio exception:', err);
-    isPlaying = true;
-    startFallbackTimer();
-    notify();
+    fail('Audio playback is not available on this device.');
   }
 };
 
 const startNativeTimer = () => {
-  if (timerId) clearInterval(timerId);
+  stopTimer();
   timerId = setInterval(() => {
-    if (expoPlayer) {
-      try {
-        currentTime = Math.floor(expoPlayer.currentTime || 0);
-        const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
-        const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
-
-        if (maxSeconds > 0 && currentTime >= maxSeconds) {
-          currentTime = maxSeconds;
-          const songThatEnded = currentSong;
-          pauseSong();
-          if (songThatEnded) notifyPreviewEnded(songThatEnded);
-          return;
-        }
-
-        if (!isPreview && expoPlayer.duration && expoPlayer.duration > 0) {
-          durationSeconds = Math.round(expoPlayer.duration);
-        }
-        if (currentTime >= durationSeconds && durationSeconds > 0) {
-          currentTime = 0;
-          expoPlayer.seekTo(0);
-          isPlaying = false;
-        }
-        notify();
-      } catch (e) {}
-    }
+    if (!expoPlayer) return;
+    try {
+      const loaded = expoPlayer.isLoaded !== false;
+      const playing = Boolean(expoPlayer.playing);
+      if (loaded && playing) isLoading = false;
+      onProgress(expoPlayer.currentTime || 0, playing, loaded ? expoPlayer.duration : undefined);
+    } catch (e) {}
   }, 250);
-};
-
-const startFallbackTimer = () => {
-  if (timerId) clearInterval(timerId);
-  timerId = setInterval(() => {
-    if (isPlaying) {
-      currentTime += 1;
-      const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
-      const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
-
-      if (maxSeconds > 0 && currentTime >= maxSeconds) {
-        currentTime = maxSeconds;
-        const songThatEnded = currentSong;
-        pauseSong();
-        if (songThatEnded) notifyPreviewEnded(songThatEnded);
-        return;
-      }
-
-      if (currentTime >= durationSeconds && durationSeconds > 0) {
-        currentTime = 0;
-        isPlaying = false;
-      }
-      notify();
-    }
-  }, 1000);
 };
 
 export const getPlayerState = () => ({
   currentSong,
   isPlaying,
+  isLoading,
+  previewEnded,
+  playerError,
   currentTime,
   durationSeconds,
 });
 
 export const playSong = (song: Song) => {
-  const isDifferent = currentSong?.id !== song.id;
-  currentSong = song;
-  const isPreview = Boolean(song.isPreview || song.maxPlaySeconds);
-  durationSeconds = isPreview
-    ? (song.maxPlaySeconds || 5)
-    : (song.durationSeconds || parseDuration(song.duration));
+  const isDifferent = currentSong?.id !== song.id || currentSong?.audioUrl !== song.audioUrl;
+  // A finished preview restarts from the top: the server only ever sent those few seconds.
+  const restart = isDifferent || previewEnded;
 
-  if (isDifferent) {
-    currentTime = 0;
-    if (song.id && !isNaN(Number(song.id))) {
-      musicService.recordPlay(Number(song.id)).catch(() => {});
-    }
+  if (!song.audioUrl) {
+    currentSong = song;
+    fail('No audio is available for this track.');
+    return;
   }
 
-  const url = getEffectiveAudioUrl(song);
+  currentSong = song;
+  playerError = null;
+  previewEnded = false;
+  const limit = previewLimit(song);
+  durationSeconds = limit > 0 ? limit : (song.durationSeconds || parseDuration(song.duration));
+
+  if (restart) {
+    currentTime = 0;
+    isLoading = true;
+    loadStartedAt = Date.now();
+  }
+  if (isDifferent && song.id && !isNaN(Number(song.id))) {
+    musicService.recordPlay(Number(song.id)).catch(() => {});
+  }
 
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    playWebAudio(url);
+    playWebAudio(song.audioUrl, restart);
   } else {
-    playNativeAudio(url);
+    playNativeAudio(song.audioUrl, restart);
   }
 
   isPlaying = true;
@@ -236,22 +258,24 @@ export const pauseSong = () => {
       expoPlayer.pause();
     } catch (e) {}
   }
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
-  }
+  stopTimer();
   notify();
 };
 
+/** Stops playback and forgets the current track (e.g. when the player screen closes). */
 export const resetPlayer = () => {
   currentSong = null;
   isPlaying = false;
+  isLoading = false;
+  previewEnded = false;
+  playerError = null;
   currentTime = 0;
   durationSeconds = 0;
   if (Platform.OS === 'web' && webAudio) {
     try {
       webAudio.pause();
-      webAudio.currentTime = 0;
+      webAudio.removeAttribute('src');
+      webAudio.load();
     } catch (e) {}
   }
   if (expoPlayer) {
@@ -259,10 +283,7 @@ export const resetPlayer = () => {
       expoPlayer.pause();
     } catch (e) {}
   }
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
-  }
+  stopTimer();
   notify();
 };
 
@@ -276,7 +297,10 @@ export const togglePlay = () => {
 };
 
 export const seekTo = (seconds: number) => {
-  currentTime = Math.max(0, Math.min(seconds, durationSeconds));
+  // A preview cannot be scrubbed past its limit (the server would not have the audio anyway).
+  const limit = previewLimit(currentSong);
+  const max = limit > 0 ? limit : durationSeconds;
+  currentTime = Math.max(0, Math.min(seconds, max));
   if (Platform.OS === 'web' && webAudio) {
     try {
       webAudio.currentTime = currentTime;
@@ -298,21 +322,11 @@ export const formatTime = (secs: number) => {
 };
 
 export const useMusicPlayer = () => {
-  const [state, setState] = useState({
-    currentSong,
-    isPlaying,
-    currentTime,
-    durationSeconds,
-  });
+  const [state, setState] = useState(getPlayerState());
 
   useEffect(() => {
     const handleUpdate = () => {
-      setState({
-        currentSong,
-        isPlaying,
-        currentTime,
-        durationSeconds,
-      });
+      setState(getPlayerState());
     };
     playerListeners.add(handleUpdate);
     return () => {

@@ -3,14 +3,24 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-nati
 import ActivePage from './ActivePage';
 import CompletePage from './CompletePage';
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import TabBar from '@/components/Tabbar';
 
 const { width, height } = Dimensions.get('window');
 
 const Cart = () => {
-  const [activeTab, setActiveTab] = useState<'Active' | 'Complete'>('Active');
+  const route = useRoute<any>();
+  const requestedTab: 'Active' | 'Complete' | undefined =
+    route.params?.tab === 'Complete' || route.params?.tab === 'Active' ? route.params.tab : undefined;
+  const [activeTab, setActiveTab] = useState<'Active' | 'Complete'>(requestedTab ?? 'Active');
+  const [seenRequestedTab, setSeenRequestedTab] = useState(requestedTab);
   const navigation = useNavigation();
+
+  // Reopening the cart with a tab (e.g. after a payment) switches to it even if already mounted.
+  if (requestedTab !== seenRequestedTab) {
+    setSeenRequestedTab(requestedTab);
+    if (requestedTab) setActiveTab(requestedTab);
+  }
 
   const renderContent = () => {
     if (activeTab === 'Active') return <ActivePage />;

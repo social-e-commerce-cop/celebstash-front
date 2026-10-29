@@ -9,6 +9,7 @@ import {
   Dimensions,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -17,6 +18,8 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { formatPrice } from '@/lib/currency';
 import { resolveImageUrl } from '@/lib/apiClient';
 import { productsService, ProductItem } from '@/lib/productsService';
+import { useCart, addToCart } from '@/lib/cartStore';
+import { isAuthenticated } from '@/lib/session';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,52 +54,61 @@ const defaultImages = [
   require('@/assets/images/products/product5.jpg'),
 ];
 
-const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-
-const colors = [
-  { id: 'dark', value: '#333333' },
-  { id: 'blue', value: '#3B82F6' },
-  { id: 'green', value: '#24B273' },
-  { id: 'orange', value: '#FF6600' },
-];
-
 const ProductDetails = () => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const route = useRoute<ProductDetailsRouteProp>();
 
-  const targetProductId = route.params?.id || (route.params as any)?.product?.id;
+  const rawTargetId = route.params?.id ?? (route.params as any)?.product?.id;
+  const targetProductId = rawTargetId !== undefined && rawTargetId !== null ? Number(rawTargetId) : undefined;
   const [liveProduct, setLiveProduct] = React.useState<ProductItem | null>((route.params as any)?.product || null);
+  const [productLoading, setProductLoading] = React.useState<boolean>(Boolean(targetProductId));
+  const [productError, setProductError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (targetProductId && typeof targetProductId === 'number') {
-      productsService.getProductById(targetProductId)
-        .then(data => {
-          if (data) {
-            setLiveProduct(data);
-          }
-        })
-        .catch(err => {
-          console.warn('Unable to fetch live product details for ID:', targetProductId, err);
-        });
+  // State is only updated from the request's callbacks, so this can run straight from an effect.
+  const fetchProduct = React.useCallback(() => {
+    if (!targetProductId || Number.isNaN(targetProductId)) {
+      return Promise.resolve();
     }
+    return productsService.getProductById(targetProductId)
+      .then(data => {
+        if (data) {
+          setLiveProduct(data);
+        }
+        setProductError(null);
+      })
+      .catch((err: any) => {
+        setProductError(err?.status === 404
+          ? 'This product is no longer available.'
+          : (err?.message || 'Could not load the latest product details.'));
+      })
+      .finally(() => setProductLoading(false));
   }, [targetProductId]);
 
-  // Dynamic parameters with liveProduct resolution
-  const paramName = liveProduct?.name || route.params?.name || 'Indorerwamo Collection';
-  const paramPrice = liveProduct?.price !== undefined ? liveProduct.price : (route.params?.price !== undefined ? route.params.price : '30');
+  React.useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
+
+  const loadProduct = () => {
+    setProductLoading(true);
+    fetchProduct();
+  };
+
+  // Product data comes from the backend; route params are only a placeholder until it loads.
+  const paramName = liveProduct?.name || route.params?.name || '';
+  const paramPrice = liveProduct?.price !== undefined ? liveProduct.price : (route.params?.price ?? 0);
   const paramImage = liveProduct?.imageUrls?.[0] ? { uri: resolveImageUrl(liveProduct.imageUrls[0]) } : (route.params?.image || require('@/assets/images/products/product1.jpg'));
-  const paramDesc = liveProduct?.description || route.params?.description || 'Exclusive item description.';
-  const paramArtistName = liveProduct?.sellerName || route.params?.artistName || 'Kenny K Shot';
+  const paramDesc = liveProduct?.description || route.params?.description || '';
+  const paramArtistName = liveProduct?.sellerName || route.params?.artistName || '';
   const paramVerified = route.params?.verified !== undefined ? route.params.verified : true;
   const paramCategory = liveProduct?.category || route.params?.category;
   const paramArtistImage = route.params?.artistImage;
 
   const effectiveSizeStock = liveProduct?.sizeStock || route.params?.sizeStock;
-  const effectiveAvailableColors = (Array.isArray(liveProduct?.availableColors) && liveProduct.availableColors.length > 0)
+  const effectiveAvailableColors: string[] = (Array.isArray(liveProduct?.availableColors) && liveProduct.availableColors.length > 0)
     ? liveProduct.availableColors
     : (Array.isArray(route.params?.availableColors) && route.params.availableColors.length > 0
       ? route.params.availableColors
-      : ['Black', 'White', 'Purple', 'Blue']);
+      : []);
   const effectiveStockQuantity = liveProduct?.stockQuantity ?? route.params?.stockQuantity;
   const effectiveStatus = liveProduct?.status || route.params?.status || 'PENDING';
   const effectiveAdminNotes = liveProduct?.adminNotes || route.params?.adminNotes;
@@ -133,43 +145,66 @@ const ProductDetails = () => {
     }
   }, [liveProduct]);
 
-  const selectedColorValue = colors.find(c => c.id === selectedColor)?.value ?? null;
+  const hasSizes = Boolean(effectiveSizeStock && Object.keys(effectiveSizeStock).length > 0);
+  const hasColors = effectiveAvailableColors.length > 0;
+  // The first swatch is shown as selected until the buyer picks another one.
+  const chosenColor = selectedColor ?? (hasColors ? effectiveAvailableColors[0] : null);
 
-  const handleBuyNow = () => {
-    if (!isMusic && (!selectedSize || !selectedColor)) {
-      Alert.alert(
-        'Select options',
-        'Please select a size and color before continuing.',
-        [{ text: 'OK', style: 'default' }]
-      );
-      return;
+  const cartState = useCart();
+  const productIdForCart = liveProduct?.id ?? targetProductId;
+  const cartRequestPending = productIdForCart !== undefined && cartState.pending.includes(productIdForCart);
+  const isPurchasable = Boolean(
+    productIdForCart &&
+    (liveProduct ? liveProduct.status === 'APPROVED' : true) &&
+    (effectiveStockQuantity === undefined || effectiveStockQuantity > 0) &&
+    !productError
+  );
+
+  /** Adds to the server-side cart; resolves true only once the backend confirmed it. */
+  const addCurrentProductToCart = async (): Promise<boolean> => {
+    if (!productIdForCart) {
+      Alert.alert('Unavailable', 'This product could not be identified. Please reopen it from the shop.');
+      return false;
     }
-    navigation.navigate('CheckoutScreen', {
-      name: paramName,
-      price: paramPrice,
-      image: isMusic && paramArtistImage ? paramArtistImage : paramImage,
-      artistName: paramArtistName,
-      selectedSize: isMusic ? 'N/A' : selectedSize,
-      selectedColor: isMusic ? 'N/A' : selectedColor,
-      selectedColorValue: isMusic ? 'N/A' : selectedColorValue,
-      isDigital: isMusic,
-      isMusic: isMusic,
-      musicItem: isMusic ? { title: paramName, artist: paramArtistName, image: paramImage } : null,
-    });
+    if (!isAuthenticated()) {
+      Alert.alert('Sign in required', 'Please sign in to add items to your cart.');
+      return false;
+    }
+    if (hasSizes && !selectedSize) {
+      Alert.alert('Select a size', 'Please choose a size before continuing.');
+      return false;
+    }
+    try {
+      await addToCart(productIdForCart, { quantity: 1, size: selectedSize, color: chosenColor });
+      // Stock shown on this page changed on the server; reload it.
+      loadProduct();
+      return true;
+    } catch (err: any) {
+      Alert.alert('Could not add to cart', err?.message || 'Please try again.');
+      return false;
+    }
   };
 
-  const handleAddToCart = () => {
-    if (!selectedSize || !selectedColor) {
-      Alert.alert(
-        'Select options',
-        'Please select a size and color before adding to cart.',
-        [{ text: 'OK', style: 'default' }]
-      );
+  const handleBuyNow = async () => {
+    if (cartRequestPending) return;
+    // Already reserved in the cart: go straight to checkout instead of reserving a second unit.
+    if (cartState.cart?.items.some(i => i.productId === productIdForCart)) {
+      navigation.navigate('CheckoutScreen', { fromCart: true });
       return;
     }
+    const added = await addCurrentProductToCart();
+    if (added) {
+      navigation.navigate('CheckoutScreen', { fromCart: true });
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (cartRequestPending) return;
+    const added = await addCurrentProductToCart();
+    if (!added) return;
     Alert.alert(
       '✓ Added to Cart',
-      `${paramName} has been added to your cart!`,
+      `${paramName} has been added to your cart. It is reserved for 24 hours.`,
       [
         { text: 'Continue Shopping', style: 'cancel' },
         { text: 'View Cart', onPress: () => navigation.navigate('CartScreen') },
@@ -476,15 +511,25 @@ const ProductDetails = () => {
             </View>
           )}
 
-          {/* Size Options */}
-          {Boolean(!isMusic) && (
+          {productLoading && !liveProduct && (
+            <Text style={{ fontSize: 12, fontFamily: 'Poppins-Regular', color: '#6B7280', marginBottom: 12 }}>
+              Loading latest price and stock…
+            </Text>
+          )}
+          {productError && (
+            <TouchableOpacity onPress={loadProduct} style={{ marginBottom: 12, padding: 10, borderRadius: 8, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' }}>
+              <Text style={{ fontSize: 12, fontFamily: 'Poppins-Medium', color: '#991B1B' }}>
+                {productError} Tap to retry.
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Size Options — only for products that define sizes */}
+          {Boolean(!isMusic && hasSizes) && (
             <>
               <Text style={styles.sectionHeader}>Sizes & Stock per Size:</Text>
               <View style={styles.sizeContainer}>
-                {(effectiveSizeStock && Object.keys(effectiveSizeStock).length > 0
-                  ? Object.keys(effectiveSizeStock)
-                  : sizes
-                ).map(size => {
+                {Object.keys(effectiveSizeStock || {}).map(size => {
                   const isSelected = selectedSize === size;
                   const itemQty = effectiveSizeStock ? effectiveSizeStock[size] : undefined;
                   return (
@@ -511,7 +556,11 @@ const ProductDetails = () => {
                   );
                 })}
               </View>
+            </>
+          )}
 
+          {Boolean(!isMusic && hasColors) && (
+            <>
               {/* Color Options - ONLY COLOR SWATCHES (NO WORDS) */}
               <Text style={styles.sectionHeader}>Available Colors:</Text>
               <View style={styles.colorContainer}>
@@ -571,61 +620,6 @@ const ProductDetails = () => {
             </>
           )}
 
-          {isMusic && (
-            <View style={styles.musicDetailsSection}>
-              {!isSeller && (
-                <TouchableOpacity style={styles.accessNowBigBtn} onPress={handleBuyNow}>
-                  <Text style={styles.accessNowBigText}>Access Now</Text>
-                </TouchableOpacity>
-              )}
-
-              <Text style={styles.tracksTitle}>Tracks</Text>
-              <View style={styles.tracksDivider} />
-              
-              <View style={styles.trackRow}>
-                <Text style={styles.trackNumber}>1.</Text>
-                <Text style={styles.trackName}>Mama</Text>
-                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
-                  <Path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z" />
-                  <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </Svg>
-              </View>
-              <View style={styles.trackRow}>
-                <Text style={styles.trackNumber}>2.</Text>
-                <Text style={styles.trackName}>Corazol ft T-pain, Usher</Text>
-                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
-                  <Path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z" />
-                  <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </Svg>
-              </View>
-
-              {!isSeller && (
-                <View style={styles.premiumCard}>
-                  <View style={styles.premiumCardInner}>
-                    <View>
-                      <Text style={styles.premiumCardTitle}>Get Premium Access for 3 days</Text>
-                      <Text style={styles.premiumCardPrice}>$2.56</Text>
-                    </View>
-                    <TouchableOpacity style={styles.premiumAccessBtn} onPress={handleBuyNow}>
-                      <Text style={styles.premiumAccessBtnText}>Get Access</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.musicFeatures}>
-                <View style={styles.featureRow}>
-                  <Text style={styles.featureText}>3 access to the album</Text>
-                </View>
-                <View style={styles.featureRow}>
-                  <Text style={styles.featureText}>Offline mode</Text>
-                </View>
-                <View style={styles.featureRow}>
-                  <Text style={styles.featureText}>Download music to device</Text>
-                </View>
-              </View>
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -641,21 +635,36 @@ const ProductDetails = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        !isMusic && (
-          <View style={styles.bottomActionBar}>
-            <TouchableOpacity style={styles.buyButton} activeOpacity={0.8} onPress={handleBuyNow}>
-              <Text style={styles.buyButtonText}>Buy Now</Text>
-            </TouchableOpacity>
+        <View style={styles.bottomActionBar}>
+          <TouchableOpacity
+            style={[styles.buyButton, (!isPurchasable || cartRequestPending) && { opacity: 0.5 }]}
+            activeOpacity={0.8}
+            onPress={handleBuyNow}
+            disabled={!isPurchasable || cartRequestPending}
+          >
+            <Text style={styles.buyButtonText}>
+              {!isPurchasable ? 'Unavailable' : cartRequestPending ? 'Please wait…' : 'Buy Now'}
+            </Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cartButton} activeOpacity={0.8} onPress={handleAddToCart}>
+          <TouchableOpacity
+            style={[styles.cartButton, (!isPurchasable || cartRequestPending) && { opacity: 0.5 }]}
+            activeOpacity={0.8}
+            onPress={handleAddToCart}
+            disabled={!isPurchasable || cartRequestPending}
+            accessibilityLabel="Add to cart"
+          >
+            {cartRequestPending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
               <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
                 <Circle cx="9" cy="21" r="1" />
                 <Circle cx="20" cy="21" r="1" />
                 <Path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
               </Svg>
-            </TouchableOpacity>
-          </View>
-        )
+            )}
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );

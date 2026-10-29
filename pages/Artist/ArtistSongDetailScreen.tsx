@@ -18,7 +18,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
-import { musicService, ArtistSongDetailsDto, ListeningActivityPoint, ArtistTrackStoryDto } from '@/lib/musicService';
+import { musicService, ArtistSongDetailsDto, ListeningActivityPoint, ArtistTrackStoryDto, RELEASE_STATUS_BADGE } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
 import { getSessionUser } from '@/lib/session';
 
@@ -106,12 +106,33 @@ export default function ArtistSongDetailScreen() {
     }
   };
 
+  // Submit a draft / rejected release to the admin review queue
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const handleSubmitForReview = async () => {
+    if (!releaseId || submittingReview) return;
+    setSubmittingReview(true);
+    try {
+      await musicService.submitForReview(releaseId);
+      Alert.alert('Submitted for Review', 'An administrator will review this release. You will be notified when it is approved or rejected.');
+      loadDetails();
+    } catch (err: any) {
+      Alert.alert('Could not submit', err?.message || 'Please try again.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   // Unarchive Song Action
   const handleUnarchive = async () => {
     if (!releaseId) return;
     try {
-      await musicService.unarchiveRelease(releaseId);
-      Alert.alert('Song Published', 'This song is now publicly available again.');
+      const restored = await musicService.unarchiveRelease(releaseId);
+      Alert.alert(
+        restored?.status === 'PUBLISHED' ? 'Song Restored' : 'Moved to Drafts',
+        restored?.status === 'PUBLISHED'
+          ? 'This song is now publicly available again.'
+          : 'This song was never approved, so it was moved to your drafts. Submit it for review to release it.'
+      );
       loadDetails();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not restore song.');
@@ -196,6 +217,9 @@ export default function ArtistSongDetailScreen() {
   const coverUri = data.coverArtUrl ? resolveImageUrl(data.coverArtUrl) : null;
   const isArchived = data.status === 'ARCHIVED';
   const isDraft = data.status === 'DRAFT';
+  const isRejected = data.status === 'REJECTED';
+  const isPendingReview = data.status === 'PENDING_REVIEW';
+  const statusBadge = RELEASE_STATUS_BADGE[data.status] ?? RELEASE_STATUS_BADGE.DRAFT;
 
   // Compute Active Timeline Chart Data
   let activityPoints: ListeningActivityPoint[] = [];
@@ -267,37 +291,10 @@ export default function ArtistSongDetailScreen() {
 
             {/* Status Badge & Metadata */}
             <View style={styles.statusMetaRow}>
-              <View
-                style={[
-                  styles.statusBadge,
-                  isArchived
-                    ? styles.statusBadgeArchived
-                    : isDraft
-                    ? styles.statusBadgeDraft
-                    : styles.statusBadgeAvailable,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusDot,
-                    isArchived
-                      ? { backgroundColor: '#D97706' }
-                      : isDraft
-                      ? { backgroundColor: PURPLE }
-                      : { backgroundColor: '#10B981' },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    isArchived
-                      ? styles.statusTextArchived
-                      : isDraft
-                      ? styles.statusTextDraft
-                      : styles.statusTextAvailable,
-                  ]}
-                >
-                  Status: {isArchived ? 'Archived' : isDraft ? 'Draft' : 'Available'}
+              <View style={[styles.statusBadge, { backgroundColor: statusBadge.bg, borderColor: statusBadge.bg }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusBadge.fg }]} />
+                <Text style={[styles.statusBadgeText, { color: statusBadge.fg }]}>
+                  Status: {statusBadge.label}
                 </Text>
               </View>
 
@@ -582,7 +579,37 @@ export default function ArtistSongDetailScreen() {
           </View>
         )}
 
+        {/* ── Review status: drafts and rejected releases are (re)submitted to an admin ── */}
+        {(isDraft || isRejected || isPendingReview) && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeading}>REVIEW</Text>
+            <View style={[styles.dangerCard, { borderColor: statusBadge.bg, backgroundColor: '#FFFFFF' }]}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.dangerTitle}>{statusBadge.label}</Text>
+                <Text style={styles.dangerDesc}>
+                  {isPendingReview
+                    ? 'An administrator is reviewing this release. It becomes visible to fans once approved.'
+                    : isRejected
+                      ? `Not approved${data.release?.rejectionReason ? `: ${data.release.rejectionReason}` : '.'} Edit the release, then submit it again.`
+                      : 'This draft is only visible to you. Submit it for review to release it to fans.'}
+                </Text>
+              </View>
+              {!isPendingReview && (
+                <TouchableOpacity
+                  style={[styles.unarchiveBtn, submittingReview && { opacity: 0.6 }]}
+                  onPress={handleSubmitForReview}
+                  disabled={submittingReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.unarchiveBtnText}>{submittingReview ? 'Submitting…' : 'Submit for Review'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* ── 7. DANGER ZONE (ARCHIVE SONG) ── */}
+        {(isArchived || data.status === 'PUBLISHED') && (
         <View style={styles.sectionContainer}>
           <Text style={[styles.sectionHeading, { color: '#DC2626' }]}>DANGER ZONE</Text>
 
@@ -617,6 +644,7 @@ export default function ArtistSongDetailScreen() {
             )}
           </View>
         </View>
+        )}
       </ScrollView>
 
       {/* ── ARCHIVE CONFIRMATION MODAL ── */}

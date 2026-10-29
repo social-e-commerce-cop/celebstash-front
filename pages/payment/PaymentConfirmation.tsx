@@ -9,7 +9,9 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import TransactionReceiptModal from "./TransactionReceiptModal";
-import { addSongToLibrary } from "@/lib/libraryStore";
+import { ordersService, OrderResponse } from "@/lib/ordersService";
+import { markCartConsumed } from "@/lib/cartStore";
+import { syncWalletFromBackend } from "@/lib/walletStore";
 
 const { width, height } = Dimensions.get("window");
 const PURPLE = "#7126D0";
@@ -55,13 +57,16 @@ const PinEntry: React.FC = () => {
   const isMoMo = momoKey !== null;
   const momoConfig = momoKey ? MOMO_CONFIG[momoKey] : null;
 
+  // The receipt shows the order exactly as the backend recorded it.
+  const [paidOrder, setPaidOrder] = useState<OrderResponse | null>(null);
+  const paidAt = paidOrder?.paidAt ? new Date(paidOrder.paidAt) : null;
   const transactionData = {
-    transactionId: "KU" + Math.floor(100000 + Math.random() * 900000),
-    amount: params.total ? String(params.total) : "789.00",
+    transactionId: paidOrder?.orderNumber ?? '',
+    amount: paidOrder ? Number(paidOrder.total).toFixed(2) : '0.00',
     paymentMethod: paymentMethodRaw,
-    date: "June 30, 2026",
-    time: "12:15 PM",
-    status: "Paid",
+    date: paidAt ? paidAt.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '',
+    time: paidAt ? paidAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '',
+    status: paidOrder?.status === 'PAID' ? 'Paid' : (paidOrder?.status ?? ''),
     currency: "$",
   };
 
@@ -86,26 +91,31 @@ const PinEntry: React.FC = () => {
     setLoadingText('Verifying…');
 
     try {
-      if (paymentMethodRaw === 'My Wallet' && params.total) {
-        setLoadingText('Processing wallet payment…');
-        const { deductWallet } = require('@/lib/walletStore');
-        const enteredPin = (isMoMo ? momoPin : pin).join('');
-        await deductWallet(
-          parseFloat(params.total),
-          `Payment for ${isMusic ? (musicItem?.title ?? 'Music') : 'Order'}`,
-          enteredPin || undefined
-        );
+      // Only a cart order can be paid here, and only from the Ziki wallet: the backend creates the
+      // order from the server-side cart, prices it, charges the wallet with this PIN and returns
+      // PAID — or rejects it and nothing is charged. Success is never assumed on the client.
+      if (!params.orderDraft || paymentMethodRaw !== 'My Wallet') {
+        throw new Error('This payment cannot be processed here. Please return to your cart and pay with your Ziki Wallet.');
+      }
+      setLoadingText('Placing your order…');
+      const order = await ordersService.createOrder({
+        ...params.orderDraft,
+        payNow: true,
+        pin: pin.join(''),
+      });
+      if (order.status !== 'PAID') {
+        throw new Error('Your order was created but the payment was not confirmed. Check your orders before trying again.');
       }
 
-      if (isMusic && musicItem) {
-        addSongToLibrary(musicItem);
-      }
-
+      setPaidOrder(order);
+      markCartConsumed();
+      syncWalletFromBackend().catch(() => {});
       setLoading(false);
       setModalVisible(true);
     } catch (err: any) {
       setLoading(false);
       setSubmitted(false);
+      setPin([]);
       Alert.alert('Payment Error', err.message || 'Unable to process wallet payment.');
     }
   };
@@ -129,7 +139,8 @@ const PinEntry: React.FC = () => {
   const handleModalClose = () => {
     setModalVisible(false);
     setPin([]);
-    navigation.navigate("Home");
+    // Show the paid order in Cart → Complete.
+    navigation.navigate("CartScreen", { tab: 'Complete' });
   };
 
   return (

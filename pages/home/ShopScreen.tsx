@@ -22,6 +22,7 @@ import UpcomingDrops from '@/components/home/UpcomingDrops';
 import { productsService, ProductItem } from '@/lib/productsService';
 import { formatPrice } from '@/lib/currency';
 import { resolveImageUrl } from '@/lib/apiClient';
+import { useCartCount } from '@/lib/cartStore';
 
 const { width, height } = Dimensions.get('window');
 const H_PAD = 20;
@@ -47,6 +48,8 @@ export default function ShopScreen() {
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const cartCount = useCartCount();
 
   useEffect(() => {
     fetchProducts();
@@ -55,12 +58,13 @@ export default function ShopScreen() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await productsService.getAllProducts();
       if (Array.isArray(data)) {
         setProducts(data);
       }
-    } catch (err) {
-      console.log('Error fetching products:', err);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Could not load products.');
     } finally {
       setLoading(false);
     }
@@ -87,13 +91,17 @@ export default function ShopScreen() {
     const resolvedImageUrls = Array.isArray(imageUrls) && imageUrls.length > 0
       ? imageUrls.map(u => resolveImageUrl(u))
       : (mainImg ? [mainImg] : []);
+    if (!product) return;
+    // The details screen re-fetches the product by its database id; these fields only fill the
+    // screen while that request is in flight.
     navigation.navigate('ProductDetails', {
-      name: product?.name ?? 'Indorerwamo Collection',
-      price: product?.price ?? 30,
+      id: product.id,
+      name: product.name,
+      price: product.price,
       image: mainImg ? { uri: mainImg } : require('../../assets/images/products/product1.jpg'),
       imageUrls: resolvedImageUrls,
-      description: product?.description || 'Exclusive limited merchandise from your favorite artist.',
-      artistName: product?.sellerName ?? 'Kenny K Shot',
+      description: product.description || '',
+      artistName: product.sellerName ?? '',
       verified: true,
       stockQuantity: product?.stockQuantity,
       sizeStock: product?.sizeStock,
@@ -149,9 +157,11 @@ export default function ShopScreen() {
               <Line x1="3" y1="6" x2="21" y2="6" />
               <Path d="M16 10a4 4 0 0 1-8 0" />
             </Svg>
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>1</Text>
-            </View>
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -229,7 +239,16 @@ export default function ShopScreen() {
           </Text>
         </View>
 
-        {filteredProducts.length === 0 ? (
+        {loading && products.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator color="#7126D0" />
+          </View>
+        ) : loadError && products.length === 0 ? (
+          <TouchableOpacity style={styles.emptyState} onPress={fetchProducts}>
+            <Text style={styles.emptyText}>{loadError}</Text>
+            <Text style={[styles.emptyText, { color: '#7126D0', marginTop: 6 }]}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : filteredProducts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No products found</Text>
           </View>
