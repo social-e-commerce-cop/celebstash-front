@@ -23,6 +23,8 @@ const TYPE_FILTERS: { label: string; value: TransactionType | 'all' }[] = [
   { label: 'All', value: 'all' },
   { label: 'Top Up', value: 'top_up' },
   { label: 'Purchase', value: 'purchase' },
+  { label: 'Withdrawal', value: 'withdrawal' },
+  { label: 'Transfers', value: 'transfer_in' },
   { label: 'Refund', value: 'refund' },
   { label: 'Promo', value: 'promo' },
 ];
@@ -44,6 +46,12 @@ const txnConfig = (type: TransactionType) => {
       return { icon: 'refresh-circle' as const, color: '#2563EB', sign: '+' };
     case 'promo':
       return { icon: 'gift' as const, color: '#D97706', sign: '+' };
+    case 'withdrawal':
+      return { icon: 'arrow-up-circle' as const, color: '#EA580C', sign: '-' };
+    case 'transfer_in':
+      return { icon: 'arrow-down-circle' as const, color: '#10B981', sign: '+' };
+    case 'transfer_out':
+      return { icon: 'arrow-up-circle' as const, color: '#8B5CF6', sign: '-' };
     default:
       return { icon: 'ellipse' as const, color: '#6B7280', sign: '' };
   }
@@ -54,6 +62,9 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   purchase: 'Purchase',
   refund: 'Refund',
   promo: 'Promo',
+  withdrawal: 'Withdrawal',
+  transfer_in: 'Transfer Received',
+  transfer_out: 'Transfer Sent',
 };
 
 const formatAmount = (num: number) => {

@@ -26,7 +26,7 @@ import {
   MusicExclusiveContentItem,
 } from '@/lib/musicService';
 import { resolveImageUrl } from '@/lib/apiClient';
-import { useMusicPlayer, playSong, pauseSong, togglePlay } from '@/lib/musicPlayerStore';
+import { useMusicPlayer, playSong, pauseSong, togglePlay, onPreviewEnded } from '@/lib/musicPlayerStore';
 import { addSongToLibrary, syncUnlockedLibrary } from '@/lib/libraryStore';
 import { getSessionToken, getSessionUser } from '@/lib/session';
 
@@ -56,18 +56,29 @@ export default function MusicDetailScreen() {
   // Preview Player State
   const player = useMusicPlayer();
   const [previewTrack, setPreviewTrack] = useState<MusicTrackItem | null>(null);
-  const [previewSecondsRemaining, setPreviewSecondsRemaining] = useState<number>(5);
-  const previewTimerRef = useRef<any>(null);
 
   // Exclusive Content viewer
   const [selectedExclusiveItem, setSelectedExclusiveItem] = useState<MusicExclusiveContentItem | null>(null);
 
   useEffect(() => {
     loadReleaseDetail();
-    return () => {
-      if (previewTimerRef.current) clearInterval(previewTimerRef.current);
-    };
   }, [releaseId]);
+
+  // Subscribe to preview ended listener from musicPlayerStore
+  useEffect(() => {
+    const unsub = onPreviewEnded((endedSong) => {
+      setPreviewTrack(null);
+      Alert.alert(
+        '5-Second Preview Ended',
+        `You've reached the end of the 5-second preview for "${endedSong.title.replace(' (5s Preview)', '')}". Unlock full listening and exclusive perks with Release Access!`,
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Get Access', onPress: () => setCheckoutVisible(true) },
+        ]
+      );
+    });
+    return () => unsub();
+  }, []);
 
   const loadReleaseDetail = async () => {
     if (!releaseId) {
@@ -89,11 +100,18 @@ export default function MusicDetailScreen() {
   const release = detailData?.release;
   const benefits = detailData?.benefits || [];
   const enabledBenefits = benefits.filter(b => b.enabled);
-  const hasAccess = detailData?.hasAccess || false;
-  const canStreamFull = detailData?.canStreamFull || false;
-  const canDownload = detailData?.canDownload || false;
-  const hasCommunity = detailData?.hasCommunity || false;
-  const hasExclusiveContent = detailData?.hasExclusiveContent || false;
+  const sessionUser = getSessionUser();
+  const isOwner = Boolean(detailData?.isArtistOwner) || Boolean(
+    sessionUser && release?.artist && (
+      String(sessionUser.id) === String(release.artist.id) ||
+      (sessionUser.username && release.artist.username && sessionUser.username.toLowerCase() === release.artist.username.toLowerCase())
+    )
+  );
+  const hasAccess = isOwner || detailData?.hasAccess || false;
+  const canStreamFull = isOwner || detailData?.canStreamFull || false;
+  const canDownload = isOwner || detailData?.canDownload || false;
+  const hasCommunity = isOwner || detailData?.hasCommunity || false;
+  const hasExclusiveContent = isOwner || detailData?.hasExclusiveContent || false;
   const isWaitlisted = detailData?.isWaitlisted || false;
   const waitlistCount = detailData?.waitlistCount || 0;
 
@@ -119,7 +137,6 @@ export default function MusicDetailScreen() {
 
     if (isCurrentlyPlaying) {
       togglePlay();
-      if (previewTimerRef.current) clearInterval(previewTimerRef.current);
       return;
     }
 
@@ -131,7 +148,7 @@ export default function MusicDetailScreen() {
 
     if (canStreamFull || hasAccess) {
       // Full playback without time limit
-      if (previewTimerRef.current) clearInterval(previewTimerRef.current);
+      setPreviewTrack(null);
       playSong({
         id: String(track.id),
         title: track.title,
@@ -143,12 +160,11 @@ export default function MusicDetailScreen() {
         audioUrl: streamUrl,
         isPermanent: true,
         year: releaseYear,
+        isPreview: false,
       });
-      setPreviewTrack(null);
     } else {
       // 5-Second Preview Playback
       setPreviewTrack(track);
-      setPreviewSecondsRemaining(5);
 
       playSong({
         id: String(track.id),
@@ -161,26 +177,9 @@ export default function MusicDetailScreen() {
         audioUrl: streamUrl,
         isPermanent: false,
         year: releaseYear,
+        isPreview: true,
+        maxPlaySeconds: 5,
       });
-
-      if (previewTimerRef.current) clearInterval(previewTimerRef.current);
-      let count = 5;
-      previewTimerRef.current = setInterval(() => {
-        count -= 1;
-        setPreviewSecondsRemaining(Math.max(0, count));
-        if (count <= 0) {
-          clearInterval(previewTimerRef.current);
-          pauseSong();
-          Alert.alert(
-            'Preview Ended',
-            'You listened to the 5-second preview. Unlock full listening by getting Access.',
-            [
-              { text: 'Later', style: 'cancel' },
-              { text: 'Get Access', onPress: () => setCheckoutVisible(true) },
-            ]
-          );
-        }
-      }, 1000);
     }
   };
 
@@ -282,87 +281,110 @@ export default function MusicDetailScreen() {
   const coverImg = release?.coverArtUrl ? resolveImageUrl(release.coverArtUrl) : null;
   const artistName = release?.artist?.artistName || release?.artist?.fullName || release?.artist?.username || 'Artist';
 
+  const releaseDate = release?.releaseDate || release?.createdAt;
+  const releaseDateFormatted = releaseDate
+    ? new Date(releaseDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    : null;
+  const artistAvatar = release?.artist?.profilePicture
+    ? { uri: resolveImageUrl(release.artist.profilePicture) }
+    : require('@/assets/images/prof.jpg');
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* Header Bar */}
-      <View style={styles.headerBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={24} color="#111" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {release?.title || 'Music Release'}
-        </Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Cover Artwork & Badge */}
+        {/* ── Artist owner notice banner ── */}
+        {isOwner && (
+          <View style={styles.artistNoticeBanner}>
+            <View style={styles.artistNoticeIcon}>
+              <Ionicons name="stats-chart" size={18} color={PURPLE} />
+            </View>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.artistNoticeTitle}>👑 You Uploaded This Song</Text>
+              <Text style={styles.artistNoticeSub}>
+                This is the fan preview. Open your Analytics Dashboard for real stats & management.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.artistNoticeBtn}
+              onPress={() => navigation.navigate('ArtistSongDetail', { id: release?.id, releaseId: release?.id })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.artistNoticeBtnText}>Analytics</Text>
+              <Ionicons name="arrow-forward" size={13} color="#FFF" style={{ marginLeft: 3 }} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Cover Art — full-width, no horizontal padding ── */}
         <View style={styles.coverWrapper}>
           <Image
             source={coverImg ? { uri: coverImg } : require('@/assets/images/drop1.jpg')}
             style={styles.coverArt}
           />
-          <View style={styles.badgeRow}>
-            <View style={styles.typeBadge}>
-              <Text style={styles.typeBadgeText}>{release?.releaseType || 'SINGLE'}</Text>
-            </View>
-            {hasAccess ? (
-              <View style={[styles.accessBadge, { backgroundColor: '#10B981' }]}>
-                <Ionicons name="checkmark-circle" size={12} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.accessBadgeText}>ACCESS UNLOCKED</Text>
-              </View>
-            ) : (
-              <View style={styles.accessBadge}>
-                <Ionicons name="sparkles" size={12} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.accessBadgeText}>DIRECT TO FAN</Text>
-              </View>
-            )}
-          </View>
+          {/* Back button overlaid on image */}
+          <TouchableOpacity style={styles.floatingBackBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
         </View>
 
-        {/* Title, Artist, & Price Row */}
-        <View style={styles.titleSection}>
-          <Text style={styles.releaseTitle}>{release?.title || 'Untitled Release'}</Text>
-          <View style={styles.artistRow}>
-            <Text style={styles.artistName}>{artistName}</Text>
-            <Ionicons name="checkmark-circle" size={16} color={PURPLE} style={{ marginLeft: 4 }} />
-          </View>
-          <Text style={styles.metaSub}>
-            {release?.genre || 'Music'} {release?.subgenre ? `• ${release.subgenre}` : ''} • {release?.tracks?.length || 0} Tracks
+        {/* ── Title row: title left, price right ── */}
+        <View style={styles.titlePriceRow}>
+          <Text style={styles.releaseTitle} numberOfLines={2}>
+            {(release?.title || 'Untitled Release').toUpperCase()}
           </Text>
-
-          {/* Pricing & CTA Card */}
-          <View style={styles.pricingCard}>
-            <View>
-              <Text style={styles.priceLabel}>RELEASE ACCESS</Text>
-              <Text style={styles.priceValue}>${release?.albumPrice?.toFixed(2) || '9.99'}</Text>
-            </View>
-
-            {hasAccess ? (
-              <TouchableOpacity
-                style={[styles.ctaButton, { backgroundColor: '#10B981' }]}
-                onPress={() => {
-                  if (release?.tracks && release.tracks.length > 0) {
-                    handlePlayTrack(release.tracks[0]);
-                  }
-                }}
-              >
-                <Ionicons name="play" size={18} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.ctaButtonText}>PLAY FULL RELEASE</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.ctaButton}
-                onPress={() => setCheckoutVisible(true)}
-              >
-                <Ionicons name="lock-open" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.ctaButtonText}>GET ACCESS</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <Text style={styles.priceTagInline}>
+            ${release?.albumPrice?.toFixed(0) || '0'}
+          </Text>
         </View>
+
+        {/* ── Artist row: avatar + name + verified ── */}
+        <View style={styles.artistRow}>
+          <Image source={artistAvatar} style={styles.artistAvatarThumb} />
+          <Text style={styles.artistName}>{artistName}</Text>
+          <Ionicons name="checkmark-circle" size={15} color={PURPLE} style={{ marginLeft: 4 }} />
+        </View>
+
+        {/* ── Metadata line ── */}
+        <Text style={styles.metaSub}>
+          {release?.releaseType || 'Album'}
+          {releaseDateFormatted ? ` • ${releaseDateFormatted}` : ''}
+          {release?.tracks?.length ? ` • ${release.tracks.length} Song${release.tracks.length > 1 ? 's' : ''}` : ''}
+        </Text>
+
+        {/* ── Description ── */}
+        {Boolean(release?.description || release?.releaseStory) && (
+          <Text style={styles.descriptionText} numberOfLines={3}>
+            {release?.description || release?.releaseStory}
+          </Text>
+        )}
+
+        {/* ── Access Now CTA (full width) ── */}
+        {hasAccess ? (
+          <TouchableOpacity
+            style={[styles.accessNowBtn, { backgroundColor: '#10B981' }]}
+            onPress={() => { if (release?.tracks && release.tracks.length > 0) handlePlayTrack(release.tracks[0]); }}
+          >
+            <Ionicons name="play" size={18} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.accessNowBtnText}>Play Full Release</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.accessNowBtn} onPress={() => setCheckoutVisible(true)}>
+            <Text style={styles.accessNowBtnText}>Access Now</Text>
+          </TouchableOpacity>
+        )}
+
+        {isOwner && (
+          <TouchableOpacity
+            style={styles.manageBtn}
+            onPress={() => navigation.navigate('ArtistSongDetail', { id: release?.id, releaseId: release?.id })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="stats-chart" size={14} color={PURPLE} style={{ marginRight: 6 }} />
+            <Text style={styles.manageBtnText}>Manage Song & Stats</Text>
+          </TouchableOpacity>
+        )}
 
         {/* 5-Second Preview Notice for Unauthorized Fans */}
         {!hasAccess && previewTrack && (
@@ -371,13 +393,106 @@ export default function MusicDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.previewNoticeTitle}>Playing 5-Second Preview</Text>
               <Text style={styles.previewNoticeSub}>
-                {previewTrack.title} • {previewSecondsRemaining}s left. Get Access to unlock full playback!
+                {previewTrack.title} • {Math.max(0, 5 - (player.currentTime || 0))}s remaining. Get Access to unlock full playback!
               </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.bannerUnlockBtn}
+              onPress={() => setCheckoutVisible(true)}
+            >
+              <Text style={styles.bannerUnlockBtnText}>Get Access</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Tracks Section (matches screenshot design) ── */}
+        <View style={styles.tracksSection}>
+          <Text style={styles.tracksSectionTitle}>Tracks</Text>
+          <View style={styles.tracksDivider} />
+
+          {release?.tracks && release.tracks.length > 0 ? (
+            release.tracks.map((tr, idx) => {
+              const isPlayingThis = player.currentSong?.id === String(tr.id) && player.isPlaying;
+              return (
+                <TouchableOpacity
+                  key={tr.id}
+                  style={styles.trackSimpleRow}
+                  activeOpacity={0.75}
+                  onPress={() => handlePlayTrack(tr)}
+                >
+                  <Text style={styles.trackSimpleNum}>{idx + 1}.</Text>
+                  <View style={styles.trackSimpleInfo}>
+                    <Text style={styles.trackSimpleTitle} numberOfLines={1}>
+                      {isPlayingThis ? (
+                        <Text style={{ color: PURPLE }}>{tr.title}</Text>
+                      ) : tr.title}
+                    </Text>
+                    {Boolean(tr.featuredArtists) && (
+                      <Text style={styles.trackSimpleSub} numberOfLines={1}>
+                        ft. {tr.featuredArtists}
+                      </Text>
+                    )}
+                  </View>
+                  {isPlayingThis ? (
+                    <Ionicons name="volume-high" size={18} color={PURPLE} />
+                  ) : (hasAccess || canStreamFull) ? (
+                    <Ionicons name="play-circle-outline" size={22} color="#9CA3AF" />
+                  ) : (
+                    <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <View style={styles.emptyCard}>
+              <Ionicons name="musical-notes-outline" size={36} color="#9CA3AF" />
+              <Text style={styles.emptyCardText}>No tracks uploaded for this release.</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── Get Premium Access Card (matches screenshot) ── */}
+        {!hasAccess && (
+          <View style={styles.premiumAccessCard}>
+            <View style={styles.premiumAccessTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumAccessTitle}>Get Premium Access for 3 days</Text>
+                <Text style={styles.premiumAccessPrice}>
+                  ${release?.albumPrice?.toFixed(0) || '0'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.getAccessBtn} onPress={() => setCheckoutVisible(true)}>
+                <Text style={styles.getAccessBtnText}>Get Access</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.premiumBenefitsList}>
+              {enabledBenefits.slice(0, 3).map((b, i) => (
+                <View key={i} style={styles.premiumBenefitRow}>
+                  <Ionicons name="checkmark-circle-outline" size={16} color={PURPLE} style={{ marginRight: 8 }} />
+                  <Text style={styles.premiumBenefitText}>{getBenefitLabel(b)}</Text>
+                </View>
+              ))}
+              {enabledBenefits.length === 0 && (
+                <>
+                  <View style={styles.premiumBenefitRow}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={PURPLE} style={{ marginRight: 8 }} />
+                    <Text style={styles.premiumBenefitText}>3 access to the album</Text>
+                  </View>
+                  <View style={styles.premiumBenefitRow}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={PURPLE} style={{ marginRight: 8 }} />
+                    <Text style={styles.premiumBenefitText}>Offline mode</Text>
+                  </View>
+                  <View style={styles.premiumBenefitRow}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={PURPLE} style={{ marginRight: 8 }} />
+                    <Text style={styles.premiumBenefitText}>Download music to device</Text>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         )}
 
-        {/* Tabs: Tracks / What You Get / Exclusive Content */}
+        {/* ── More Tabs: What You Get / Exclusive Content ── */}
         <View style={styles.tabNav}>
           <TouchableOpacity
             style={[styles.tabNavItem, activeTab === 'TRACKS' && styles.tabNavItemActive]}
@@ -459,9 +574,16 @@ export default function MusicDetailScreen() {
                             <Ionicons name={isPlayingThis ? "pause" : "play"} size={16} color="#FFF" />
                           </View>
                         ) : (
-                          <View style={styles.previewBtn}>
-                            <Ionicons name={isPlayingThis ? "pause" : "play"} size={12} color={PURPLE} style={{ marginRight: 4 }} />
-                            <Text style={styles.previewBtnText}>5s Preview</Text>
+                          <View style={[styles.previewBtn, isPlayingThis && styles.previewBtnActive]}>
+                            <Ionicons
+                              name={isPlayingThis ? "pause" : "play"}
+                              size={12}
+                              color={isPlayingThis ? "#FFF" : PURPLE}
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text style={[styles.previewBtnText, isPlayingThis && styles.previewBtnTextActive]}>
+                              {isPlayingThis ? `${Math.max(0, 5 - (player.currentTime || 0))}s` : '5s Preview'}
+                            </Text>
                           </View>
                         )}
                       </View>
@@ -785,8 +907,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 48 : (StatusBar.currentHeight || 24) + 10,
     paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderColor: '#F3F4F6',
   },
@@ -803,11 +926,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 60,
   },
   coverWrapper: {
-    width: width,
-    height: width * 0.9,
+    width: '100%',
+    height: width * 0.78,
     position: 'relative',
     backgroundColor: '#111',
   },
@@ -815,6 +938,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  floatingBackBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : (StatusBar.currentHeight || 24) + 12,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeRow: {
     position: 'absolute',
@@ -848,39 +982,108 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
   },
-  titleSection: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  // remove old titleSection — replaced by inline rows below
+  titlePriceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 2,
   },
   releaseTitle: {
-    fontSize: 22,
+    flex: 1,
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+    lineHeight: 24,
+    marginRight: 10,
+  },
+  priceTagInline: {
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
     color: '#111827',
   },
   artistRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    paddingHorizontal: 16,
+    marginTop: 6,
+  },
+  artistAvatarThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+    backgroundColor: '#E5E7EB',
   },
   artistName: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Poppins-Medium',
-    color: '#4B5563',
+    color: '#374151',
   },
   metaSub: {
     fontSize: 13,
     fontFamily: 'Poppins-Regular',
     color: '#9CA3AF',
     marginTop: 4,
+    paddingHorizontal: 16,
+  },
+  descriptionText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#4B5563',
+    lineHeight: 19,
+    paddingHorizontal: 16,
+    marginTop: 10,
+  },
+  accessNowBtn: {
+    backgroundColor: PURPLE,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  accessNowBtnText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.3,
+  },
+  manageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    marginHorizontal: 16,
+    marginTop: 10,
+  },
+  manageBtnText: {
+    color: PURPLE,
+    fontSize: 12,
+    fontFamily: 'Poppins-Bold',
   },
   pricingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     marginTop: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -889,20 +1092,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
     color: '#6B7280',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   priceValue: {
     fontSize: 22,
     fontFamily: 'Poppins-Bold',
     color: '#111827',
+    marginTop: 2,
   },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: PURPLE,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 10,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   ctaButtonText: {
     color: '#FFFFFF',
@@ -930,6 +1139,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Regular',
     color: '#4B5563',
     marginTop: 2,
+  },
+  bannerUnlockBtn: {
+    backgroundColor: PURPLE,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  bannerUnlockBtnText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontFamily: 'Poppins-Bold',
   },
   tabNav: {
     flexDirection: 'row',
@@ -1039,10 +1260,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DDD6FE',
   },
+  previewBtnActive: {
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
+  },
   previewBtnText: {
     fontSize: 11,
     fontFamily: 'Poppins-Bold',
     color: PURPLE,
+  },
+  previewBtnTextActive: {
+    color: '#FFFFFF',
   },
   downloadTrackBtn: {
     flexDirection: 'row',
@@ -1434,5 +1662,158 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Poppins-Bold',
+  },
+  artistNoticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1.5,
+    borderColor: '#DDD6FE',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  artistNoticeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  artistNoticeTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#5B21B6',
+  },
+  artistNoticeSub: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#6D28D9',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  artistNoticeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PURPLE,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  artistNoticeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Poppins-Bold',
+  },
+
+  // ── Tracks Section (screenshot style) ──────────────
+  tracksSection: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  tracksSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  tracksDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 6,
+  },
+  trackSimpleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  trackSimpleNum: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    color: '#111827',
+    width: 28,
+  },
+  trackSimpleInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  trackSimpleTitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+  },
+  trackSimpleSub: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+
+  // ── Get Premium Access Card (screenshot style) ──────
+  premiumAccessCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 16,
+  },
+  premiumAccessTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  premiumAccessTitle: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  premiumAccessPrice: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    color: '#111827',
+  },
+  getAccessBtn: {
+    backgroundColor: PURPLE,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginLeft: 12,
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  getAccessBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+  },
+  premiumBenefitsList: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
+    gap: 10,
+  },
+  premiumBenefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  premiumBenefitText: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#374151',
+    flex: 1,
   },
 });

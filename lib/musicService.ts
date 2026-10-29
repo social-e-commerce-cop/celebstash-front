@@ -93,6 +93,20 @@ export interface ReleaseDetailResponse {
   connectedEvent: any;
   communityConversationId?: number;
   exclusiveContents?: MusicExclusiveContentItem[];
+  // Artist monitoring fields
+  totalAccessCount?: number;
+  totalRevenue?: number;
+  totalPlays?: number;
+  accessHolders?: {
+    id: number;
+    userId?: number;
+    username: string;
+    fullName?: string;
+    profilePicture?: string;
+    grantedAt: string;
+    isGift?: boolean;
+    giftedBy?: string;
+  }[];
 }
 
 export interface MusicEntitlementItem {
@@ -141,6 +155,56 @@ export interface ArtistStudioStats {
     price: number;
     isGift: boolean;
   }[];
+}
+
+export interface ListeningActivityPoint {
+  date: string;
+  label: string;
+  count: number;
+}
+
+export interface ArtistTrackStoryDto {
+  id: number;
+  trackNumber?: number;
+  title: string;
+  trackStory?: string;
+  producer?: string;
+  songwriter?: string;
+  featuredArtists?: string;
+  isExplicit?: boolean;
+  isBonusTrack?: boolean;
+  durationSeconds?: number;
+}
+
+export interface ArtistSongDetailsDto {
+  release: MusicReleaseItem;
+  id: number;
+  title: string;
+  artistName: string;
+  artistUsername: string;
+  coverArtUrl?: string;
+  status: 'PUBLISHED' | 'ARCHIVED' | 'DRAFT';
+  durationSeconds: number;
+  formattedDuration: string;
+  releaseDate: string;
+  totalPlays: number;
+  uniqueListeners: number;
+  replays: number;
+  activity7Days: ListeningActivityPoint[];
+  activity30Days: ListeningActivityPoint[];
+  activityAllTime: ListeningActivityPoint[];
+  isPaidRelease: boolean;
+  accessGranted: number;
+  purchases: number;
+  genre: string;
+  subgenre?: string;
+  releaseType: string;
+  price: number;
+  description?: string;
+  trackCount: number;
+  // Stories
+  releaseStory?: string;
+  tracks?: ArtistTrackStoryDto[];
 }
 
 export const musicService = {
@@ -207,6 +271,31 @@ export const musicService = {
     if (artistId) params.append('artistId', String(artistId));
     const qs = params.toString();
     return apiClient.get<MusicReleaseItem[]>(`/api/music/artist/releases${qs ? `?${qs}` : ''}`);
+  },
+
+  // Get private artist song details with real stats, activity, access, and song info
+  async getArtistSongDetails(releaseId: number): Promise<ArtistSongDetailsDto> {
+    return apiClient.get<ArtistSongDetailsDto>(`/api/music/artist/releases/${releaseId}/details`);
+  },
+
+  // Archive release from public view while preserving history
+  async archiveRelease(releaseId: number): Promise<MusicReleaseItem> {
+    return apiClient.post<MusicReleaseItem>(`/api/music/artist/releases/${releaseId}/archive`);
+  },
+
+  // Unarchive release
+  async unarchiveRelease(releaseId: number): Promise<MusicReleaseItem> {
+    return apiClient.post<MusicReleaseItem>(`/api/music/artist/releases/${releaseId}/unarchive`);
+  },
+
+  // Record a valid play event when audio starts playback
+  async recordPlay(trackId: number): Promise<any> {
+    return apiClient.post(`/api/music/tracks/${trackId}/play`);
+  },
+
+  // Update release metadata (edit song)
+  async updateRelease(releaseId: number, payload: any): Promise<MusicReleaseItem> {
+    return apiClient.put<MusicReleaseItem>(`/api/music/${releaseId}`, payload);
   },
 
   // Stream URL

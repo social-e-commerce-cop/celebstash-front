@@ -19,6 +19,8 @@ export interface Song {
   isPermanent?: boolean;
   playsRemaining?: number;
   year?: string | number;
+  isPreview?: boolean;
+  maxPlaySeconds?: number;
 }
 
 const STORAGE_KEY = 'cs_live_unlocked_library_v2';

@@ -21,6 +21,7 @@ import { followService } from '@/lib/followService';
 import { resolveImageUrl } from '@/lib/apiClient';
 import { getSessionUser } from '@/lib/session';
 import { formatRelativeTime, parseServerDate } from '@/lib/time';
+import { parseTimestamp } from '@/lib/dateUtils';
 
 const { height } = Dimensions.get('window');
 

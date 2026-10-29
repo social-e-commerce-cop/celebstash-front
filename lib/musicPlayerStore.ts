@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Song } from './libraryStore';
+import { musicService } from './musicService';
 
 let currentSong: Song | null = null;
 let isPlaying: boolean = false;
@@ -15,8 +16,17 @@ let expoPlayer: any = null;
 let webAudio: any = null;
 
 const playerListeners = new Set<() => void>();
+const previewEndedListeners = new Set<(song: Song) => void>();
 
 const notify = () => playerListeners.forEach(l => l());
+const notifyPreviewEnded = (song: Song) => previewEndedListeners.forEach(l => {
+  try { l(song); } catch (e) {}
+});
+
+export const onPreviewEnded = (listener: (song: Song) => void) => {
+  previewEndedListeners.add(listener);
+  return () => { previewEndedListeners.delete(listener); };
+};
 
 const parseDuration = (dur?: string): number => {
   if (!dur) return 180; // 3 mins default
@@ -51,7 +61,18 @@ const playWebAudio = (url: string) => {
 
     webAudio.ontimeupdate = () => {
       currentTime = Math.floor(webAudio.currentTime || 0);
-      if (webAudio.duration && !isNaN(webAudio.duration) && webAudio.duration > 0) {
+      const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
+      const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
+
+      if (maxSeconds > 0 && currentTime >= maxSeconds) {
+        currentTime = maxSeconds;
+        const songThatEnded = currentSong;
+        pauseSong();
+        if (songThatEnded) notifyPreviewEnded(songThatEnded);
+        return;
+      }
+
+      if (!isPreview && webAudio.duration && !isNaN(webAudio.duration) && webAudio.duration > 0) {
         durationSeconds = Math.round(webAudio.duration);
       }
       notify();
@@ -119,7 +140,18 @@ const startNativeTimer = () => {
     if (expoPlayer) {
       try {
         currentTime = Math.floor(expoPlayer.currentTime || 0);
-        if (expoPlayer.duration && expoPlayer.duration > 0) {
+        const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
+        const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
+
+        if (maxSeconds > 0 && currentTime >= maxSeconds) {
+          currentTime = maxSeconds;
+          const songThatEnded = currentSong;
+          pauseSong();
+          if (songThatEnded) notifyPreviewEnded(songThatEnded);
+          return;
+        }
+
+        if (!isPreview && expoPlayer.duration && expoPlayer.duration > 0) {
           durationSeconds = Math.round(expoPlayer.duration);
         }
         if (currentTime >= durationSeconds && durationSeconds > 0) {
@@ -130,7 +162,7 @@ const startNativeTimer = () => {
         notify();
       } catch (e) {}
     }
-  }, 500);
+  }, 250);
 };
 
 const startFallbackTimer = () => {
@@ -138,6 +170,17 @@ const startFallbackTimer = () => {
   timerId = setInterval(() => {
     if (isPlaying) {
       currentTime += 1;
+      const isPreview = Boolean(currentSong?.isPreview || currentSong?.maxPlaySeconds);
+      const maxSeconds = currentSong?.maxPlaySeconds || (isPreview ? 5 : 0);
+
+      if (maxSeconds > 0 && currentTime >= maxSeconds) {
+        currentTime = maxSeconds;
+        const songThatEnded = currentSong;
+        pauseSong();
+        if (songThatEnded) notifyPreviewEnded(songThatEnded);
+        return;
+      }
+
       if (currentTime >= durationSeconds && durationSeconds > 0) {
         currentTime = 0;
         isPlaying = false;
@@ -157,10 +200,16 @@ export const getPlayerState = () => ({
 export const playSong = (song: Song) => {
   const isDifferent = currentSong?.id !== song.id;
   currentSong = song;
-  durationSeconds = song.durationSeconds || parseDuration(song.duration);
+  const isPreview = Boolean(song.isPreview || song.maxPlaySeconds);
+  durationSeconds = isPreview
+    ? (song.maxPlaySeconds || 5)
+    : (song.durationSeconds || parseDuration(song.duration));
 
   if (isDifferent) {
     currentTime = 0;
+    if (song.id && !isNaN(Number(song.id))) {
+      musicService.recordPlay(Number(song.id)).catch(() => {});
+    }
   }
 
   const url = getEffectiveAudioUrl(song);
